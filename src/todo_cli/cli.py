@@ -14,9 +14,17 @@ from .storage import Storage
 from .todo import Todo, TodoStatus, Priority
 from .project import Project
 from .parser import parse_task_input, TaskBuilder, ParseError
+from .theme import (
+    get_themed_console, 
+    show_startup_banner, 
+    show_quick_help,
+    get_priority_style,
+    get_status_emoji,
+    PRODUCTIVITY_NINJA_THEME
+)
 
 
-console = Console()
+console = get_themed_console()
 
 
 def get_storage() -> Storage:
@@ -26,49 +34,44 @@ def get_storage() -> Storage:
 
 
 def format_todo_for_display(todo: Todo, show_id: bool = True) -> str:
-    """Format a todo for display."""
-    # Status emoji
-    status_emoji = {
-        TodoStatus.PENDING: "⏳",
-        TodoStatus.IN_PROGRESS: "🔄",
-        TodoStatus.COMPLETED: "✅",
-        TodoStatus.CANCELLED: "❌",
-        TodoStatus.BLOCKED: "🚫"
-    }
+    """Format a todo for display with themed styling."""
+    # Get themed status emoji
+    status_icon = get_status_emoji(todo.status.value, todo.pinned)
     
-    # Priority color
-    priority_colors = {
-        Priority.CRITICAL: "red",
-        Priority.HIGH: "yellow",
-        Priority.MEDIUM: "white",
-        Priority.LOW: "dim"
-    }
+    # Get priority style
+    priority_style = get_priority_style(todo.priority.value)
     
-    status_icon = status_emoji.get(todo.status, "⏳")
-    priority_color = priority_colors.get(todo.priority, "white")
-    
-    # Format text
+    # Format text parts
     text_parts = []
     if show_id:
-        text_parts.append(f"[dim]{todo.id}[/dim]")
+        text_parts.append(f"[muted]{todo.id}[/muted]")
     
-    if todo.pinned:
-        text_parts.append("⭐")
+    # Main task text with priority styling
+    text_parts.append(f"{status_icon} [{priority_style}]{todo.text}[/{priority_style}]")
     
-    text_parts.append(f"{status_icon} [{priority_color}]{todo.text}[/{priority_color}]")
-    
-    # Add metadata
+    # Add metadata with themed colors
     if todo.tags:
-        text_parts.append(f"[cyan]{''.join(['@' + tag for tag in todo.tags])}[/cyan]")
+        tags_str = ' '.join(['@' + tag for tag in todo.tags])
+        text_parts.append(f"[tag]{tags_str}[/tag]")
+    
+    if todo.context:
+        context_str = ' '.join(['@' + ctx for ctx in todo.context])
+        text_parts.append(f"[tag]{context_str}[/tag]")
     
     if todo.due_date:
+        date_str = todo.due_date.strftime('%Y-%m-%d')
         if todo.is_overdue():
-            text_parts.append(f"[red]!{todo.due_date.strftime('%Y-%m-%d')}[/red]")
+            text_parts.append(f"[due_date_overdue]!{date_str}[/due_date_overdue]")
         else:
-            text_parts.append(f"[blue]!{todo.due_date.strftime('%Y-%m-%d')}[/blue]")
+            text_parts.append(f"[due_date]!{date_str}[/due_date]")
     
     if todo.assignees:
-        text_parts.append(f"[green]{' '.join(['+' + assignee for assignee in todo.assignees])}[/green]")
+        assignee_str = ' '.join(['+' + assignee for assignee in todo.assignees])
+        text_parts.append(f"[assignee]{assignee_str}[/assignee]")
+    
+    if todo.stakeholders:
+        stakeholder_str = ' '.join(['&' + stakeholder for stakeholder in todo.stakeholders])
+        text_parts.append(f"[accent]{stakeholder_str}[/accent]")
     
     return " ".join(text_parts)
 
@@ -206,9 +209,9 @@ def add(input_text, project, dry_run, suggest):
     
     # Save project
     if storage.save_project(proj, todos):
-        console.print(f"[green]✅ Added task {todo_id} to {target_project}[/green]")
+        console.print(f"[success]✅ Added task {todo_id} to {target_project}[/success]")
     else:
-        console.print(f"[red]❌ Failed to add task[/red]")
+        console.print(f"[error]❌ Failed to add task[/error]")
         sys.exit(1)
 
 
@@ -231,10 +234,11 @@ def dashboard():
     
     if not all_todos:
         console.print(Panel.fit(
-            "[yellow]Welcome to Todo CLI![/yellow]\\n\\n"
+            "[accent]Welcome to Productivity Ninja CLI![/accent]\\n\\n"
             "Get started by adding your first task:\\n"
-            "[cyan]todo add \"Your first task\"[/cyan]",
-            title="📋 Todo Dashboard"
+            "[primary]todo add[/primary] [muted]\"Review architecture proposal @meetings due friday\"[/muted]",
+            title="[header]📋 Todo Dashboard[/header]",
+            border_style="border"
         ))
         return
     
@@ -258,29 +262,29 @@ def dashboard():
             upcoming_todos.append(todo)
     
     # Create dashboard
-    console.print(Panel.fit("📋 Todo Dashboard", style="bold blue"))
+    console.print(Panel.fit("[header]📋 Todo Dashboard[/header]", border_style="border"))
     
     if pinned_todos:
-        console.print("\\n[bold yellow]⭐ Pinned Tasks[/bold yellow]")
+        console.print("\\n[todo_pinned]⭐ Pinned Tasks[/todo_pinned]")
         for todo in pinned_todos[:5]:
             console.print(f"  {format_todo_for_display(todo)}")
         if len(pinned_todos) > 5:
-            console.print(f"  [dim]... and {len(pinned_todos) - 5} more[/dim]")
+            console.print(f"  [muted]... and {len(pinned_todos) - 5} more[/muted]")
     
     if overdue_todos:
-        console.print("\\n[bold red]🔥 Overdue Tasks[/bold red]")
+        console.print("\\n[critical]🔥 Overdue Tasks[/critical]")
         for todo in overdue_todos[:5]:
             console.print(f"  {format_todo_for_display(todo)}")
         if len(overdue_todos) > 5:
-            console.print(f"  [dim]... and {len(overdue_todos) - 5} more[/dim]")
+            console.print(f"  [muted]... and {len(overdue_todos) - 5} more[/muted]")
     
     if today_todos:
-        console.print("\\n[bold green]📅 Due Today[/bold green]")
+        console.print("\\n[success]📅 Due Today[/success]")
         for todo in today_todos[:5]:
             console.print(f"  {format_todo_for_display(todo)}")
     
     if upcoming_todos:
-        console.print("\\n[bold cyan]📆 Due This Week[/bold cyan]")
+        console.print("\\n[primary]📆 Due This Week[/primary]")
         for todo in upcoming_todos[:5]:
             console.print(f"  {format_todo_for_display(todo)}")
     
@@ -289,7 +293,7 @@ def dashboard():
     completed_todos = sum(1 for t in all_todos if t.completed)
     active_todos = sum(1 for t in all_todos if t.is_active())
     
-    console.print(f"\\n[dim]Total: {total_todos} | Active: {active_todos} | Completed: {completed_todos}[/dim]")
+    console.print(f"\\n[muted]Total: {total_todos} | Active: {active_todos} | Completed: {completed_todos}[/muted]")
 
 
 @cli.command()
@@ -486,11 +490,13 @@ def projects():
 @click.group(invoke_without_command=True)
 @click.option("--config", type=click.Path(), help="Path to config file")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@click.option("--no-banner", is_flag=True, help="Skip the startup banner")
 @click.pass_context
-def main(ctx, config, verbose):
-    """Todo CLI - A powerful command-line todo application."""
+def main(ctx, config, verbose, no_banner):
+    """Productivity Ninja CLI - Master Your Tasks. Unleash Your Potential."""
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = verbose
+    ctx.obj['no_banner'] = no_banner
     
     # Load configuration
     try:
@@ -500,11 +506,14 @@ def main(ctx, config, verbose):
         else:
             get_config()
     except Exception as e:
-        console.print(f"[red]Configuration error: {e}[/red]")
+        console.print(f"[error]Configuration error: {e}[/error]")
         sys.exit(1)
     
-    # If no command provided, show dashboard
+    # If no command provided, show startup experience
     if ctx.invoked_subcommand is None:
+        if not no_banner:
+            show_startup_banner(console)
+            show_quick_help(console)
         ctx.invoke(dashboard)
 
 
