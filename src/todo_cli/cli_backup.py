@@ -1,4 +1,4 @@
-"""New clean command-line interface for Todo CLI."""
+"""Command-line interface for Todo CLI."""
 
 import sys
 from typing import Optional
@@ -73,11 +73,11 @@ def format_todo_for_display(todo: Todo, show_id: bool = True) -> str:
     return " ".join(text_parts)
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.option("--config", type=click.Path(), help="Path to config file")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.pass_context
-def cli(ctx, config, verbose):
+def main(ctx, config, verbose):
     """Todo CLI - A powerful command-line todo application."""
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = verbose
@@ -92,9 +92,18 @@ def cli(ctx, config, verbose):
     except Exception as e:
         console.print(f"[red]Configuration error: {e}[/red]")
         sys.exit(1)
+    
+    # If no command provided, show dashboard
+    if ctx.invoked_subcommand is None:
+        console.print("No command provided - would show dashboard")
+        # try:
+        #     ctx.invoke(dashboard)
+        # except Exception as e:
+        #     console.print(f"[red]Dashboard error: {e}[/red]")
+        #     sys.exit(1)
 
 
-@cli.command()
+@main.command()
 @click.argument("input_text", required=True)
 @click.option("--project", "-p", help="Default project if not specified in text")
 @click.option("--dry-run", is_flag=True, help="Parse without saving to see what would be created")
@@ -212,7 +221,197 @@ def add(input_text, project, dry_run, suggest):
         sys.exit(1)
 
 
-@cli.command()
+@main.command()
+@click.option("--project", "-p", help="Filter by project")
+@click.option("--status", type=click.Choice(['pending', 'in_progress', 'completed', 'cancelled', 'blocked']), 
+              help="Filter by status")
+@click.option("--priority", type=click.Choice(['critical', 'high', 'medium', 'low']), 
+              help="Filter by priority")
+@click.option("--overdue", is_flag=True, help="Show only overdue tasks")
+@click.option("--pinned", is_flag=True, help="Show only pinned tasks")
+@click.option("--limit", "-l", type=int, default=50, help="Limit number of results")
+def list(project, status, priority, overdue, pinned, limit):
+    """List todo items."""
+    storage = get_storage()
+    config = get_config()
+    
+    # Get all todos from all projects or specific project
+    all_todos = []
+    
+    if project:
+        projects = [project]
+    else:
+        projects = storage.list_projects()
+        if not projects:
+            projects = [config.default_project]
+    
+    for proj_name in projects:
+        proj, todos = storage.load_project(proj_name)
+        if todos:
+            all_todos.extend(todos)
+    
+    if not all_todos:
+        console.print("[yellow]No todos found.[/yellow]")
+        return
+    
+    # Apply filters
+    filtered_todos = all_todos
+    
+    if status:
+        filtered_todos = [t for t in filtered_todos if t.status == TodoStatus(status)]
+    
+    if priority:
+        filtered_todos = [t for t in filtered_todos if t.priority == Priority(priority)]
+    
+    if overdue:
+        filtered_todos = [t for t in filtered_todos if t.is_overdue()]
+    
+    if pinned:
+        filtered_todos = [t for t in filtered_todos if t.pinned]
+    
+    # Sort: pinned first, then by priority, then by due date
+    priority_order = {Priority.CRITICAL: 0, Priority.HIGH: 1, Priority.MEDIUM: 2, Priority.LOW: 3}
+    
+    def sort_key(todo):
+        return (
+            not todo.pinned,  # Pinned tasks first
+            priority_order.get(todo.priority, 2),
+            todo.due_date or datetime.max,
+            todo.id
+        )
+    
+    filtered_todos.sort(key=sort_key)
+    
+    # Limit results
+    if limit:
+        filtered_todos = filtered_todos[:limit]
+    
+    # Display todos
+    if filtered_todos:
+        console.print(f"[bold]Found {len(filtered_todos)} todos:[/bold]")
+        for todo in filtered_todos:
+            console.print(format_todo_for_display(todo))
+    else:
+        console.print("[yellow]No todos match the specified filters.[/yellow]")
+
+
+@main.command()
+@click.argument("todo_id", type=int)
+@click.option("--project", "-p", help="Project name (if not specified, searches all projects)")
+def done(todo_id, project):
+    """Mark a todo as completed."""
+    storage = get_storage()
+    
+    # Find the todo
+    found_todo = None
+    found_project = None
+    found_todos = None
+    
+    if project:
+        projects = [project]
+    else:
+        config = get_config()
+        projects = storage.list_projects()
+        if not projects:
+            projects = [config.default_project]
+    
+    for proj_name in projects:
+        proj, todos = storage.load_project(proj_name)
+        for todo in todos:
+            if todo.id == todo_id:
+                found_todo = todo
+                found_project = proj
+                found_todos = todos
+                break
+        if found_todo:
+            break
+    
+    if not found_todo:
+        console.print(f"[red]❌ Todo with ID {todo_id} not found[/red]")
+        sys.exit(1)
+    
+    # Mark as completed
+    found_todo.complete()
+    
+    # Save project
+    if storage.save_project(found_project, found_todos):
+        console.print(f"[green]✅ Completed task {todo_id}: {found_todo.text}[/green]")
+    else:
+        console.print(f"[red]❌ Failed to update task[/red]")
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("todo_id", type=int)
+@click.option("--project", "-p", help="Project name")
+def pin(todo_id, project):
+    """Pin/unpin a todo."""
+    storage = get_storage()
+    
+    # Find the todo (similar to done command)
+    found_todo = None
+    found_project = None
+    found_todos = None
+    
+    if project:
+        projects = [project]
+    else:
+        config = get_config()
+        projects = storage.list_projects()
+        if not projects:
+            projects = [config.default_project]
+    
+    for proj_name in projects:
+        proj, todos = storage.load_project(proj_name)
+        for todo in todos:
+            if todo.id == todo_id:
+                found_todo = todo
+                found_project = proj
+                found_todos = todos
+                break
+        if found_todo:
+            break
+    
+    if not found_todo:
+        console.print(f"[red]❌ Todo with ID {todo_id} not found[/red]")
+        sys.exit(1)
+    
+    # Toggle pin status
+    if found_todo.pinned:
+        found_todo.unpin()
+        action = "Unpinned"
+    else:
+        found_todo.pin()
+        action = "Pinned"
+    
+    # Save project
+    if storage.save_project(found_project, found_todos):
+        console.print(f"[green]✅ {action} task {todo_id}: {found_todo.text}[/green]")
+    else:
+        console.print(f"[red]❌ Failed to update task[/red]")
+        sys.exit(1)
+
+
+@main.command()
+def projects():
+    """List all projects."""
+    storage = get_storage()
+    project_names = storage.list_projects()
+    
+    if not project_names:
+        console.print("[yellow]No projects found.[/yellow]")
+        return
+    
+    console.print("[bold]Projects:[/bold]")
+    for name in sorted(project_names):
+        proj, todos = storage.load_project(name)
+        if proj:
+            total = len(todos)
+            completed = sum(1 for t in todos if t.completed)
+            console.print(f"  {name} ({completed}/{total} completed)")
+
+
+@main.command()
 def dashboard():
     """Show dashboard with overview of tasks."""
     storage = get_storage()
@@ -292,35 +491,21 @@ def dashboard():
     console.print(f"\\n[dim]Total: {total_todos} | Active: {active_todos} | Completed: {completed_todos}[/dim]")
 
 
-# Create main function that invokes dashboard by default
-@click.group(invoke_without_command=True)
-@click.option("--config", type=click.Path(), help="Path to config file")
-@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
-@click.pass_context
-def main(ctx, config, verbose):
-    """Todo CLI - A powerful command-line todo application."""
-    ctx.ensure_object(dict)
-    ctx.obj['verbose'] = verbose
-    
-    # Load configuration
-    try:
-        if config:
-            from pathlib import Path
-            load_config(Path(config))
-        else:
-            get_config()
-    except Exception as e:
-        console.print(f"[red]Configuration error: {e}[/red]")
-        sys.exit(1)
-    
-    # If no command provided, show dashboard
-    if ctx.invoked_subcommand is None:
-        ctx.invoke(dashboard)
-
-
-# Add all commands to the main group
-main.add_command(add)
-main.add_command(dashboard)
+@main.command()
+@click.option("--version", is_flag=True, help="Show version")
+def info(version):
+    """Show application information."""
+    if version:
+        from . import __version__
+        console.print(f"Todo CLI version {__version__}")
+    else:
+        config = get_config()
+        console.print(f"Data directory: {config.data_dir}")
+        console.print(f"Configuration: {config.get_config_path()}")
+        
+        storage = get_storage()
+        projects = storage.list_projects()
+        console.print(f"Projects: {len(projects)}")
 
 
 if __name__ == "__main__":

@@ -3,10 +3,17 @@
 > A powerful, feature-rich command-line todo application with advanced task management capabilities
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Phase 1 Complete](https://img.shields.io/badge/phase-1%20complete-green.svg)](./PLAN.md)
-[![Tests Passing](https://img.shields.io/badge/tests-passing-green.svg)](#testing)
+[![Phase 2 Complete](https://img.shields.io/badge/phase-2%20complete-green.svg)](./PLAN.md)
+[![Tests Passing](https://img.shields.io/badge/tests-32%20passing-green.svg)](#testing)
 
-## 🚀 Features (Phase 1 Complete)
+## 🚀 Features (Phase 2 Complete)
+
+### 🧠 **NEW: Smart Natural Language Parsing**
+- **One-Line Task Creation**: Rich metadata extraction from natural language
+- **Smart Date Parsing**: "tomorrow", "next Friday", "end of month", ISO dates
+- **Intelligent Metadata Detection**: Auto-categorizes @contexts, #projects, ~priorities, +people
+- **Error Prevention**: Smart suggestions for typos and invalid input
+- **Advanced Syntax**: Time estimates, energy levels, effort sizing, waiting dependencies
 
 ### 📋 Enhanced Task Management
 - **Rich Data Model**: 40+ fields including priorities, scheduling, collaboration, progress tracking
@@ -65,62 +72,87 @@ uv run python -m pytest
 
 ## 🎯 Quick Start
 
-### Basic Usage
+### 🌟 **NEW: Natural Language Task Creation**
 ```bash
-# Show dashboard (default command)
+# Simple task
+todo add "Review pull request"
+
+# Rich task with smart parsing - all metadata extracted automatically!
+todo add "Review security PR #webapp @urgent @work ~high +reviewer due tomorrow est:2h [PIN]"
+
+# Meeting with stakeholders and effort estimation
+todo add "Team standup #project-alpha @meetings ~medium +team &stakeholders due friday 2pm *large"
+
+# Personal task with energy and dependencies
+todo add "Call doctor @phone ~high energy:low est:15m (waiting: insurance approval)"
+
+# Quick pinned reminder
+todo add "Submit expense report due end of week [P]"
+```
+
+### 🎨 Natural Language Syntax Guide
+- **Projects**: `#project-name` → Auto-assigns to project
+- **Tags**: `@urgent`, `@meeting` → Regular tags
+- **Contexts**: `@home`, `@work`, `@phone` → Auto-categorized contexts
+- **Priority**: `~critical`, `~high`, `~medium`, `~low`
+- **Assignees**: `+john`, `+team` → People assigned
+- **Stakeholders**: `&manager`, `&client` → People to keep informed
+- **Due Dates**: `due tomorrow`, `due friday 2pm`, `due 2025-12-25`
+- **Time Estimates**: `est:2h`, `est:30m`, `est:45min`
+- **Energy Level**: `energy:high`, `energy:low`
+- **Effort Size**: `*large`, `*small`, `*medium`
+- **Pinned**: `[PIN]`, `[PINNED]`, `[P]`
+- **Waiting For**: `(waiting: approval, review)`
+- **Recurrence**: `%weekly`, `%daily`
+- **URLs**: Automatically detected and extracted
+
+### Basic Commands
+```bash
+# Show dashboard (default)
 todo
 
-# Add a task
-todo add "Review pull request #123"
-
-# Add a task with metadata
-todo add "Fix authentication bug" --priority high --due 2025-09-20 -t urgent -t backend
-
-# List all tasks
+# List and filter tasks
 todo list
-
-# List tasks with filters
 todo list --overdue
 todo list --priority high
 todo list --project work
 
-# Complete a task
+# Complete and manage tasks
 todo done 1
-
-# Pin/unpin important tasks
 todo pin 2
-
-# Show all projects
 todo projects
-```
 
-### Advanced Task Syntax
-```bash
-# Rich metadata in task creation
-todo add "Review PR" --priority high --due 2025-09-20 --tags code-review urgent --assignee john --pin
+# Get smart suggestions for typos
+todo add "Bug fix ~invalid" --dry-run  # Shows helpful error message
 
-# Filter and search
-todo list --status in_progress
-todo list --pinned
-todo list --project work --priority critical
+# Preview without saving
+todo add "Complex task #proj @tag ~high" --dry-run
 ```
 
 ## 📊 Dashboard View
 
-The dashboard provides an at-a-glance view of your tasks:
+The dashboard provides an at-a-glance view of your tasks with rich formatting:
 
 ```
 📋 Todo Dashboard
 
 ⭐ Pinned Tasks
-  1 ⏳ Review pull request #123 @urgent !2025-09-20 ~high +john
-  3 🔄 Fix authentication bug @backend @security ~critical
+  1 ⭐ ⏳ Review security PR @urgent !2025-09-15 +reviewer
+  Context: @work
+  Estimate: 2h 0m
+  
+  3 🔄 Team standup @meetings !2025-09-19 +team
+  Effort: *large
 
 🔥 Overdue Tasks
-  2 ⏳ Update documentation @docs !2025-09-15 ~medium
+  2 ⏳ Update documentation @docs !2025-09-14 ~medium
 
 📅 Due Today
-  4 ⏳ Team standup meeting @meeting ~medium +team
+  4 ⏳ Call doctor
+  Context: @phone
+  Energy: low
+  Estimate: 15m
+  Waiting for: insurance approval
 
 Total: 12 | Active: 8 | Completed: 4
 ```
@@ -208,7 +240,7 @@ uv run python -m pytest --cov=src/todo_cli --cov-report=term-missing
 uv run python -m pytest tests/test_todo.py -v
 ```
 
-**Test Coverage**: 11 tests covering core functionality with 100% pass rate.
+**Test Coverage**: 43 tests covering core functionality and natural language parsing with 100% pass rate.
 
 ## 🏗️ Architecture
 
@@ -221,6 +253,7 @@ src/todo_cli/
 ├── project.py          # Project management
 ├── config.py           # Configuration system
 ├── storage.py          # Markdown + YAML storage
+├── parser.py           # Natural language parsing engine
 └── cli.py              # Click-based CLI interface
 ```
 
@@ -241,18 +274,35 @@ src/todo_cli/
 - [x] Configuration system
 - [x] Comprehensive test suite
 
-### 🔄 Phase 2: Smart Parsing & Natural Language (Next)
-- [ ] Enhanced natural language parsing
-- [ ] Smart date parsing ("tomorrow", "next Friday")
-- [ ] Improved task syntax parsing
-- [ ] Better error messages and suggestions
+### ✅ Phase 2: Smart Parsing & Natural Language (Complete)
+- [x] **Advanced Natural Language Parsing** - Extract rich metadata from plain text
+- [x] **Smart Date Parsing** - "tomorrow", "next Friday", "end of month", ISO dates
+- [x] **Intelligent Metadata Detection** - Auto-categorizes @contexts, #projects, ~priorities
+- [x] **Error Prevention & Suggestions** - Smart typo detection and helpful corrections
+- [x] **Comprehensive Syntax Support** - Time estimates, energy levels, waiting dependencies
+- [x] **32 Parser Tests** - Full coverage of parsing scenarios and edge cases
+- [x] **Rich Preview System** - See exactly what will be created before saving
 
-### 🔮 Phase 3: Advanced Features (Planned)
-- [ ] Recurring tasks
-- [ ] Advanced dashboard views
-- [ ] Export functionality
-- [ ] Plugin system
+### 🔄 Phase 3: Enhanced Query Engine (Next)
+- [ ] Advanced search and filtering
+- [ ] Smart task recommendations
+- [ ] Query shortcuts and saved searches
+- [ ] Advanced sorting options
+- [ ] Bulk operations
+
+### 🔮 Phase 4: Smart Integration Features (Planned)
+- [ ] Recurring tasks with smart scheduling
+- [ ] Notification system
+- [ ] Calendar integration
+- [ ] Export functionality (JSON, CSV, etc.)
 - [ ] Sync capabilities
+
+### 🌟 Phase 5: Advanced Reporting & Analytics (Planned)
+- [ ] Productivity insights
+- [ ] Time tracking reports
+- [ ] Project analytics
+- [ ] Custom dashboards
+- [ ] Plugin system
 
 ## 🤝 Contributing
 
@@ -296,6 +346,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [uv](https://github.com/astral-sh/uv) for fast Python package management
 - [PyYAML](https://pyyaml.org/) for configuration management
 - [python-frontmatter](https://python-frontmatter.readthedocs.io/) for markdown processing
+- [parsedatetime](https://github.com/bear/parsedatetime) for natural language date parsing
+- [fuzzywuzzy](https://github.com/seatgeek/fuzzywuzzy) for intelligent typo detection
 
 ## 📞 Support
 
@@ -305,4 +357,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Phase 1 Complete** ✨ | Built with ❤️ for productivity enthusiasts
+**Phase 2 Complete** ✨ | Built with ❤️ for productivity enthusiasts
+
+> **NEW**: Natural language parsing makes task creation incredibly intuitive!
+> Try: `todo add "Review PR #webapp @urgent due tomorrow est:2h [PIN]"`
