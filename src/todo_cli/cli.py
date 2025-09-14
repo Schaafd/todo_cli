@@ -300,13 +300,16 @@ def dashboard():
 @click.option("--project", "-p", help="Filter by project")
 @click.option("--status", type=click.Choice(['pending', 'in_progress', 'completed', 'cancelled', 'blocked']), 
               help="Filter by status")
-@click.option("--priority", type=click.Choice(['critical', 'high', 'medium', 'low']), 
+@click.option("--filter-priority", type=click.Choice(['critical', 'high', 'medium', 'low']), 
               help="Filter by priority")
 @click.option("--overdue", is_flag=True, help="Show only overdue tasks")
 @click.option("--pinned", is_flag=True, help="Show only pinned tasks")
 @click.option("--limit", "-l", type=int, default=50, help="Limit number of results")
-def list_todos(project, status, priority, overdue, pinned, limit):
-    """List todo items."""
+@click.option("--priority-sort", is_flag=True, help="Sort tasks by priority (highest to lowest) instead of ID")
+def list_todos(project, status, filter_priority, overdue, pinned, limit, priority_sort):
+    """List todo items organized by date views."""
+    from .theme import organize_todos_by_date, get_view_header
+    
     storage = get_storage()
     config = get_config()
     
@@ -335,8 +338,8 @@ def list_todos(project, status, priority, overdue, pinned, limit):
     if status:
         filtered_todos = [t for t in filtered_todos if t.status == TodoStatus(status)]
     
-    if priority:
-        filtered_todos = [t for t in filtered_todos if t.priority == Priority(priority)]
+    if filter_priority:
+        filtered_todos = [t for t in filtered_todos if t.priority == Priority(filter_priority)]
     
     if overdue:
         filtered_todos = [t for t in filtered_todos if t.is_overdue()]
@@ -344,30 +347,52 @@ def list_todos(project, status, priority, overdue, pinned, limit):
     if pinned:
         filtered_todos = [t for t in filtered_todos if t.pinned]
     
-    # Sort: pinned first, then by priority, then by due date
-    priority_order = {Priority.CRITICAL: 0, Priority.HIGH: 1, Priority.MEDIUM: 2, Priority.LOW: 3}
-    
-    def sort_key(todo):
-        return (
-            not todo.pinned,  # Pinned tasks first
-            priority_order.get(todo.priority, 2),
-            todo.due_date or datetime.max,
-            todo.id
-        )
-    
-    filtered_todos.sort(key=sort_key)
-    
-    # Limit results
-    if limit:
-        filtered_todos = filtered_todos[:limit]
-    
-    # Display todos
-    if filtered_todos:
-        console.print(f"[bold]Found {len(filtered_todos)} todos:[/bold]")
-        for todo in filtered_todos:
-            console.print(format_todo_for_display(todo))
+    # If any filters are applied, use the old display format
+    if status or filter_priority or overdue or pinned:
+        # Sort: pinned first, then by priority, then by due date
+        priority_order = {Priority.CRITICAL: 0, Priority.HIGH: 1, Priority.MEDIUM: 2, Priority.LOW: 3}
+        
+        def sort_key(todo):
+            return (
+                not todo.pinned,  # Pinned tasks first
+                priority_order.get(todo.priority, 2),
+                todo.due_date or datetime.max,
+                todo.id
+            )
+        
+        filtered_todos.sort(key=sort_key)
+        
+        # Limit results
+        if limit:
+            filtered_todos = filtered_todos[:limit]
+        
+        # Display todos
+        if filtered_todos:
+            console.print(f"[bold]Found {len(filtered_todos)} todos:[/bold]")
+            for todo in filtered_todos:
+                console.print(format_todo_for_display(todo))
+        else:
+            console.print("[yellow]No todos match the specified filters.[/yellow]")
     else:
-        console.print("[yellow]No todos match the specified filters.[/yellow]")
+        # Use organized date view when no filters are applied
+        views = organize_todos_by_date(filtered_todos, sort_by_priority=priority_sort)
+        
+        # Display each view
+        for view_name in ['today', 'tomorrow', 'upcoming', 'backlog']:
+            view_todos = views[view_name]
+            
+            # Apply limit across all views if specified
+            if limit and view_todos:
+                view_todos = view_todos[:limit]
+            
+            if view_todos or view_name in ['today', 'tomorrow']:  # Always show today/tomorrow even if empty
+                console.print(f"\n{get_view_header(view_name, len(view_todos))}")
+                
+                if view_todos:
+                    for todo in view_todos:
+                        console.print(f"  {format_todo_for_display(todo)}")
+                else:
+                    console.print("  [muted]No tasks[/muted]")
 
 
 @cli.command()

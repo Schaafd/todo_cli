@@ -9,7 +9,8 @@ from rich.theme import Theme
 from rich.text import Text
 from rich.panel import Panel
 from rich.align import Align
-from typing import Dict, Any
+from typing import Dict, Any, List
+from datetime import datetime, date
 
 
 # City Lights inspired color palette
@@ -115,9 +116,9 @@ def show_startup_banner(console: Console) -> None:
     title_text = Text(get_ascii_title(), style="primary")
     
     subtitle = Text("⚡ Master Your Tasks. Unleash Your Potential. ⚡", style="accent")
-    version_info = Text("v1.0.0 | Built for Data Engineering Leaders", style="muted")
+    version_info = Text("v1.0.0", style="muted")
     
-    # Create the banner panel
+    # Create the banner panel with centered title
     banner_content = Align.center(title_text)
     banner_panel = Panel(
         banner_content,
@@ -181,6 +182,94 @@ def get_status_emoji(status: str, pinned: bool = False) -> str:
         emoji = f"⭐ {emoji}"
         
     return emoji
+
+
+def organize_todos_by_date(todos, sort_by_priority: bool = False):
+    """Organize todos into date-based views: Today, Tomorrow, Upcoming, Backlog.
+    
+    Args:
+        todos: List of Todo objects
+        sort_by_priority: If True, sort by priority (high to low), otherwise by ID
+        
+    Returns:
+        Dict with keys: 'today', 'tomorrow', 'upcoming', 'backlog'
+    """
+    from datetime import timedelta
+    today = date.today()
+    tomorrow = today + timedelta(days=1)
+    
+    views = {
+        'today': [],
+        'tomorrow': [], 
+        'upcoming': [],
+        'backlog': []
+    }
+    
+    for todo in todos:
+        if todo.completed:
+            continue  # Skip completed todos
+            
+        if todo.due_date:
+            due_date = todo.due_date.date()
+            if due_date == today:
+                views['today'].append(todo)
+            elif due_date == tomorrow:
+                views['tomorrow'].append(todo)
+            elif due_date > tomorrow:
+                views['upcoming'].append(todo)
+        else:
+            views['backlog'].append(todo)
+    
+    # Sort each view
+    for view_todos in views.values():
+        if sort_by_priority:
+            # Sort by priority (critical=0, high=1, medium=2, low=3), then by ID
+            priority_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+            view_todos.sort(key=lambda t: (priority_order.get(t.priority.value, 2), t.id))
+        else:
+            # Sort by ID only
+            view_todos.sort(key=lambda t: t.id)
+    
+    return views
+
+
+def get_view_header(view_name: str, count: int) -> str:
+    """Get a styled header for a task view.
+    
+    Args:
+        view_name: Name of the view (today, tomorrow, upcoming, backlog)
+        count: Number of tasks in the view
+        
+    Returns:
+        Formatted header string with styling
+    """
+    view_icons = {
+        'today': '📅',
+        'tomorrow': '🕰', 
+        'upcoming': '📆',
+        'backlog': '📋'
+    }
+    
+    view_titles = {
+        'today': 'Today',
+        'tomorrow': 'Tomorrow',
+        'upcoming': 'Upcoming',
+        'backlog': 'Backlog'
+    }
+    
+    icon = view_icons.get(view_name, '📋')
+    title = view_titles.get(view_name, view_name.title())
+    
+    if count == 0:
+        return f"[muted]{icon} {title}[/muted]"
+    elif view_name == 'today':
+        return f"[critical]{icon} {title} ({count})[/critical]"
+    elif view_name == 'tomorrow':
+        return f"[warning]{icon} {title} ({count})[/warning]"
+    elif view_name == 'upcoming':
+        return f"[primary]{icon} {title} ({count})[/primary]"
+    else:  # backlog
+        return f"[accent]{icon} {title} ({count})[/accent]"
 
 
 # Theme configuration for export
