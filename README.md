@@ -3,10 +3,10 @@
 > A powerful, feature-rich command-line todo application with advanced task management capabilities
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Phase 2 Complete](https://img.shields.io/badge/phase-2%20complete-green.svg)](./PLAN.md)
+[![Phase 3 Complete](https://img.shields.io/badge/phase-3%20complete-green.svg)](./PLAN.md)
 [![Tests Passing](https://img.shields.io/badge/tests-32%20passing-green.svg)](#testing)
 
-## 🚀 Features (Phase 2 Complete)
+## 🚀 Features (Phase 3 Complete)
 
 ### 🧠 **NEW: Smart Natural Language Parsing**
 - **One-Line Task Creation**: Rich metadata extraction from natural language
@@ -34,9 +34,17 @@
 - **Version Control Friendly**: Plain text format works great with git
 - **Organized Structure**: `~/.todo/projects/` with individual project files
 
-### 🎨 Professional CLI Interface
+### 🎯 **NEW: Enhanced Query Engine & AI Recommendations**
+- **Advanced Search**: Complex queries with logical operators (AND, OR, NOT)
+- **Smart Recommendations**: AI-powered task suggestions based on context and patterns
+- **Saved Queries**: Persistent search shortcuts with @query syntax
+- **Bulk Operations**: Multi-todo operations (complete, pin, priority, project moves)
+- **Pattern Learning**: Analyzes your work habits for intelligent suggestions
+
+### 📊 Professional CLI Interface
 - **Rich UI**: Beautiful colored output with emojis and status indicators
 - **Smart Dashboard**: Overview of pinned, overdue, and upcoming tasks
+- **Organized Views**: Today, Tomorrow, Upcoming, and Backlog task organization
 - **Powerful Filtering**: By project, status, priority, assignee, due date
 - **Intuitive Commands**: Natural command structure with helpful options
 
@@ -127,6 +135,31 @@ todo add "Bug fix ~invalid" --dry-run  # Shows helpful error message
 
 # Preview without saving
 todo add "Complex task #proj @tag ~high" --dry-run
+```
+
+### 🔍 **NEW: Advanced Search & Query Commands**
+```bash
+# Advanced search with complex logic
+todo search "priority:high,critical AND is:active"
+todo search "tag:urgent OR tag:important"
+todo search "(project:webapp OR project:api) status:pending"
+
+# Smart recommendations based on context
+todo recommend --energy high --context work --time 45
+todo recommend --explain  # Show detailed explanations
+
+# Save and use query shortcuts
+todo search "is:overdue OR due:today" --save="urgent-tasks"
+todo search "@urgent-tasks"  # Use saved query
+
+# Bulk operations
+todo bulk complete 1 2 3       # Mark multiple as complete
+todo bulk priority 5 7 9 --priority high  # Set priority
+todo bulk project 4 5 --project work      # Move to project
+
+# Query management
+todo queries --list             # List saved queries
+todo queries --delete "old-query"  # Delete saved query
 ```
 
 ## 📊 Dashboard View
@@ -254,6 +287,9 @@ src/todo_cli/
 ├── config.py           # Configuration system
 ├── storage.py          # Markdown + YAML storage
 ├── parser.py           # Natural language parsing engine
+├── query_engine.py     # Advanced search and filtering engine
+├── recommendations.py  # AI-powered task recommendation system
+├── theme.py            # UI theming and formatting
 └── cli.py              # Click-based CLI interface
 ```
 
@@ -283,12 +319,12 @@ src/todo_cli/
 - [x] **32 Parser Tests** - Full coverage of parsing scenarios and edge cases
 - [x] **Rich Preview System** - See exactly what will be created before saving
 
-### 🔄 Phase 3: Enhanced Query Engine (Next)
-- [ ] Advanced search and filtering
-- [ ] Smart task recommendations
-- [ ] Query shortcuts and saved searches
-- [ ] Advanced sorting options
-- [ ] Bulk operations
+### ✅ Phase 3: Enhanced Query Engine (Complete)
+- [x] **Advanced Search & Filtering** - Comprehensive query syntax with logical operators
+- [x] **Smart Task Recommendations** - AI-powered recommendations based on patterns and context
+- [x] **Query Shortcuts & Saved Searches** - Persistent saved queries with @shortcut syntax
+- [x] **Advanced Sorting Options** - Multi-field sorting with contextual defaults
+- [x] **Bulk Operations** - Multi-todo operations with confirmation prompts
 
 ### 🔮 Phase 4: Smart Integration Features (Planned)
 - [ ] Recurring tasks with smart scheduling
@@ -357,7 +393,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Phase 2 Complete** ✨ | Built with ❤️ for productivity enthusiasts
+**Phase 3 Complete** 🎯 | Built with ❤️ for productivity enthusiasts
 
-> **NEW**: Natural language parsing makes task creation incredibly intuitive!
-> Try: `todo add "Review PR #webapp @urgent due tomorrow est:2h [PIN]"`
+> **NEW**: Enhanced Query Engine with AI recommendations and advanced search!
+> Try: `todo search "priority:high is:active"` or `todo recommend --energy high --context work`
