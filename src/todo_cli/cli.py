@@ -24,11 +24,13 @@ from .theme import (
 )
 from .query_engine import QueryEngine
 from .recommendations import TaskRecommendationEngine, get_context_suggestions, get_energy_suggestions
+from .recurring import RecurringTaskManager, RecurrenceParser, create_recurring_task_from_text
 
 
 console = get_themed_console()
 query_engine = QueryEngine()
 recommend_engine = TaskRecommendationEngine()
+recurring_manager = RecurringTaskManager()
 
 
 def get_storage() -> Storage:
@@ -850,6 +852,218 @@ def bulk(action, ids, priority, target_project, confirm):
 
 
 @cli.command()
+@click.argument("task_text")
+@click.argument("pattern")
+@click.option("--project", "-p", help="Project for the recurring task")
+@click.option("--max-occurrences", type=int, help="Maximum number of occurrences")
+@click.option("--end-date", help="End date for recurrence (YYYY-MM-DD)")
+@click.option("--preview", is_flag=True, help="Preview next few occurrences without creating")
+def recurring(task_text, pattern, project, max_occurrences, end_date, preview):
+    """Create a recurring task with smart scheduling.
+    
+    Examples:
+      todo recurring "Team standup @meetings" "daily"
+      todo recurring "Review monthly reports ~high" "monthly"
+      todo recurring "Backup database @maintenance" "weekly"
+      todo recurring "Pay rent +landlord" "monthly" --max-occurrences 12
+      todo recurring "Doctor appointment @health" "every 6 months" --preview
+    """
+    try:
+        # Create template and pattern
+        template, recurrence_pattern = create_recurring_task_from_text(task_text, pattern)
+        
+        # Apply command line options
+        if project:
+            template.project = project
+        
+        if max_occurrences:
+            recurrence_pattern.max_occurrences = max_occurrences
+        
+        if end_date:
+            try:
+                recurrence_pattern.end_date = datetime.strptime(end_date, '%Y-%m-%d')
+            except ValueError:
+                console.print(f"[error]❌ Invalid end date format. Use YYYY-MM-DD[/error]")
+                return
+        
+        if preview:
+            # Show preview of next few occurrences
+            console.print(f"\n[primary]📅 Preview of recurring task:[/primary]")
+            console.print(f"  [bold]{template.text}[/bold]")
+            console.print(f"  Pattern: {pattern}")
+            console.print(f"  Project: {template.project}")
+            
+            # Calculate next few occurrences
+            console.print(f"\n[primary]Next 5 occurrences:[/primary]")
+            current_date = datetime.now()
+            
+            for i in range(5):
+                next_occurrence = recurring_manager.calculate_next_occurrence(current_date, recurrence_pattern)
+                if next_occurrence:
+                    console.print(f"  {i+1}. {next_occurrence.strftime('%Y-%m-%d %H:%M')}")
+                    current_date = next_occurrence
+                else:
+                    break
+            
+            console.print(f"\n[muted]Use without --preview to create the recurring task[/muted]")
+            return
+        
+        # Create the recurring task
+        recurring_task = recurring_manager.create_recurring_task(template, recurrence_pattern)
+        
+        console.print(f"\n[success]✅ Created recurring task:[/success]")
+        console.print(f"  [bold]{template.text}[/bold]")
+        console.print(f"  Pattern: {pattern}")
+        console.print(f"  Next due: {recurring_task.next_due.strftime('%Y-%m-%d %H:%M') if recurring_task.next_due else 'Unknown'}")
+        console.print(f"  ID: {recurring_task.id}")
+        
+        if max_occurrences:
+            console.print(f"  Max occurrences: {max_occurrences}")
+        if end_date:
+            console.print(f"  Ends: {end_date}")
+            
+    except ValueError as e:
+        console.print(f"[error]❌ {e}[/error]")
+        sys.exit(1)
+
+
+@cli.command("recurring-list")
+def list_recurring():
+    """List all recurring tasks."""
+    recurring_tasks = recurring_manager.list_recurring_tasks()
+    
+    if not recurring_tasks:
+        console.print("[muted]No recurring tasks found.[/muted]")
+        console.print("[muted]Create one with: todo recurring 'task description' 'pattern'[/muted]")
+        return
+    
+    console.print(f"\n[primary]📋 Recurring Tasks ({len(recurring_tasks)}):[/primary]")
+    
+    for task in recurring_tasks:
+        status_icon = "✅" if task.active else "⏸️"
+        console.print(f"\n{status_icon} [bold]{task.template.text}[/bold]")
+        console.print(f"   ID: {task.id}")
+        console.print(f"   Pattern: {task.pattern.type.value}")
+        console.print(f"   Project: {task.template.project}")
+        console.print(f"   Next due: {task.next_due.strftime('%Y-%m-%d %H:%M') if task.next_due else 'N/A'}")
+        console.print(f"   Occurrences: {task.occurrence_count}")
+        
+        if task.pattern.max_occurrences:
+            console.print(f"   Max occurrences: {task.pattern.max_occurrences}")
+        if task.pattern.end_date:
+            console.print(f"   End date: {task.pattern.end_date.strftime('%Y-%m-%d')}")
+
+
+@cli.command("recurring-generate")
+@click.option("--days", "-d", type=int, default=30, help="Generate tasks for next N days")
+@click.option("--dry-run", is_flag=True, help="Show what would be generated without creating tasks")
+def generate_recurring(days, dry_run):
+    """Generate due recurring tasks.
+    
+    Examples:
+      todo recurring-generate              # Generate for next 30 days
+      todo recurring-generate --days 7    # Generate for next week
+      todo recurring-generate --dry-run   # Preview without creating
+    """
+    until_date = datetime.now() + timedelta(days=days)
+    
+    generated_tasks = recurring_manager.generate_due_tasks(until_date)
+    
+    if not generated_tasks:
+        console.print("[muted]No recurring tasks due for generation.[/muted]")
+        return
+    
+    if dry_run:
+        console.print(f"\n[primary]Would generate {len(generated_tasks)} tasks:[/primary]")
+        for task in generated_tasks:
+            console.print(f"  • {task.text} (due: {task.due_date.strftime('%Y-%m-%d') if task.due_date else 'No date'})")
+        console.print(f"\n[muted]Run without --dry-run to actually create these tasks[/muted]")
+    else:
+        # Actually save the generated tasks
+        storage = get_storage()
+        saved_count = 0
+        
+        for task in generated_tasks:
+            # Get next ID for the project
+            task.id = storage.get_next_todo_id(task.project)
+            
+            # Load project and add task
+            proj, todos = storage.load_project(task.project)
+            if not proj:
+                from .project import Project
+                proj = Project(task.project, task.project)
+                todos = []
+            
+            todos.append(task)
+            
+            if storage.save_project(proj, todos):
+                saved_count += 1
+        
+        console.print(f"\n[success]✅ Generated and saved {saved_count} recurring tasks[/success]")
+        
+        if saved_count != len(generated_tasks):
+            failed_count = len(generated_tasks) - saved_count
+            console.print(f"[warning]⚠️  Failed to save {failed_count} tasks[/warning]")
+
+
+@cli.command("recurring-pause")
+@click.argument("task_id")
+def pause_recurring(task_id):
+    """Pause a recurring task."""
+    task = recurring_manager.get_recurring_task(task_id)
+    if not task:
+        console.print(f"[error]❌ Recurring task '{task_id}' not found[/error]")
+        return
+    
+    if not task.active:
+        console.print(f"[warning]⚠️  Task '{task_id}' is already paused[/warning]")
+        return
+    
+    recurring_manager.pause_recurring_task(task_id)
+    console.print(f"[success]✅ Paused recurring task: {task.template.text}[/success]")
+
+
+@cli.command("recurring-resume")
+@click.argument("task_id")
+def resume_recurring(task_id):
+    """Resume a paused recurring task."""
+    task = recurring_manager.get_recurring_task(task_id)
+    if not task:
+        console.print(f"[error]❌ Recurring task '{task_id}' not found[/error]")
+        return
+    
+    if task.active:
+        console.print(f"[warning]⚠️  Task '{task_id}' is already active[/warning]")
+        return
+    
+    recurring_manager.resume_recurring_task(task_id)
+    console.print(f"[success]✅ Resumed recurring task: {task.template.text}[/success]")
+
+
+@cli.command("recurring-delete")
+@click.argument("task_id")
+@click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
+def delete_recurring(task_id, confirm):
+    """Delete a recurring task."""
+    task = recurring_manager.get_recurring_task(task_id)
+    if not task:
+        console.print(f"[error]❌ Recurring task '{task_id}' not found[/error]")
+        return
+    
+    console.print(f"\n[warning]Will delete recurring task:[/warning]")
+    console.print(f"  [bold]{task.template.text}[/bold]")
+    console.print(f"  Pattern: {task.template.recurrence}")
+    console.print(f"  Occurrences generated: {task.occurrence_count}")
+    
+    if not confirm and not click.confirm("\nAre you sure you want to delete this recurring task?"):
+        console.print("[muted]Deletion cancelled.[/muted]")
+        return
+    
+    recurring_manager.delete_recurring_task(task_id)
+    console.print(f"[success]✅ Deleted recurring task[/success]")
+
+
+@cli.command()
 def projects():
     """List all projects."""
     storage = get_storage()
@@ -907,6 +1121,12 @@ main.add_command(search)
 main.add_command(recommend)
 main.add_command(queries)
 main.add_command(bulk)
+main.add_command(recurring)
+main.add_command(list_recurring)
+main.add_command(generate_recurring)
+main.add_command(pause_recurring)
+main.add_command(resume_recurring)
+main.add_command(delete_recurring)
 main.add_command(done)
 main.add_command(pin)
 main.add_command(projects)
