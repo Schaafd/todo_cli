@@ -240,8 +240,8 @@ def dashboard():
     
     if not all_todos:
         console.print(Panel.fit(
-            "[accent]Welcome to Productivity Ninja CLI![/accent]\\n\\n"
-            "Get started by adding your first task:\\n"
+            "[accent]Welcome to Productivity Ninja CLI![/accent]\n\n"
+            "Get started by adding your first task:\n"
             "[primary]todo add[/primary] [muted]\"Review architecture proposal @meetings due friday\"[/muted]",
             title="[header]📋 Todo Dashboard[/header]",
             border_style="border"
@@ -270,36 +270,53 @@ def dashboard():
     # Create dashboard
     console.print(Panel.fit("[header]📋 Todo Dashboard[/header]", border_style="border"))
     
+    # Track if we've printed any sections for spacing
+    sections_printed = 0
+    
     if pinned_todos:
-        console.print("\\n[todo_pinned]⭐ Pinned Tasks[/todo_pinned]")
+        if sections_printed > 0:
+            console.print()  # Extra space between sections
+        console.print("\n[todo_pinned]⭐ Pinned Tasks[/todo_pinned]")
         for todo in pinned_todos[:5]:
             console.print(f"  {format_todo_for_display(todo)}")
         if len(pinned_todos) > 5:
             console.print(f"  [muted]... and {len(pinned_todos) - 5} more[/muted]")
+        sections_printed += 1
     
     if overdue_todos:
-        console.print("\\n[critical]🔥 Overdue Tasks[/critical]")
+        if sections_printed > 0:
+            console.print()  # Extra space between sections
+        console.print("\n[critical]🔥 Overdue Tasks[/critical]")
         for todo in overdue_todos[:5]:
             console.print(f"  {format_todo_for_display(todo)}")
         if len(overdue_todos) > 5:
             console.print(f"  [muted]... and {len(overdue_todos) - 5} more[/muted]")
+        sections_printed += 1
     
     if today_todos:
-        console.print("\\n[success]📅 Due Today[/success]")
+        if sections_printed > 0:
+            console.print()  # Extra space between sections
+        console.print("\n[success]📅 Due Today[/success]")
         for todo in today_todos[:5]:
             console.print(f"  {format_todo_for_display(todo)}")
+        sections_printed += 1
     
     if upcoming_todos:
-        console.print("\\n[primary]📆 Due This Week[/primary]")
+        if sections_printed > 0:
+            console.print()  # Extra space between sections
+        console.print("\n[primary]📆 Due This Week[/primary]")
         for todo in upcoming_todos[:5]:
             console.print(f"  {format_todo_for_display(todo)}")
+        sections_printed += 1
     
-    # Summary stats
+    # Summary stats with extra spacing
     total_todos = len(all_todos)
     completed_todos = sum(1 for t in all_todos if t.completed)
     active_todos = sum(1 for t in all_todos if t.is_active())
     
-    console.print(f"\\n[muted]Total: {total_todos} | Active: {active_todos} | Completed: {completed_todos}[/muted]")
+    if sections_printed > 0:
+        console.print()  # Extra space before summary
+    console.print(f"\n[muted]Total: {total_todos} | Active: {active_todos} | Completed: {completed_todos}[/muted]")
 
 
 @cli.command()
