@@ -22,9 +22,13 @@ from .theme import (
     get_status_emoji,
     PRODUCTIVITY_NINJA_THEME
 )
+from .query_engine import QueryEngine
+from .recommendations import TaskRecommendationEngine, get_context_suggestions, get_energy_suggestions
 
 
 console = get_themed_console()
+query_engine = QueryEngine()
+recommend_engine = TaskRecommendationEngine()
 
 
 def get_storage() -> Storage:
@@ -493,6 +497,359 @@ def pin(todo_id, project):
 
 
 @cli.command()
+@click.argument("query")
+@click.option("--project", "-p", help="Limit search to specific project")
+@click.option("--save", "save_name", help="Save this query with a name")
+@click.option("--sort", "sort_by", help="Sort results by field (priority, due, created, etc.)")
+@click.option("--limit", "-l", type=int, help="Limit number of results")
+@click.option("--reverse", "-r", is_flag=True, help="Reverse sort order")
+def search(query, project, save_name, sort_by, limit, reverse):
+    """Search todos with advanced query syntax.
+    
+    Examples:
+      todo search "priority:high status:pending"
+      todo search "tag:urgent OR tag:important"
+      todo search "due:this-week assignee:me"
+      todo search "is:overdue NOT project:personal"
+      todo search "effort:quick,small energy:low"
+    """
+    storage = get_storage()
+    config = get_config()
+    
+    # Get all todos from specified project or all projects
+    all_todos = []
+    
+    if project:
+        projects = [project]
+    else:
+        projects = storage.list_projects()
+        if not projects:
+            projects = [config.default_project]
+    
+    for proj_name in projects:
+        proj, todos = storage.load_project(proj_name)
+        if todos:
+            all_todos.extend(todos)
+    
+    if not all_todos:
+        console.print("[yellow]No todos found to search.[/yellow]")
+        return
+    
+    try:
+        # Execute search query
+        results = query_engine.search(all_todos, query)
+        
+        # Save query if requested
+        if save_name:
+            query_engine.save_query(save_name, query)
+            console.print(f"[success]✅ Saved query as '{save_name}'[/success]")
+        
+        # Sort results if requested
+        if sort_by:
+            results = _sort_todos(results, sort_by, reverse)
+        
+        # Limit results if requested
+        if limit and len(results) > limit:
+            results = results[:limit]
+            truncated = True
+        else:
+            truncated = False
+        
+        # Display results
+        if results:
+            console.print(f"\n[success]Found {len(results)} todo{'s' if len(results) != 1 else ''}:[/success]")
+            if truncated:
+                console.print(f"[muted](showing first {limit} results)[/muted]")
+            
+            for todo in results:
+                console.print(f"  {format_todo_for_display(todo)}")
+        else:
+            console.print("[yellow]No todos match your search.[/yellow]")
+        
+    except ValueError as e:
+        console.print(f"[error]Search error: {e}[/error]")
+        console.print("[muted]Try: todo search --help for syntax examples[/muted]")
+        sys.exit(1)
+
+
+def _sort_todos(todos, sort_field, reverse=False):
+    """Sort todos by specified field"""
+    sort_keys = {
+        'priority': lambda t: ({'critical': 0, 'high': 1, 'medium': 2, 'low': 3}.get(t.priority.value if t.priority else 'medium', 2), t.id),
+        'due': lambda t: (t.due_date or datetime.max, t.id),
+        'created': lambda t: (t.created, t.id),
+        'project': lambda t: (t.project or '', t.id),
+        'status': lambda t: (t.status.value if t.status else 'pending', t.id),
+        'text': lambda t: (t.text.lower(), t.id),
+        'id': lambda t: t.id,
+    }
+    
+    if sort_field not in sort_keys:
+        return todos
+    
+    return sorted(todos, key=sort_keys[sort_field], reverse=reverse)
+
+
+@cli.command()
+@click.option("--context", "-c", help="Current context (e.g., work, home, focus)")
+@click.option("--energy", "-e", type=click.Choice(['high', 'medium', 'low']), default='medium', help="Current energy level")
+@click.option("--time", "-t", type=int, help="Available time in minutes")
+@click.option("--limit", "-l", type=int, default=5, help="Number of recommendations")
+@click.option("--explain", is_flag=True, help="Show detailed explanations for recommendations")
+def recommend(context, energy, time, limit, explain):
+    """Get personalized task recommendations based on context, energy, and patterns.
+    
+    Examples:
+      todo recommend --energy high --time 30
+      todo recommend --context work --energy low  
+      todo recommend --explain
+    """
+    storage = get_storage()
+    config = get_config()
+    
+    # Get all todos
+    all_todos = []
+    projects = storage.list_projects()
+    if not projects:
+        projects = [config.default_project]
+    
+    for proj_name in projects:
+        proj, todos = storage.load_project(proj_name)
+        if todos:
+            all_todos.extend(todos)
+    
+    if not all_todos:
+        console.print("[yellow]No todos found to analyze.[/yellow]")
+        return
+    
+    # Get recommendations
+    recommendations = recommend_engine.get_recommendations(
+        all_todos,
+        current_context=context,
+        current_energy=energy, 
+        available_time=time,
+        limit=limit
+    )
+    
+    if not recommendations:
+        console.print("[yellow]No active tasks to recommend.[/yellow]")
+        return
+    
+    # Display recommendations
+    console.print(f"\n[success]🎯 Top {len(recommendations)} Recommendations:[/success]")
+    
+    if context:
+        console.print(f"[muted]Context: {context}[/muted]")
+    console.print(f"[muted]Energy Level: {energy}[/muted]")
+    if time:
+        console.print(f"[muted]Available Time: {time} minutes[/muted]")
+    
+    for i, rec in enumerate(recommendations, 1):
+        # Category icon
+        category_icons = {
+            'urgent': '🔥',
+            'contextual': '🎯',
+            'energy-match': '⚡',
+            'pattern-based': '🧠',
+            'general': '📋'
+        }
+        icon = category_icons.get(rec.category, '📋')
+        
+        console.print(f"\n{i}. {icon} {format_todo_for_display(rec.todo)}")
+        
+        if explain:
+            console.print(f"   [muted]Score: {rec.score:.1f} | Category: {rec.category}[/muted]")
+            if rec.reasons:
+                reasons_text = ", ".join(rec.reasons)
+                console.print(f"   [muted]Why: {reasons_text}[/muted]")
+    
+    # Show contextual suggestions
+    if not context:
+        suggested_contexts = get_context_suggestions(all_todos)
+        if suggested_contexts:
+            console.print(f"\n[muted]💡 Suggested contexts for this time: {', '.join(suggested_contexts)}[/muted]")
+    
+    # Show energy-based suggestions
+    energy_suggestions = get_energy_suggestions(energy)
+    if energy_suggestions:
+        console.print(f"\n[muted]💪 Good for {energy} energy:[/muted]")
+        for suggestion in energy_suggestions['suggestions'][:3]:
+            console.print(f"[muted]   • {suggestion}[/muted]")
+
+
+@cli.command()
+@click.option("--list", "list_queries", is_flag=True, help="List all saved queries")
+@click.option("--delete", "delete_name", help="Delete a saved query")
+def queries(list_queries, delete_name):
+    """Manage saved search queries."""
+    if list_queries:
+        saved = query_engine.list_saved_queries()
+        if saved:
+            console.print("[bold]Saved Queries:[/bold]")
+            for name, query in saved.items():
+                console.print(f"  [primary]{name}[/primary]: {query}")
+                console.print(f"    [muted]Usage: todo search @{name}[/muted]")
+        else:
+            console.print("[muted]No saved queries found.[/muted]")
+            console.print("[muted]Save a query with: todo search 'query' --save name[/muted]")
+    elif delete_name:
+        if query_engine.delete_query(delete_name):
+            console.print(f"[success]✅ Deleted saved query '{delete_name}'[/success]")
+        else:
+            console.print(f"[error]❌ Saved query '{delete_name}' not found[/error]")
+    else:
+        console.print("[muted]Use --list to see saved queries or --delete to remove one[/muted]")
+
+
+@cli.command()
+@click.argument("action", type=click.Choice(['complete', 'pin', 'unpin', 'priority', 'project', 'delete']))
+@click.argument("ids", nargs=-1, type=int, required=True)
+@click.option("--priority", type=click.Choice(['critical', 'high', 'medium', 'low']), help="Priority for priority action")
+@click.option("--project", "target_project", help="Target project for project action")
+@click.option("--confirm", is_flag=True, help="Skip confirmation prompts")
+def bulk(action, ids, priority, target_project, confirm):
+    """Perform bulk operations on multiple todos.
+    
+    Examples:
+      todo bulk complete 1 2 3       # Mark todos 1, 2, 3 as complete
+      todo bulk pin 5 7 9            # Pin todos 5, 7, 9
+      todo bulk priority 1 2 --priority high  # Set priority to high
+      todo bulk project 4 5 --project work    # Move to work project
+      todo bulk delete 8 9 10 --confirm       # Delete without prompts
+    """
+    storage = get_storage()
+    config = get_config()
+    
+    if not ids:
+        console.print("[error]❌ No todo IDs specified[/error]")
+        return
+    
+    # Validate required options for certain actions
+    if action == 'priority' and not priority:
+        console.print("[error]❌ --priority option required for priority action[/error]")
+        return
+    
+    if action == 'project' and not target_project:
+        console.print("[error]❌ --project option required for project action[/error]")
+        return
+    
+    # Find all todos across all projects
+    all_projects = storage.list_projects() or [config.default_project]
+    found_todos = []
+    project_map = {}  # todo_id -> (project, todos_list)
+    
+    for proj_name in all_projects:
+        proj, todos = storage.load_project(proj_name)
+        for todo in todos:
+            if todo.id in ids:
+                found_todos.append(todo)
+                project_map[todo.id] = (proj, todos)
+    
+    if not found_todos:
+        console.print(f"[error]❌ None of the specified todos found: {list(ids)}[/error]")
+        return
+    
+    # Show what will be affected
+    missing_ids = set(ids) - {t.id for t in found_todos}
+    if missing_ids:
+        console.print(f"[warning]⚠️  Todo IDs not found: {sorted(missing_ids)}[/warning]")
+    
+    console.print(f"\n[primary]Found {len(found_todos)} todos to {action}:[/primary]")
+    for todo in found_todos:
+        console.print(f"  {format_todo_for_display(todo)}")
+    
+    # Confirm action unless --confirm flag is set
+    if not confirm:
+        action_descriptions = {
+            'complete': 'mark as complete',
+            'pin': 'pin',
+            'unpin': 'unpin', 
+            'priority': f'set priority to {priority}',
+            'project': f'move to project {target_project}',
+            'delete': 'DELETE permanently'
+        }
+        description = action_descriptions.get(action, action)
+        
+        if not click.confirm(f"\nProceed to {description} {len(found_todos)} todos?"):
+            console.print("[muted]Operation cancelled.[/muted]")
+            return
+    
+    # Perform the bulk action
+    success_count = 0
+    projects_to_save = set()
+    
+    for todo in found_todos:
+        proj, todos_list = project_map[todo.id]
+        
+        try:
+            if action == 'complete':
+                if not todo.completed:
+                    todo.complete()
+                    success_count += 1
+            elif action == 'pin':
+                if not todo.pinned:
+                    todo.pin()
+                    success_count += 1
+            elif action == 'unpin':
+                if todo.pinned:
+                    todo.unpin()
+                    success_count += 1
+            elif action == 'priority':
+                from .todo import Priority
+                todo.priority = Priority(priority)
+                success_count += 1
+            elif action == 'project':
+                # Move to different project
+                if todo.project != target_project:
+                    # Remove from current project
+                    todos_list.remove(todo)
+                    projects_to_save.add(proj.name)
+                    
+                    # Add to target project
+                    target_proj, target_todos = storage.load_project(target_project)
+                    if not target_proj:
+                        from .project import Project
+                        target_proj = Project(target_project, target_project)
+                        target_todos = []
+                    
+                    todo.project = target_project
+                    target_todos.append(todo)
+                    projects_to_save.add(target_project)
+                    
+                    success_count += 1
+            elif action == 'delete':
+                todos_list.remove(todo)
+                success_count += 1
+            
+            if action not in ['project', 'delete']:
+                projects_to_save.add(proj.name)
+                
+        except Exception as e:
+            console.print(f"[error]❌ Failed to {action} todo {todo.id}: {e}[/error]")
+    
+    # Save all affected projects
+    for proj_name in projects_to_save:
+        proj, todos = storage.load_project(proj_name)
+        if not storage.save_project(proj, todos):
+            console.print(f"[error]❌ Failed to save project {proj_name}[/error]")
+    
+    # Show results
+    if success_count > 0:
+        action_past_tense = {
+            'complete': 'completed',
+            'pin': 'pinned',
+            'unpin': 'unpinned',
+            'priority': f'set to {priority} priority',
+            'project': f'moved to {target_project}',
+            'delete': 'deleted'
+        }
+        past_tense = action_past_tense.get(action, f'{action}d')
+        console.print(f"\n[success]✅ Successfully {past_tense} {success_count} todos[/success]")
+    else:
+        console.print(f"\n[warning]⚠️  No todos were modified[/warning]")
+
+
+@cli.command()
 def projects():
     """List all projects."""
     storage = get_storage()
@@ -546,6 +903,10 @@ def main(ctx, config, verbose, no_banner):
 main.add_command(add)
 main.add_command(dashboard)
 main.add_command(list_todos, name="list")
+main.add_command(search)
+main.add_command(recommend)
+main.add_command(queries)
+main.add_command(bulk)
 main.add_command(done)
 main.add_command(pin)
 main.add_command(projects)
