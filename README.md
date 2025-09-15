@@ -137,7 +137,7 @@ todo add "Bug fix ~invalid" --dry-run  # Shows helpful error message
 todo add "Complex task #proj @tag ~high" --dry-run
 ```
 
-### 🔍 **NEW: Advanced Search & Query Commands**
+### 🔍 **Advanced Search & Query Commands**
 ```bash
 # Advanced search with complex logic
 todo search "priority:high,critical AND is:active"
@@ -160,6 +160,31 @@ todo bulk project 4 5 --project work      # Move to project
 # Query management
 todo queries --list             # List saved queries
 todo queries --delete "old-query"  # Delete saved query
+```
+
+### 🔄 **NEW: Recurring Tasks & Smart Scheduling**
+```bash
+# Create recurring tasks with natural language patterns
+todo recurring "Daily standup @meetings ~high" "daily"
+todo recurring "Review monthly reports @review" "monthly" --project work
+todo recurring "Security patch review @security" "every 2 weeks" --project maintenance
+
+# Preview recurring tasks before creating
+todo recurring "Quarterly planning @planning" "every 3 months" --preview
+
+# Set limits and end dates
+todo recurring "Pay rent +landlord" "monthly" --max-occurrences 12
+todo recurring "Doctor checkup @health" "every 6 months" --end-date 2026-12-31
+
+# Manage recurring tasks
+todo recurring-list                    # List all recurring tasks
+todo recurring-generate --days 7       # Generate tasks for next 7 days
+todo recurring-generate --dry-run       # Preview without creating
+
+# Control recurring tasks
+todo recurring-pause recurring_id       # Pause a recurring task
+todo recurring-resume recurring_id      # Resume a paused recurring task
+todo recurring-delete recurring_id      # Delete a recurring task
 ```
 
 ## 📊 Dashboard View
@@ -289,6 +314,7 @@ src/todo_cli/
 ├── parser.py           # Natural language parsing engine
 ├── query_engine.py     # Advanced search and filtering engine
 ├── recommendations.py  # AI-powered task recommendation system
+├── recurring.py        # Smart recurring task system with pattern recognition
 ├── theme.py            # UI theming and formatting
 └── cli.py              # Click-based CLI interface
 ```
@@ -326,8 +352,8 @@ src/todo_cli/
 - [x] **Advanced Sorting Options** - Multi-field sorting with contextual defaults
 - [x] **Bulk Operations** - Multi-todo operations with confirmation prompts
 
-### 🔮 Phase 4: Smart Integration Features (Planned)
-- [ ] Recurring tasks with smart scheduling
+### ✅ Phase 4: Smart Integration Features (In Progress)
+- [x] **Recurring tasks with smart scheduling** - Full CLI integration with natural language patterns
 - [ ] Notification system
 - [ ] Calendar integration
 - [ ] Export functionality (JSON, CSV, etc.)
@@ -393,7 +419,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Phase 3 Complete** 🎯 | Built with ❤️ for productivity enthusiasts
+**Phase 4 In Progress** 🚀 | Built with ❤️ for productivity enthusiasts
 
-> **NEW**: Enhanced Query Engine with AI recommendations and advanced search!
-> Try: `todo search "priority:high is:active"` or `todo recommend --energy high --context work`
+> **NEW**: Recurring Tasks with Smart Scheduling!
+> Try: `todo recurring "Daily standup @meetings" "daily" --preview` or `todo recurring-generate --days 7`
