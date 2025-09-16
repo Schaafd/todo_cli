@@ -187,6 +187,27 @@ todo recurring-resume recurring_id      # Resume a paused recurring task
 todo recurring-delete recurring_id      # Delete a recurring task
 ```
 
+### 📤 **NEW: Export & Backup System**
+```bash
+# Export to various formats
+todo export json                       # Export all tasks to JSON
+todo export csv --project work         # Export work project to CSV
+todo export html --no-completed        # Export pending tasks to HTML
+todo export pdf --project personal     # Export to professional PDF report
+
+# Advanced export options
+todo export markdown --group-by-project  # Group by project in Markdown
+todo export yaml --include-metadata     # Include extended metadata
+todo export ical --no-completed         # Export to calendar format
+
+# Custom output and automation
+todo export json -o ~/backups/todos.json
+todo export html --open-after           # Open exported file automatically
+todo export csv --no-completed -o weekly_report.csv
+
+# Supported formats: json, csv, tsv, markdown, html, pdf, ical, yaml
+```
+
 ## 📊 Dashboard View
 
 The dashboard provides an at-a-glance view of your tasks with rich formatting:
@@ -354,9 +375,9 @@ src/todo_cli/
 
 ### ✅ Phase 4: Smart Integration Features (In Progress)
 - [x] **Recurring tasks with smart scheduling** - Full CLI integration with natural language patterns
+- [x] **Export functionality** - Multiple formats (JSON, CSV, Markdown, HTML, PDF, ICAL, YAML)
 - [ ] Notification system
 - [ ] Calendar integration
-- [ ] Export functionality (JSON, CSV, etc.)
 - [ ] Sync capabilities
 
 ### 🌟 Phase 5: Advanced Reporting & Analytics (Planned)
@@ -421,5 +442,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Phase 4 In Progress** 🚀 | Built with ❤️ for productivity enthusiasts
 
-> **NEW**: Recurring Tasks with Smart Scheduling!
-> Try: `todo recurring "Daily standup @meetings" "daily" --preview` or `todo recurring-generate --days 7`
+> **NEW**: Recurring Tasks with Smart Scheduling & Multi-Format Export!
+> Try: `todo recurring "Daily standup @meetings" "daily" --preview` or `todo export html --open-after`

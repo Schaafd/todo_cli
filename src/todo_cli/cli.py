@@ -25,6 +25,7 @@ from .theme import (
 from .query_engine import QueryEngine
 from .recommendations import TaskRecommendationEngine, get_context_suggestions, get_energy_suggestions
 from .recurring import RecurringTaskManager, RecurrenceParser, create_recurring_task_from_text
+from .export import ExportManager, ExportFormat
 
 
 console = get_themed_console()
@@ -1099,6 +1100,165 @@ def projects():
             console.print(f"  {name} ({completed}/{total} completed)")
 
 
+@cli.command()
+@click.argument("format_type", type=click.Choice(['json', 'csv', 'markdown', 'md', 'html', 'pdf', 'ical', 'yaml', 'tsv']))
+@click.option("--output", "-o", help="Output file path (auto-generated if not specified)")
+@click.option("--project", "-p", help="Export specific project only")
+@click.option("--include-completed", is_flag=True, default=True, help="Include completed tasks")
+@click.option("--no-completed", "exclude_completed", is_flag=True, help="Exclude completed tasks")
+@click.option("--include-metadata", is_flag=True, default=True, help="Include extended metadata")
+@click.option("--group-by-project", is_flag=True, help="Group tasks by project (Markdown only)")
+@click.option("--open-after", is_flag=True, help="Open the exported file after creation")
+def export(format_type, output, project, include_completed, exclude_completed, include_metadata, group_by_project, open_after):
+    """Export tasks to various formats.
+    
+    Supported formats:
+      json       - Structured JSON data
+      csv        - Comma-separated values for spreadsheets
+      tsv        - Tab-separated values
+      markdown   - Human-readable Markdown format
+      html       - Web-friendly HTML format
+      pdf        - Professional PDF report (requires weasyprint)
+      ical       - iCalendar format for calendar apps
+      yaml       - YAML format
+    
+    Examples:
+      todo export json --project work
+      todo export csv --no-completed -o ~/exports/tasks.csv
+      todo export html --open-after
+      todo export pdf --project personal -o report.pdf
+    """
+    storage = get_storage()
+    config = get_config()
+    export_manager = ExportManager()
+    
+    # Handle completed tasks flags
+    if exclude_completed:
+        include_completed = False
+    
+    # Convert format string to enum
+    format_map = {
+        'json': ExportFormat.JSON,
+        'csv': ExportFormat.CSV,
+        'tsv': ExportFormat.TSV,
+        'markdown': ExportFormat.MARKDOWN,
+        'md': ExportFormat.MARKDOWN,
+        'html': ExportFormat.HTML,
+        'pdf': ExportFormat.PDF,
+        'ical': ExportFormat.ICAL,
+        'yaml': ExportFormat.YAML,
+    }
+    
+    export_format = format_map[format_type]
+    
+    # Get all todos from specified project or all projects
+    all_todos = []
+    project_info = None
+    
+    if project:
+        projects = [project]
+        proj, todos = storage.load_project(project)
+        project_info = proj
+    else:
+        projects = storage.list_projects()
+        if not projects:
+            projects = [config.default_project]
+    
+    for proj_name in projects:
+        proj, todos = storage.load_project(proj_name)
+        if todos:
+            all_todos.extend(todos)
+    
+    if not all_todos:
+        console.print("[yellow]No tasks found to export.[/yellow]")
+        return
+    
+    # Generate output filename if not specified
+    if not output:
+        from pathlib import Path
+        project_name = project or "all_projects"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        extension = export_manager.get_file_extension(export_format)
+        output = f"todo_export_{project_name}_{timestamp}.{extension}"
+    
+    # Prepare export options
+    export_kwargs = {
+        'include_completed': include_completed,
+        'include_metadata': include_metadata,
+        'project_name': project_info.display_name if project_info and hasattr(project_info, 'display_name') else (project or "Todo Export")
+    }
+    
+    # Markdown-specific options
+    if export_format == ExportFormat.MARKDOWN:
+        export_kwargs['group_by_project'] = group_by_project
+    
+    try:
+        # Perform the export
+        console.print(f"[primary]🔄 Exporting {len(all_todos)} tasks to {format_type.upper()}...[/primary]")
+        
+        if export_format == ExportFormat.PDF:
+            try:
+                import weasyprint
+            except ImportError:
+                console.print("[error]❌ PDF export requires the 'weasyprint' package.[/error]")
+                console.print("[muted]Install with: pip install weasyprint[/muted]")
+                return
+        
+        result = export_manager.export_todos(
+            all_todos,
+            export_format,
+            output_path=output,
+            **export_kwargs
+        )
+        
+        # Show success message with stats
+        exported_todos = all_todos if include_completed else [t for t in all_todos if not t.completed]
+        stats = {
+            'total': len(exported_todos),
+            'completed': sum(1 for t in exported_todos if t.completed),
+            'pending': sum(1 for t in exported_todos if not t.completed),
+            'overdue': sum(1 for t in exported_todos if t.is_overdue() and not t.completed)
+        }
+        
+        console.print(f"\n[success]✅ Successfully exported to {output}[/success]")
+        console.print(f"[muted]📊 Stats: {stats['total']} total, {stats['completed']} completed, {stats['pending']} pending, {stats['overdue']} overdue[/muted]")
+        
+        # Show file size
+        from pathlib import Path
+        file_size = Path(output).stat().st_size
+        if file_size > 1024 * 1024:
+            size_str = f"{file_size / (1024 * 1024):.1f} MB"
+        elif file_size > 1024:
+            size_str = f"{file_size / 1024:.1f} KB"
+        else:
+            size_str = f"{file_size} bytes"
+        
+        console.print(f"[muted]📁 File size: {size_str}[/muted]")
+        
+        # Open file if requested
+        if open_after:
+            try:
+                import subprocess
+                import sys
+                if sys.platform == "darwin":  # macOS
+                    subprocess.run(["open", output])
+                elif sys.platform == "win32":  # Windows
+                    subprocess.run(["start", output], shell=True)
+                else:  # Linux and others
+                    subprocess.run(["xdg-open", output])
+                console.print(f"[success]🚀 Opened {output}[/success]")
+            except Exception as e:
+                console.print(f"[warning]⚠️  Could not open file: {e}[/warning]")
+        
+    except ImportError as e:
+        console.print(f"[error]❌ Export failed: {e}[/error]")
+        if "weasyprint" in str(e):
+            console.print("[muted]Install PDF support with: pip install weasyprint[/muted]")
+    except Exception as e:
+        console.print(f"[error]❌ Export failed: {e}[/error]")
+        sys.exit(1)
+
+
 # Create main function that invokes dashboard by default
 @click.group(invoke_without_command=True)
 @click.option("--config", type=click.Path(), help="Path to config file")
@@ -1147,6 +1307,7 @@ main.add_command(delete_recurring)
 main.add_command(done)
 main.add_command(pin)
 main.add_command(projects)
+main.add_command(export)
 
 
 if __name__ == "__main__":
