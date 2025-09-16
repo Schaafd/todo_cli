@@ -26,6 +26,7 @@ from .query_engine import QueryEngine
 from .recommendations import TaskRecommendationEngine, get_context_suggestions, get_energy_suggestions
 from .recurring import RecurringTaskManager, RecurrenceParser, create_recurring_task_from_text
 from .export import ExportManager, ExportFormat
+from .notifications import NotificationManager, NotificationType, NotificationPreferences
 
 
 console = get_themed_console()
@@ -310,10 +311,18 @@ def dashboard():
             console.print(f"  {format_todo_for_display(todo)}")
         sections_printed += 1
     
-    # Summary stats with extra spacing
+    # Summary stats
     total_todos = len(all_todos)
     completed_todos = sum(1 for t in all_todos if t.completed)
     active_todos = sum(1 for t in all_todos if t.is_active())
+    
+    # Check and send notifications silently
+    try:
+        notification_manager = NotificationManager()
+        notification_manager.check_and_send_notifications(all_todos)
+    except Exception:
+        # Silently ignore notification failures
+        pass
     
     if sections_printed > 0:
         console.print()  # Extra space before summary
@@ -1022,6 +1031,16 @@ def generate_recurring(days, dry_run):
         if saved_count != len(generated_tasks):
             failed_count = len(generated_tasks) - saved_count
             console.print(f"[warning]⚠️  Failed to save {failed_count} tasks[/warning]")
+        
+        # Send notification about generated tasks
+        if saved_count > 0:
+            try:
+                from .notifications import NotificationManager
+                notification_manager = NotificationManager()
+                notification_manager.send_recurring_notification(saved_count)
+            except Exception:
+                # Silently ignore notification failures
+                pass
 
 
 @cli.command("recurring-pause")
@@ -1259,6 +1278,295 @@ def export(format_type, output, project, include_completed, exclude_completed, i
         sys.exit(1)
 
 
+@cli.group()
+def notify():
+    """Manage notifications and notification settings.
+    
+    Configure desktop and email notifications for due tasks, overdue reminders,
+    and daily summaries. Test notification delivery and view notification history.
+    """
+    pass
+
+
+@notify.command()
+@click.option('--test', is_flag=True, help='Test notification delivery')
+def status(test):
+    """Show notification system status and availability."""
+    notification_manager = NotificationManager()
+    
+    console.print("[header]🔔 Notification System Status[/header]\n")
+    
+    # Show preferences status
+    prefs = notification_manager.preferences
+    enabled_icon = "✅" if prefs.enabled else "❌"
+    console.print(f"{enabled_icon} [bold]Notifications:[/bold] {'Enabled' if prefs.enabled else 'Disabled'}")
+    
+    # Check availability
+    availability = notification_manager.is_available()
+    
+    desktop_icon = "✅" if availability['desktop'] else "❌"
+    desktop_enabled = "✅" if prefs.desktop_enabled else "❌"
+    console.print(f"{desktop_icon} [bold]Desktop:[/bold] {'Available' if availability['desktop'] else 'Not Available'} | {desktop_enabled} {'Enabled' if prefs.desktop_enabled else 'Disabled'}")
+    
+    email_icon = "✅" if availability['email'] else "❌"
+    email_enabled = "✅" if prefs.email_enabled else "❌"
+    console.print(f"{email_icon} [bold]Email:[/bold] {'Available' if availability['email'] else 'Not Available'} | {email_enabled} {'Enabled' if prefs.email_enabled else 'Disabled'}")
+    
+    # Show notification types
+    console.print("\n[subheader]Notification Types:[/subheader]")
+    type_status = [
+        ("Due Soon", prefs.notify_due_soon, f"{prefs.due_soon_hours}h before"),
+        ("Overdue", prefs.notify_overdue, f"Every {prefs.overdue_reminder_hours}h"),
+        ("Recurring Tasks", prefs.notify_recurring, "When generated"),
+        ("Daily Summary", prefs.notify_daily_summary, "Once per day"),
+        ("Weekly Summary", prefs.notify_weekly_summary, "Once per week")
+    ]
+    
+    for name, enabled, timing in type_status:
+        icon = "✅" if enabled else "❌"
+        console.print(f"  {icon} {name}: {timing if enabled else 'Disabled'}")
+    
+    # Show quiet hours
+    if prefs.quiet_enabled:
+        console.print(f"\n[muted]😴 Quiet hours: {prefs.quiet_start:02d}:00 - {prefs.quiet_end:02d}:00[/muted]")
+    
+    # Test notifications if requested
+    if test:
+        console.print("\n[primary]📨 Testing notifications...[/primary]")
+        test_results = notification_manager.test_notifications()
+        
+        for method, success in test_results.items():
+            icon = "✅" if success else "❌"
+            status_text = "Success" if success else "Failed"
+            console.print(f"  {icon} {method.title()}: {status_text}")
+
+
+@notify.command()
+@click.option('--enabled/--disabled', default=None, help='Enable or disable notifications')
+@click.option('--desktop/--no-desktop', default=None, help='Enable or disable desktop notifications')
+@click.option('--email/--no-email', default=None, help='Enable or disable email notifications')
+@click.option('--due-soon-hours', type=int, help='Hours before due date to notify')
+@click.option('--overdue-hours', type=int, help='Hours between overdue reminders')
+@click.option('--quiet-start', type=int, help='Quiet hours start (24-hour format)')
+@click.option('--quiet-end', type=int, help='Quiet hours end (24-hour format)')
+@click.option('--quiet/--no-quiet', default=None, help='Enable or disable quiet hours')
+@click.option('--email-address', help='Email address for notifications')
+@click.option('--smtp-server', help='SMTP server hostname')
+@click.option('--smtp-port', type=int, help='SMTP server port')
+@click.option('--smtp-username', help='SMTP username')
+@click.option('--smtp-password', help='SMTP password (use with caution)')
+def config(enabled, desktop, email, due_soon_hours, overdue_hours, quiet_start, 
+          quiet_end, quiet, email_address, smtp_server, smtp_port, smtp_username, smtp_password):
+    """Configure notification preferences.
+    
+    Examples:
+      todo notify config --enabled --desktop
+      todo notify config --due-soon-hours 12 --overdue-hours 6
+      todo notify config --quiet-start 22 --quiet-end 8
+      todo notify config --email --email-address user@example.com --smtp-server smtp.gmail.com
+    """
+    notification_manager = NotificationManager()
+    prefs = notification_manager.preferences
+    changes_made = False
+    
+    # Update preferences based on options
+    if enabled is not None:
+        prefs.enabled = enabled
+        changes_made = True
+    
+    if desktop is not None:
+        prefs.desktop_enabled = desktop
+        changes_made = True
+    
+    if email is not None:
+        prefs.email_enabled = email
+        changes_made = True
+    
+    if due_soon_hours is not None:
+        prefs.due_soon_hours = due_soon_hours
+        changes_made = True
+    
+    if overdue_hours is not None:
+        prefs.overdue_reminder_hours = overdue_hours
+        changes_made = True
+    
+    if quiet_start is not None:
+        prefs.quiet_start = quiet_start
+        changes_made = True
+    
+    if quiet_end is not None:
+        prefs.quiet_end = quiet_end
+        changes_made = True
+    
+    if quiet is not None:
+        prefs.quiet_enabled = quiet
+        changes_made = True
+    
+    if email_address:
+        prefs.email_address = email_address
+        changes_made = True
+    
+    if smtp_server:
+        prefs.smtp_server = smtp_server
+        changes_made = True
+    
+    if smtp_port is not None:
+        prefs.smtp_port = smtp_port
+        changes_made = True
+    
+    if smtp_username:
+        prefs.smtp_username = smtp_username
+        changes_made = True
+    
+    if smtp_password:
+        console.print("[warning]⚠️  Warning: Passwords are stored in plain text. Consider using app-specific passwords.[/warning]")
+        prefs.smtp_password = smtp_password
+        changes_made = True
+    
+    if changes_made:
+        notification_manager.save_preferences()
+        console.print("[success]✅ Notification preferences updated[/success]")
+    else:
+        console.print("[yellow]No changes specified. Use --help to see available options.[/yellow]")
+
+
+@notify.command()
+@click.option('--limit', '-l', type=int, default=20, help='Number of notifications to show')
+@click.option('--type', 'notification_type', 
+              type=click.Choice(['due_soon', 'overdue', 'recurring_generated', 'daily_summary']),
+              help='Filter by notification type')
+def history(limit, notification_type):
+    """Show notification history.
+    
+    Examples:
+      todo notify history
+      todo notify history --limit 50
+      todo notify history --type overdue
+    """
+    notification_manager = NotificationManager()
+    
+    # Convert string to enum if provided
+    filter_type = None
+    if notification_type:
+        filter_type = NotificationType(notification_type)
+    
+    notifications = notification_manager.get_notification_history(
+        limit=limit, 
+        notification_type=filter_type
+    )
+    
+    if not notifications:
+        console.print("[yellow]No notifications found in history.[/yellow]")
+        return
+    
+    console.print(f"[header]📜 Notification History ({len(notifications)} recent)[/header]\n")
+    
+    for notification in notifications:
+        # Format timestamp
+        time_str = notification.created_at.strftime('%m-%d %H:%M')
+        
+        # Get type icon
+        type_icons = {
+            NotificationType.DUE_SOON: '⏰',
+            NotificationType.OVERDUE: '🔥',
+            NotificationType.RECURRING_GENERATED: '🔄',
+            NotificationType.DAILY_SUMMARY: '📈',
+            NotificationType.WEEKLY_SUMMARY: '📈',
+            NotificationType.MILESTONE: '🎆'
+        }
+        icon = type_icons.get(notification.type, '🔔')
+        
+        # Status indicator
+        status = "✅" if notification.sent_at else "⏸️"
+        
+        console.print(f"{icon} {status} [{time_str}] [bold]{notification.title}[/bold]")
+        console.print(f"    [muted]{notification.message}[/muted]")
+        
+        if notification.todo_id:
+            console.print(f"    [muted]Task ID: {notification.todo_id}[/muted]")
+        
+        console.print()
+
+
+@notify.command()
+@click.option('--title', '-t', default='Test Notification', help='Test notification title')
+@click.option('--message', '-m', default='This is a test from Todo CLI', help='Test notification message')
+def test(title, message):
+    """Send a test notification.
+    
+    Examples:
+      todo notify test
+      todo notify test --title "Custom Test" --message "Testing notifications"
+    """
+    notification_manager = NotificationManager()
+    
+    if not notification_manager.preferences.enabled:
+        console.print("[error]❌ Notifications are disabled. Enable with: todo notify config --enabled[/error]")
+        return
+    
+    console.print("[primary]📨 Sending test notification...[/primary]")
+    
+    results = {}
+    if notification_manager.preferences.desktop_enabled:
+        results['desktop'] = notification_manager.scheduler.test_notification(title, message)
+    
+    if notification_manager.preferences.email_enabled:
+        # For email test, we'd need to create a proper notification with email delivery method
+        # For now, just check if email is configured
+        results['email'] = notification_manager.scheduler.email_delivery.is_available()
+    
+    # Show results
+    success_count = 0
+    for method, success in results.items():
+        icon = "✅" if success else "❌"
+        status_text = "Success" if success else "Failed"
+        console.print(f"  {icon} {method.title()}: {status_text}")
+        if success:
+            success_count += 1
+    
+    if success_count > 0:
+        console.print(f"\n[success]✅ Sent test notification via {success_count} method(s)[/success]")
+    else:
+        console.print("\n[error]❌ No test notifications could be sent[/error]")
+        console.print("[muted]Check your notification settings with: todo notify status[/muted]")
+
+
+@notify.command()
+def check():
+    """Check for due and overdue tasks and send notifications.
+    
+    This command manually triggers the notification check that would normally
+    run automatically. Useful for testing or immediate notification delivery.
+    """
+    storage = get_storage()
+    config = get_config()
+    notification_manager = NotificationManager()
+    
+    if not notification_manager.preferences.enabled:
+        console.print("[yellow]Notifications are disabled. Enable with: todo notify config --enabled[/yellow]")
+        return
+    
+    # Get all todos
+    all_todos = []
+    projects = storage.list_projects()
+    if not projects:
+        projects = [config.default_project]
+    
+    for proj_name in projects:
+        proj, todos = storage.load_project(proj_name)
+        if todos:
+            all_todos.extend(todos)
+    
+    console.print("[primary]🔍 Checking for due and overdue tasks...[/primary]")
+    
+    notifications_sent = notification_manager.check_and_send_notifications(all_todos)
+    
+    if notifications_sent > 0:
+        console.print(f"[success]✅ Sent {notifications_sent} notification(s)[/success]")
+    else:
+        console.print("[muted]😴 No notifications needed at this time[/muted]")
+
+
 # Create main function that invokes dashboard by default
 @click.group(invoke_without_command=True)
 @click.option("--config", type=click.Path(), help="Path to config file")
@@ -1308,6 +1616,7 @@ main.add_command(done)
 main.add_command(pin)
 main.add_command(projects)
 main.add_command(export)
+main.add_command(notify)
 
 
 if __name__ == "__main__":

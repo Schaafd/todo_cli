@@ -208,6 +208,30 @@ todo export csv --no-completed -o weekly_report.csv
 # Supported formats: json, csv, tsv, markdown, html, pdf, ical, yaml
 ```
 
+### 🔔 **NEW: Smart Notification System**
+```bash
+# Check notification system status
+todo notify status                     # Show availability and settings
+
+# Configure notifications
+todo notify config --enabled --desktop  # Enable desktop notifications
+todo notify config --due-soon-hours 12  # Notify 12 hours before due
+todo notify config --overdue-hours 6    # Remind every 6 hours for overdue
+todo notify config --quiet-start 22 --quiet-end 8  # Set quiet hours
+
+# Manual notification management
+todo notify test                       # Send test notification
+todo notify check                      # Check for due/overdue tasks now
+todo notify history                    # View notification history
+todo notify history --type overdue     # Filter by notification type
+
+# Email notifications (optional)
+todo notify config --email --email-address user@example.com
+todo notify config --smtp-server smtp.gmail.com --smtp-username user@example.com
+
+# Notification types: due_soon, overdue, recurring_generated, daily_summary
+```
+
 ## 📊 Dashboard View
 
 The dashboard provides an at-a-glance view of your tasks with rich formatting:
@@ -376,7 +400,7 @@ src/todo_cli/
 ### ✅ Phase 4: Smart Integration Features (In Progress)
 - [x] **Recurring tasks with smart scheduling** - Full CLI integration with natural language patterns
 - [x] **Export functionality** - Multiple formats (JSON, CSV, Markdown, HTML, PDF, ICAL, YAML)
-- [ ] Notification system
+- [x] **Notification system** - Desktop and email notifications with smart scheduling
 - [ ] Calendar integration
 - [ ] Sync capabilities
 
@@ -442,5 +466,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Phase 4 In Progress** 🚀 | Built with ❤️ for productivity enthusiasts
 
-> **NEW**: Recurring Tasks with Smart Scheduling & Multi-Format Export!
-> Try: `todo recurring "Daily standup @meetings" "daily" --preview` or `todo export html --open-after`
+> **NEW**: Recurring Tasks, Multi-Format Export & Smart Notifications!
+> Try: `todo notify status` or `todo notify test` to see desktop notifications in action!
