@@ -27,6 +27,8 @@ from .recommendations import TaskRecommendationEngine, get_context_suggestions, 
 from .recurring import RecurringTaskManager, RecurrenceParser, create_recurring_task_from_text
 from .export import ExportManager, ExportFormat
 from .notifications import NotificationManager, NotificationType, NotificationPreferences
+from .calendar_integration import CalendarSync, CalendarConfig, CalendarType, SyncDirection, ConflictResolution
+from .sync import SyncManager, SyncConfig, SyncProvider, ConflictStrategy, SyncStatus
 
 
 console = get_themed_console()
@@ -1597,6 +1599,100 @@ def main(ctx, config, verbose, no_banner):
             show_quick_help(console)
         ctx.invoke(dashboard)
 
+
+# Add calendar command group
+@main.group()
+def calendar():
+    """Calendar integration commands"""
+    pass
+
+@calendar.command(name="list", help="List configured calendars")
+def calendar_list():
+    """List all configured calendars"""
+    from .cli_calendar_sync import calendar_list as cmd_impl
+    cmd_impl()
+
+@calendar.command(name="add", help="Add a new calendar")
+@click.option("--name", "-n", required=True, help="Calendar name")
+@click.option("--type", "-t", "cal_type", required=True, 
+              type=click.Choice(["ical", "google_calendar", "apple_calendar", "local_file"]),
+              help="Calendar type")
+@click.option("--path", "-p", help="File path for file-based calendars")
+@click.option("--sync", "-s", default="bidirectional",
+              type=click.Choice(["import_only", "export_only", "bidirectional"]),
+              help="Sync direction")
+@click.option("--conflicts", "-c", default="newest_wins",
+              type=click.Choice(["todo_wins", "calendar_wins", "manual", "newest_wins"]),
+              help="Conflict resolution strategy")
+def calendar_add(name, cal_type, path, sync, conflicts):
+    """Add a new calendar configuration"""
+    from .cli_calendar_sync import calendar_add as cmd_impl
+    cmd_impl(name, cal_type, path, sync, conflicts)
+
+@calendar.command(name="sync", help="Sync with calendars")
+@click.option("--name", "-n", help="Sync specific calendar (all calendars if not specified)")
+def calendar_sync_cmd(name):
+    """Sync todos with calendars"""
+    from .cli_calendar_sync import calendar_sync as cmd_impl
+    cmd_impl(name)
+
+@calendar.command(name="status", help="Show calendar status")
+@click.option("--name", "-n", help="Show status for specific calendar (all calendars if not specified)")
+def calendar_status(name):
+    """Show calendar sync status"""
+    from .cli_calendar_sync import calendar_status as cmd_impl
+    cmd_impl(name)
+
+# Add sync command group
+@main.group()
+def sync():
+    """Multi-device synchronization commands"""
+    pass
+
+@sync.command(name="setup", help="Set up multi-device synchronization")
+@click.option("--provider", "-p", required=True, 
+              type=click.Choice(["dropbox", "google_drive", "git", "local_file"]),
+              help="Sync provider")
+@click.option("--path", required=True, help="Sync directory path or URL")
+@click.option("--auto/--manual", default=True, help="Enable/disable automatic sync")
+@click.option("--conflicts", "-c", default="newest_wins",
+              type=click.Choice(["local_wins", "remote_wins", "manual", "newest_wins", "merge"]),
+              help="Conflict resolution strategy")
+def sync_setup(provider, path, auto, conflicts):
+    """Set up synchronization"""
+    from .cli_calendar_sync import sync_setup as cmd_impl
+    cmd_impl(provider, path, auto, conflicts)
+
+@sync.command(name="now", help="Perform synchronization now")
+@click.option("--direction", "-d", default="full",
+              type=click.Choice(["push", "pull", "full"]),
+              help="Sync direction")
+def sync_now(direction):
+    """Perform synchronization now"""
+    from .cli_calendar_sync import sync_now as cmd_impl
+    cmd_impl(direction)
+
+@sync.command(name="status", help="Show sync status")
+def sync_status():
+    """Show sync status"""
+    from .cli_calendar_sync import sync_status as cmd_impl
+    cmd_impl()
+
+@sync.command(name="conflicts", help="List and resolve sync conflicts")
+@click.option("--resolve", "-r", help="Resolve conflict with specified todo ID")
+@click.option("--using", "-u", type=click.Choice(["local", "remote", "merge"]),
+              help="Resolution strategy (required with --resolve)")
+def sync_conflicts(resolve, using):
+    """List and resolve sync conflicts"""
+    from .cli_calendar_sync import sync_conflicts as cmd_impl
+    cmd_impl(resolve, using)
+
+@sync.command(name="history", help="Show sync history")
+@click.option("--limit", "-l", default=10, help="Limit number of entries")
+def sync_history(limit):
+    """Show sync history"""
+    from .cli_calendar_sync import sync_history as cmd_impl
+    cmd_impl(limit)
 
 # Add all commands to the main group
 main.add_command(add)

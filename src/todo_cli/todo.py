@@ -236,3 +236,61 @@ class Todo:
             "custom_fields": self.custom_fields,
             "notes": self.notes,
         }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Todo':
+        """Create a Todo from a dictionary."""
+        # Helper function to parse datetime strings
+        def parse_datetime(date_str: Optional[str]) -> Optional[datetime]:
+            if date_str:
+                try:
+                    return datetime.fromisoformat(date_str)
+                except ValueError:
+                    return None
+            return None
+        
+        return cls(
+            id=data.get("id", 0),
+            text=data.get("text", ""),
+            description=data.get("description", ""),
+            status=TodoStatus(data.get("status", "pending")),
+            completed=data.get("completed", False),
+            completed_date=parse_datetime(data.get("completed_date")),
+            completed_by=data.get("completed_by"),
+            project=data.get("project", "inbox"),
+            tags=data.get("tags", []),
+            context=data.get("context", []),
+            start_date=parse_datetime(data.get("start_date")),
+            due_date=parse_datetime(data.get("due_date")),
+            scheduled_date=parse_datetime(data.get("scheduled_date")),
+            defer_until=parse_datetime(data.get("defer_until")),
+            priority=Priority(data.get("priority", "medium")),
+            effort=data.get("effort", ""),
+            energy_level=data.get("energy_level", "medium"),
+            assignees=data.get("assignees", []),
+            stakeholders=data.get("stakeholders", []),
+            created_by=data.get("created_by", ""),
+            delegated_to=data.get("delegated_to"),
+            waiting_for=data.get("waiting_for", []),
+            created=parse_datetime(data.get("created")) or datetime.now(),
+            modified=parse_datetime(data.get("modified")) or datetime.now(),
+            pinned=data.get("pinned", False),
+            archived=data.get("archived", False),
+            recurrence=data.get("recurrence"),
+            parent_recurring_id=data.get("parent_recurring_id"),
+            recurring_template=data.get("recurring_template", False),
+            next_due=parse_datetime(data.get("next_due")),
+            recurrence_count=data.get("recurrence_count", 0),
+            depends_on=data.get("depends_on", []),
+            blocks=data.get("blocks", []),
+            parent_id=data.get("parent_id"),
+            children=data.get("children", []),
+            progress=data.get("progress", 0.0),
+            time_spent=data.get("time_spent", 0),
+            time_estimate=data.get("time_estimate"),
+            location=data.get("location"),
+            url=data.get("url"),
+            files=data.get("files", []),
+            custom_fields=data.get("custom_fields", {}),
+            notes=data.get("notes", []),
+        )
