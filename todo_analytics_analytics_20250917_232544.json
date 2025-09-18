@@ -1,0 +1,86 @@
+{
+  "analytics": {
+    "timeframe": "monthly",
+    "start_date": "2025-09-01T00:00:00",
+    "end_date": "2025-09-17T23:25:44.637795",
+    "productivity_score": {
+      "overall_score": 41.83333333333333,
+      "completion_rate": 16.666666666666664,
+      "velocity_score": 5.0,
+      "focus_score": 100.0,
+      "consistency_score": 100,
+      "time_management_score": 0.0,
+      "priority_adherence_score": 66.66666666666666,
+      "tasks_completed": 4,
+      "tasks_created": 24,
+      "average_completion_time": 3.472222222222222e-10,
+      "estimation_accuracy": null,
+      "completion_rate_trend": null,
+      "velocity_trend": null,
+      "consistency_trend": null
+    },
+    "insights": [
+      {
+        "insight_type": "weakness",
+        "title": "Low Task Completion Rate",
+        "description": "Your completion rate of 16.7% suggests room for improvement",
+        "impact_level": "high",
+        "confidence": 0.9,
+        "actionable_recommendation": "Consider breaking tasks into smaller, more manageable pieces or reviewing your task load",
+        "supporting_data": {
+          "completion_rate": 16.666666666666664
+        }
+      },
+      {
+        "insight_type": "opportunity",
+        "title": "Low Task Velocity",
+        "description": "You're completing 0.6 tasks per day on average",
+        "impact_level": "medium",
+        "confidence": 0.8,
+        "actionable_recommendation": "Consider time-boxing techniques or identifying bottlenecks in your workflow",
+        "supporting_data": {
+          "daily_velocity": 0.5714285714285714
+        }
+      },
+      {
+        "insight_type": "weakness",
+        "title": "Due Date Management",
+        "description": "Time management score of 0.0 indicates difficulty meeting deadlines",
+        "impact_level": "high",
+        "confidence": 0.9,
+        "actionable_recommendation": "Consider setting earlier personal deadlines and using time estimation techniques",
+        "supporting_data": {
+          "time_management_score": 0.0
+        }
+      }
+    ],
+    "patterns": [],
+    "completion_by_day": {
+      "Wednesday": 4
+    },
+    "completion_by_priority": {
+      "high": 2,
+      "medium": 1,
+      "critical": 1
+    },
+    "completion_by_project": {
+      "inbox": 4
+    },
+    "completion_by_hour": {
+      "23": 4
+    },
+    "average_task_duration": 3.472222222222222e-10,
+    "peak_productivity_hours": [
+      23
+    ],
+    "least_productive_hours": [
+      23
+    ],
+    "most_active_projects": [
+      "inbox",
+      "work",
+      "global"
+    ],
+    "stalled_projects": []
+  }
+}

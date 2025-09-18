@@ -29,6 +29,7 @@ from .export import ExportManager, ExportFormat
 from .notifications import NotificationManager, NotificationType, NotificationPreferences
 from .calendar_integration import CalendarSync, CalendarConfig, CalendarType, SyncDirection, ConflictResolution
 from .sync import SyncManager, SyncConfig, SyncProvider, ConflictStrategy, SyncStatus
+from .cli_analytics import get_analytics_commands
 
 
 console = get_themed_console()
@@ -1713,6 +1714,7 @@ main.add_command(pin)
 main.add_command(projects)
 main.add_command(export)
 main.add_command(notify)
+main.add_command(get_analytics_commands())
 
 
 if __name__ == "__main__":

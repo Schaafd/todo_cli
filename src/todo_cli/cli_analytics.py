@@ -24,7 +24,7 @@ import tabulate
 
 from .analytics import (
     ProductivityAnalyzer, AnalyticsTimeframe, AnalyticsReport,
-    TaskPattern, ProductivityInsight, StatisticalAnalysis
+    TaskPattern, ProductivityInsight
 )
 from .time_tracking import (
     TimeTracker, TimeReport, ProductivityHeatmap, 
@@ -32,7 +32,7 @@ from .time_tracking import (
 )
 from .project_analytics import (
     ProjectAnalyzer, ProjectHealthScore, ProjectForecast,
-    BurndownChart, VelocityData
+    BurndownData, VelocityData
 )
 from .dashboard import (
     DashboardManager, Dashboard, Widget, WidgetType,
@@ -40,7 +40,32 @@ from .dashboard import (
 )
 from .plugins import PluginManager, PluginType, PluginStatus
 from .config import get_config
-from .storage import get_storage
+from .storage import Storage
+
+
+# Helper function for storage
+def get_storage():
+    """Get initialized storage instance."""
+    config = get_config()
+    return Storage(config)
+
+
+def get_all_todos():
+    """Get all todos from all projects."""
+    storage = get_storage()
+    config = get_config()
+    
+    all_todos = []
+    projects = storage.list_projects()
+    if not projects:
+        projects = [config.default_project]
+    
+    for proj_name in projects:
+        proj, todos = storage.load_project(proj_name)
+        if todos:
+            all_todos.extend(todos)
+    
+    return all_todos
 
 
 # Console formatting helpers
@@ -57,7 +82,7 @@ def format_table(data: List[Dict], headers: Optional[List[str]] = None,
         return "No data available"
     
     if headers is None:
-        headers = list(data[0].keys()) if data else []
+        headers = "keys"
     
     return tabulate.tabulate(data, headers=headers, tablefmt=tablefmt)
 
@@ -98,8 +123,7 @@ def analytics_overview(timeframe: str, format: str, export: Optional[str]):
     
     try:
         # Get data
-        storage = get_storage()
-        todos = storage.get_all_todos()
+        todos = get_all_todos()
         
         if not todos:
             click.echo("No todos found for analysis")
@@ -149,32 +173,34 @@ def _format_analytics_report(report: AnalyticsReport) -> str:
     """Format analytics report for console display"""
     output = []
     
-    print_section("📊 PRODUCTIVITY ANALYTICS OVERVIEW")
+    output.append("\n" + "=" * 60)
+    output.append("📊 PRODUCTIVITY ANALYTICS OVERVIEW".center(60))
+    output.append("=" * 60)
     
     # Summary metrics
-    output.append("📈 KEY METRICS")
+    output.append("\n📈 KEY METRICS")
     output.append("-" * 50)
     
     key_metrics = [
-        {"Metric": "Completion Rate", "Value": f"{report.completion_rate:.1f}%"},
-        {"Metric": "Avg Daily Tasks", "Value": f"{report.average_daily_completion:.1f}"},
-        {"Metric": "Productivity Score", "Value": f"{report.productivity_score:.1f}/100"},
-        {"Metric": "Focus Score", "Value": f"{report.focus_score:.1f}/100"}
+        {"Metric": "Completion Rate", "Value": f"{report.productivity_score.completion_rate:.1f}%"},
+        {"Metric": "Tasks Completed", "Value": f"{report.productivity_score.tasks_completed}"},
+        {"Metric": "Productivity Score", "Value": f"{report.productivity_score.overall_score:.1f}/100"},
+        {"Metric": "Focus Score", "Value": f"{report.productivity_score.focus_score:.1f}/100"}
     ]
     
     output.append(format_table(key_metrics, tablefmt="simple"))
     
     # Task patterns
-    if report.task_patterns:
+    if report.patterns:
         output.append("\n🔍 TASK PATTERNS")
         output.append("-" * 50)
         
         pattern_data = []
-        for pattern in report.task_patterns:
+        for pattern in report.patterns:
             pattern_data.append({
                 "Pattern": pattern.pattern_type,
-                "Frequency": f"{pattern.frequency:.1f}%",
-                "Impact": pattern.impact_score,
+                "Frequency": f"{pattern.frequency}%",
+                "Confidence": f"{pattern.confidence:.1f}",
                 "Description": pattern.description[:60] + "..." if len(pattern.description) > 60 else pattern.description
             })
         
@@ -186,8 +212,9 @@ def _format_analytics_report(report: AnalyticsReport) -> str:
         output.append("-" * 50)
         
         for insight in report.insights:
-            trend_emoji = "📈" if insight.trend == "improving" else "📉" if insight.trend == "declining" else "➡️"
-            output.append(f"{trend_emoji} {insight.metric_name}: {insight.description}")
+            icon_map = {"strength": "💪", "weakness": "⚠️", "opportunity": "🎯", "trend": "📊"}
+            icon = icon_map.get(insight.insight_type, "💡")
+            output.append(f"{icon} {insight.title}: {insight.description}")
         output.append("")
     
     # Time-based analysis
@@ -330,8 +357,7 @@ def project_analytics(project: Optional[str], all: bool):
     """Project-level analytics and insights"""
     
     try:
-        storage = get_storage()
-        todos = storage.get_all_todos()
+        todos = get_all_todos()
         
         analyzer = ProjectAnalyzer()
         
@@ -503,8 +529,7 @@ def _display_dashboard(manager: DashboardManager, dashboard: Dashboard):
     
     print_section(f"📊 DASHBOARD: {dashboard.name}")
     
-    storage = get_storage()
-    todos = storage.get_all_todos()
+    todos = get_all_todos()
     
     for widget in dashboard.widgets:
         print_subsection(f"📈 {widget.name}")
@@ -556,8 +581,7 @@ def export_analytics(type: str, format: str, output: Optional[str], timeframe: s
     """Export analytics data in various formats"""
     
     try:
-        storage = get_storage()
-        todos = storage.get_all_todos()
+        todos = get_all_todos()
         
         export_data = {}
         
