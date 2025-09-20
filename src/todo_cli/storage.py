@@ -492,6 +492,133 @@ class Storage:
     def get_all_projects(self) -> List[str]:
         """Get all project names (alias for list_projects)."""
         return self.list_projects()
+    
+    def get_all_todos(self) -> List[Todo]:
+        """Get all todos from all projects.
+        
+        Returns:
+            List of all todos across all projects
+        """
+        all_todos = []
+        projects = self.list_projects()
+        
+        # Include default project if no projects exist
+        if not projects:
+            projects = [self.config.default_project]
+        
+        for project_name in projects:
+            _, todos = self.load_project(project_name)
+            if todos:
+                all_todos.extend(todos)
+        
+        return all_todos
+    
+    def get_todo(self, todo_id: int, project: Optional[str] = None) -> Optional[Todo]:
+        """Get a specific todo by ID.
+        
+        Args:
+            todo_id: ID of the todo to find
+            project: Optional project name to search in (searches all if None)
+            
+        Returns:
+            Todo object if found, None otherwise
+        """
+        if project:
+            # Search in specific project
+            _, todos = self.load_project(project)
+            for todo in todos:
+                if todo.id == todo_id:
+                    return todo
+        else:
+            # Search all projects
+            for todo in self.get_all_todos():
+                if todo.id == todo_id:
+                    return todo
+        return None
+    
+    def add_todo(self, todo: Todo) -> int:
+        """Add a new todo to storage.
+        
+        Args:
+            todo: Todo object to add
+            
+        Returns:
+            ID of the added todo
+        """
+        project_name = todo.project or self.config.default_project
+        project, todos = self.load_project(project_name)
+        
+        # Ensure unique ID
+        if not todo.id:
+            todo.id = self.get_next_todo_id(project_name)
+        else:
+            # Check for duplicate IDs
+            existing_ids = {t.id for t in todos}
+            if todo.id in existing_ids:
+                todo.id = max(existing_ids) + 1 if existing_ids else 1
+        
+        todos.append(todo)
+        self.save_project(project, todos)
+        return todo.id
+    
+    def update_todo(self, todo: Todo) -> bool:
+        """Update an existing todo in storage.
+        
+        Args:
+            todo: Todo object with updated data
+            
+        Returns:
+            True if updated successfully, False otherwise
+        """
+        project_name = todo.project or self.config.default_project
+        project, todos = self.load_project(project_name)
+        
+        # Find and update the todo
+        for i, existing_todo in enumerate(todos):
+            if existing_todo.id == todo.id:
+                todos[i] = todo
+                return self.save_project(project, todos)
+        
+        # If not found in the expected project, search all projects
+        for proj_name in self.list_projects():
+            if proj_name == project_name:
+                continue
+            project, todos = self.load_project(proj_name)
+            for i, existing_todo in enumerate(todos):
+                if existing_todo.id == todo.id:
+                    # Found in different project, remove from old and add to new
+                    todos.pop(i)
+                    self.save_project(project, todos)
+                    # Add to new project
+                    return self.add_todo(todo) is not None
+        
+        return False
+    
+    def delete_todo(self, todo_id: int, project: Optional[str] = None) -> bool:
+        """Delete a todo from storage.
+        
+        Args:
+            todo_id: ID of the todo to delete
+            project: Optional project name to search in (searches all if None)
+            
+        Returns:
+            True if deleted successfully, False otherwise
+        """
+        if project:
+            project_obj, todos = self.load_project(project)
+            original_count = len(todos)
+            todos = [t for t in todos if t.id != todo_id]
+            if len(todos) < original_count:
+                return self.save_project(project_obj, todos)
+        else:
+            # Search all projects
+            for proj_name in self.list_projects():
+                project_obj, todos = self.load_project(proj_name)
+                original_count = len(todos)
+                todos = [t for t in todos if t.id != todo_id]
+                if len(todos) < original_count:
+                    return self.save_project(project_obj, todos)
+        return False
 
 
 # Global storage instance
