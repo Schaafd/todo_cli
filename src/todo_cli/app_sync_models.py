@@ -128,12 +128,12 @@ class ExternalTodoItem:
             text=self.title,
             project=self.project or "default",
             tags=self.tags,
-            due=self.due_date,
+            due_date=self.due_date,
             priority=self._map_priority_from_external(),
             status=TodoStatus.COMPLETED if self.completed else TodoStatus.PENDING,
-            created_at=self.created_at or datetime.now(timezone.utc),
-            updated_at=self.updated_at or datetime.now(timezone.utc),
-            notes=self.description or ""
+            created=self.created_at or datetime.now(timezone.utc),
+            modified=self.updated_at or datetime.now(timezone.utc),
+            description=self.description or ""
         )
     
     def _map_priority_from_external(self) -> Priority:
