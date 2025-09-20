@@ -122,107 +122,112 @@ def add(input_text, project, dry_run, suggest):
       todo add "Deploy app #project1 due friday @work +john"
       todo add "Meeting prep [PIN] energy:high est:1h"
     """
-    storage = get_storage()
-    config = get_config()
-    
-    # Get available data for suggestions
-    all_todos = []
-    projects = storage.list_projects()
-    if not projects:
-        projects = [config.default_project]
-    
-    for proj_name in projects:
-        proj, todos = storage.load_project(proj_name)
-        if todos:
-            all_todos.extend(todos)
-    
-    available_projects = list(set(t.project for t in all_todos if t.project))
-    available_tags = list(set(tag for t in all_todos for tag in t.tags))
-    available_people = list(set(person for t in all_todos for person in t.assignees))
-    
-    # Parse the input
-    parsed, errors, suggestions = parse_task_input(
-        input_text, 
-        config, 
-        project_hint=project or config.default_project,
-        available_projects=available_projects, 
-        available_tags=available_tags, 
-        available_people=available_people
-    )
-    
-    # Show parsing errors
-    if errors:
-        console.print("[bold yellow]⚠️  Parsing Issues:[/bold yellow]")
-        for error in errors:
-            if error.severity == "error":
-                console.print(f"  [red]❌ {error.message}[/red]")
-                for suggestion in error.suggestions:
-                    console.print(f"     [blue]💡 {suggestion}[/blue]")
-            elif error.severity == "warning":
-                console.print(f"  [yellow]⚠️  {error.message}[/yellow]")
+    try:
+        storage = get_storage()
+        config = get_config()
         
-        # Don't proceed if there are blocking errors
-        if any(e.severity == "error" for e in errors):
-            sys.exit(1)
-    
-    # Show suggestions if requested
-    if suggest or suggestions:
-        if suggestions:
-            console.print("[bold blue]💡 Suggestions:[/bold blue]")
-            for suggestion in suggestions:
-                console.print(f"  [blue]{suggestion}[/blue]")
+        # Get available data for suggestions
+        all_todos = []
+        projects = storage.list_projects()
+        if not projects:
+            projects = [config.default_project]
         
-        if suggest:
+        for proj_name in projects:
+            proj, todos = storage.load_project(proj_name)
+            if todos:
+                all_todos.extend(todos)
+        
+        available_projects = list(set(t.project for t in all_todos if t.project))
+        available_tags = list(set(tag for t in all_todos for tag in t.tags))
+        available_people = list(set(person for t in all_todos for person in t.assignees))
+        
+        # Parse the input
+        parsed, errors, suggestions = parse_task_input(
+            input_text, 
+            config, 
+            project_hint=project or config.default_project,
+            available_projects=available_projects, 
+            available_tags=available_tags, 
+            available_people=available_people
+        )
+        
+        # Show parsing errors
+        if errors:
+            console.print("[bold yellow]⚠️  Parsing Issues:[/bold yellow]")
+            for error in errors:
+                if error.severity == "error":
+                    console.print(f"  [red]❌ {error.message}[/red]")
+                    for suggestion in error.suggestions:
+                        console.print(f"     [blue]💡 {suggestion}[/blue]")
+                elif error.severity == "warning":
+                    console.print(f"  [yellow]⚠️  {error.message}[/yellow]")
+            
+            # Don't proceed if there are blocking errors
+            if any(e.severity == "error" for e in errors):
+                sys.exit(1)
+        
+        # Show suggestions if requested
+        if suggest or suggestions:
+            if suggestions:
+                console.print("[bold blue]💡 Suggestions:[/bold blue]")
+                for suggestion in suggestions:
+                    console.print(f"  [blue]{suggestion}[/blue]")
+            
+            if suggest:
+                return
+        
+        # Get next todo ID for the project
+        target_project = parsed.project or project or config.default_project
+        todo_id = storage.get_next_todo_id(target_project)
+        
+        # Build todo with our enhanced data
+        builder = TaskBuilder(config)
+        todo = builder.build(parsed, todo_id)
+        
+        # Show preview
+        console.print("[bold green]📋 Task Preview:[/bold green]")
+        preview_text = format_todo_for_display(todo, show_id=True)
+        console.print(f"  {preview_text}")
+        
+        # Show additional details that aren't in the standard format
+        if todo.context:
+            console.print(f"  [dim]Context: {', '.join('@' + ctx for ctx in todo.context)}[/dim]")
+        if todo.effort:
+            console.print(f"  [dim]Effort: *{todo.effort}[/dim]")
+        if todo.energy_level != "medium":
+            console.print(f"  [dim]Energy: {todo.energy_level}[/dim]")
+        if todo.time_estimate:
+            hours = todo.time_estimate // 60
+            minutes = todo.time_estimate % 60
+            if hours > 0:
+                console.print(f"  [dim]Estimate: {hours}h {minutes}m[/dim]")
+            else:
+                console.print(f"  [dim]Estimate: {minutes}m[/dim]")
+        if todo.waiting_for:
+            console.print(f"  [dim]Waiting for: {', '.join(todo.waiting_for)}[/dim]")
+        if todo.url:
+            console.print(f"  [dim]URL: {todo.url}[/dim]")
+        
+        if dry_run:
+            console.print("[yellow]🔍 Dry run - not saved[/yellow]")
             return
-    
-    # Get next todo ID for the project
-    target_project = parsed.project or project or config.default_project
-    todo_id = storage.get_next_todo_id(target_project)
-    
-    # Build todo with our enhanced data
-    builder = TaskBuilder(config)
-    todo = builder.build(parsed, todo_id)
-    
-    # Show preview
-    console.print("[bold green]📋 Task Preview:[/bold green]")
-    preview_text = format_todo_for_display(todo, show_id=True)
-    console.print(f"  {preview_text}")
-    
-    # Show additional details that aren't in the standard format
-    if todo.context:
-        console.print(f"  [dim]Context: {', '.join('@' + ctx for ctx in todo.context)}[/dim]")
-    if todo.effort:
-        console.print(f"  [dim]Effort: *{todo.effort}[/dim]")
-    if todo.energy_level != "medium":
-        console.print(f"  [dim]Energy: {todo.energy_level}[/dim]")
-    if todo.time_estimate:
-        hours = todo.time_estimate // 60
-        minutes = todo.time_estimate % 60
-        if hours > 0:
-            console.print(f"  [dim]Estimate: {hours}h {minutes}m[/dim]")
+        
+        # Load project and todos
+        proj, todos = storage.load_project(target_project)
+        if not proj:
+            proj = Project(name=target_project)
+        
+        todos.append(todo)
+        
+        # Save project
+        if storage.save_project(proj, todos):
+            console.print(f"[success]✅ Added task {todo_id} to {target_project}[/success]")
         else:
-            console.print(f"  [dim]Estimate: {minutes}m[/dim]")
-    if todo.waiting_for:
-        console.print(f"  [dim]Waiting for: {', '.join(todo.waiting_for)}[/dim]")
-    if todo.url:
-        console.print(f"  [dim]URL: {todo.url}[/dim]")
-    
-    if dry_run:
-        console.print("[yellow]🔍 Dry run - not saved[/yellow]")
-        return
-    
-    # Load project and todos
-    proj, todos = storage.load_project(target_project)
-    if not proj:
-        proj = Project(name=target_project)
-    
-    todos.append(todo)
-    
-    # Save project
-    if storage.save_project(proj, todos):
-        console.print(f"[success]✅ Added task {todo_id} to {target_project}[/success]")
-    else:
-        console.print(f"[error]❌ Failed to add task[/error]")
+            console.print(f"[error]❌ Failed to add task[/error]")
+            sys.exit(1)
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
         sys.exit(1)
 
 

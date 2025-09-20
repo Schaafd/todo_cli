@@ -9,6 +9,7 @@ from fuzzywuzzy import fuzz, process
 
 from .todo import Todo, Priority, TodoStatus
 from .config import ConfigModel
+from .utils.datetime import now_utc, ensure_aware
 
 
 @dataclass
@@ -48,15 +49,15 @@ class SmartDateParser:
     
     def __init__(self):
         self.cal = parsedatetime.Calendar()
-        # Common relative date patterns
+        # Common relative date patterns (all timezone-aware)
         self.patterns = {
-            'today': lambda: datetime.now().replace(hour=23, minute=59, second=59),
-            'tomorrow': lambda: (datetime.now() + timedelta(days=1)).replace(hour=23, minute=59, second=59),
-            'yesterday': lambda: (datetime.now() - timedelta(days=1)).replace(hour=23, minute=59, second=59),
-            'next week': lambda: datetime.now() + timedelta(weeks=1),
-            'next month': lambda: self._add_months(datetime.now(), 1),
-            'end of week': lambda: self._end_of_week(),
-            'end of month': lambda: self._end_of_month(),
+            'today': lambda: ensure_aware(now_utc().replace(hour=23, minute=59, second=59)),
+            'tomorrow': lambda: ensure_aware((now_utc() + timedelta(days=1)).replace(hour=23, minute=59, second=59)),
+            'yesterday': lambda: ensure_aware((now_utc() - timedelta(days=1)).replace(hour=23, minute=59, second=59)),
+            'next week': lambda: ensure_aware(now_utc() + timedelta(weeks=1)),
+            'next month': lambda: ensure_aware(self._add_months(now_utc(), 1)),
+            'end of week': lambda: ensure_aware(self._end_of_week()),
+            'end of month': lambda: ensure_aware(self._end_of_month()),
         }
     
     def _add_months(self, date: datetime, months: int) -> datetime:
@@ -68,13 +69,13 @@ class SmartDateParser:
     
     def _end_of_week(self) -> datetime:
         """Get end of current week (Sunday)."""
-        now = datetime.now()
+        now = now_utc()
         days_until_sunday = 6 - now.weekday()
         return now + timedelta(days=days_until_sunday)
     
     def _end_of_month(self) -> datetime:
         """Get end of current month."""
-        now = datetime.now()
+        now = now_utc()
         next_month = self._add_months(now, 1)
         return next_month.replace(day=1) - timedelta(days=1)
     
@@ -92,7 +93,8 @@ class SmartDateParser:
         # Try parsedatetime
         time_struct, parse_status = self.cal.parse(date_str)
         if parse_status > 0:
-            return datetime(*time_struct[:6])
+            parsed_dt = datetime(*time_struct[:6])
+            return ensure_aware(parsed_dt)
         
         # Try regex patterns for specific formats
         patterns = [
@@ -107,9 +109,11 @@ class SmartDateParser:
                 try:
                     if '%Y' not in fmt:
                         # Add current year
-                        date_str_with_year = f"{date_str}/{datetime.now().year}"
-                        return datetime.strptime(date_str_with_year, f"{fmt}/%Y")
-                    return datetime.strptime(date_str, fmt)
+                        date_str_with_year = f"{date_str}/{now_utc().year}"
+                        parsed_dt = datetime.strptime(date_str_with_year, f"{fmt}/%Y")
+                        return ensure_aware(parsed_dt)
+                    parsed_dt = datetime.strptime(date_str, fmt)
+                    return ensure_aware(parsed_dt)
                 except ValueError:
                     continue
         
@@ -140,7 +144,7 @@ class NaturalLanguageParser:
         # Date extraction patterns
         self.date_patterns = {
             'due': re.compile(r'(?:due|!)\s*([^@#~*+&%\[\(]+?)(?=\s*[@#~*+&%\[\(]|$)', re.IGNORECASE),
-            'start': re.compile(r'(?:start|starts?|^)\s*([^@#~*+&%\[\(]+?)(?=\s*[@#~*+&%\[\(]|$)', re.IGNORECASE),
+            'start': re.compile(r'(?:start|starts?)\s*([^@#~*+&%\[\(]+?)(?=\s*[@#~*+&%\[\(]|$)', re.IGNORECASE),
             'scheduled': re.compile(r'(?:scheduled?|at)\s*([^@#~*+&%\[\(]+?)(?=\s*[@#~*+&%\[\(]|$)', re.IGNORECASE),
         }
         
@@ -152,117 +156,122 @@ class NaturalLanguageParser:
     
     def parse(self, input_text: str, project_hint: Optional[str] = None) -> Tuple[ParsedTask, List[ParseError]]:
         """Parse natural language input into structured task data."""
-        errors = []
-        parsed = ParsedTask(text="")
-        
-        if not input_text.strip():
-            errors.append(ParseError("Empty task text", suggestions=["Add a task description"]))
-            return parsed, errors
-        
-        # Start with the full input
-        remaining_text = input_text.strip()
-        
-        # Extract project
-        project_match = self.patterns['project'].search(remaining_text)
-        if project_match:
-            parsed.project = project_match.group(1)
-            remaining_text = remaining_text.replace(project_match.group(0), '', 1)
-        elif project_hint:
-            parsed.project = project_hint
-        
-        # Extract tags (context-aware)
-        for match in self.patterns['tags'].finditer(remaining_text):
-            tag = match.group(1)
-            # Determine if it's a context or regular tag
-            if tag in ['home', 'work', 'office', 'phone', 'computer', 'errands', 'online']:
-                parsed.context.append(tag)
-            else:
-                parsed.tags.append(tag)
-        
-        # Remove processed tags
-        remaining_text = self.patterns['tags'].sub('', remaining_text)
-        
-        # Extract priority
-        priority_match = self.patterns['priority'].search(remaining_text)
-        if priority_match:
-            priority_val = priority_match.group(1).lower()
-            try:
-                parsed.priority = Priority(priority_val)
-                remaining_text = remaining_text.replace(priority_match.group(0), '', 1)
-            except ValueError:
+        try:
+            errors = []
+            parsed = ParsedTask(text="")
+            
+            if not input_text.strip():
+                errors.append(ParseError("Empty task text", suggestions=["Add a task description"]))
+                return parsed, errors
+            
+            # Start with the full input
+            remaining_text = input_text.strip()
+            
+            # Extract project
+            project_match = self.patterns['project'].search(remaining_text)
+            if project_match:
+                parsed.project = project_match.group(1)
+                remaining_text = remaining_text.replace(project_match.group(0), '', 1)
+            elif project_hint:
+                parsed.project = project_hint
+            
+            # Extract tags (context-aware)
+            for match in self.patterns['tags'].finditer(remaining_text):
+                tag = match.group(1)
+                # Determine if it's a context or regular tag
+                if tag in ['home', 'work', 'office', 'phone', 'computer', 'errands', 'online']:
+                    parsed.context.append(tag)
+                else:
+                    parsed.tags.append(tag)
+            
+            # Remove processed tags
+            remaining_text = self.patterns['tags'].sub('', remaining_text)
+            
+            # Extract priority
+            priority_match = self.patterns['priority'].search(remaining_text)
+            if priority_match:
+                priority_val = priority_match.group(1).lower()
+                try:
+                    parsed.priority = Priority(priority_val)
+                    remaining_text = remaining_text.replace(priority_match.group(0), '', 1)
+                except ValueError:
+                    errors.append(ParseError(
+                        f"Invalid priority: {priority_match.group(1)}",
+                        suggestions=["Use: critical, high, medium, low"]
+                    ))
+            
+            # Extract effort
+            effort_match = self.patterns['effort'].search(remaining_text)
+            if effort_match:
+                parsed.effort = effort_match.group(1)
+                remaining_text = remaining_text.replace(effort_match.group(0), '', 1)
+            
+            # Extract assignees
+            for match in self.patterns['assignees'].finditer(remaining_text):
+                parsed.assignees.append(match.group(1))
+            remaining_text = self.patterns['assignees'].sub('', remaining_text)
+            
+            # Extract stakeholders
+            for match in self.patterns['stakeholders'].finditer(remaining_text):
+                parsed.stakeholders.append(match.group(1))
+            remaining_text = self.patterns['stakeholders'].sub('', remaining_text)
+            
+            # Extract recurrence
+            recurrence_match = self.patterns['recurrence'].search(remaining_text)
+            if recurrence_match:
+                parsed.recurrence = recurrence_match.group(1)
+                remaining_text = remaining_text.replace(recurrence_match.group(0), '', 1)
+            
+            # Check for pinned
+            if self.patterns['pinned'].search(remaining_text):
+                parsed.pinned = True
+                remaining_text = self.patterns['pinned'].sub('', remaining_text)
+            
+            # Extract URL
+            url_match = self.patterns['url'].search(remaining_text)
+            if url_match:
+                parsed.url = url_match.group(0)
+                remaining_text = remaining_text.replace(url_match.group(0), '', 1)
+            
+            # Extract waiting for
+            waiting_match = self.patterns['waiting'].search(remaining_text)
+            if waiting_match:
+                waiting_items = [item.strip() for item in waiting_match.group(1).split(',')]
+                parsed.waiting_for.extend(waiting_items)
+                remaining_text = remaining_text.replace(waiting_match.group(0), '', 1)
+            
+            # Extract energy level
+            energy_match = self.energy_patterns.search(remaining_text)
+            if energy_match:
+                parsed.energy_level = energy_match.group(1).lower()
+                remaining_text = remaining_text.replace(energy_match.group(0), '', 1)
+            
+            # Extract time estimate
+            time_match = self.time_patterns.search(remaining_text)
+            if time_match:
+                time_str = time_match.group(1)
+                parsed.time_estimate = self._parse_time_estimate(time_str)
+                remaining_text = remaining_text.replace(time_match.group(0), '', 1)
+            
+            # Extract dates
+            parsed.due_date, remaining_text = self._extract_date(remaining_text, 'due')
+            parsed.start_date, remaining_text = self._extract_date(remaining_text, 'start')
+            parsed.scheduled_date, remaining_text = self._extract_date(remaining_text, 'scheduled')
+            
+            # Clean up remaining text for task description
+            parsed.text = ' '.join(remaining_text.split()).strip()
+            
+            if not parsed.text:
                 errors.append(ParseError(
-                    f"Invalid priority: {priority_match.group(1)}",
-                    suggestions=["Use: critical, high, medium, low"]
+                    "No task description found after parsing metadata",
+                    suggestions=["Ensure task has descriptive text along with metadata"]
                 ))
-        
-        # Extract effort
-        effort_match = self.patterns['effort'].search(remaining_text)
-        if effort_match:
-            parsed.effort = effort_match.group(1)
-            remaining_text = remaining_text.replace(effort_match.group(0), '', 1)
-        
-        # Extract assignees
-        for match in self.patterns['assignees'].finditer(remaining_text):
-            parsed.assignees.append(match.group(1))
-        remaining_text = self.patterns['assignees'].sub('', remaining_text)
-        
-        # Extract stakeholders
-        for match in self.patterns['stakeholders'].finditer(remaining_text):
-            parsed.stakeholders.append(match.group(1))
-        remaining_text = self.patterns['stakeholders'].sub('', remaining_text)
-        
-        # Extract recurrence
-        recurrence_match = self.patterns['recurrence'].search(remaining_text)
-        if recurrence_match:
-            parsed.recurrence = recurrence_match.group(1)
-            remaining_text = remaining_text.replace(recurrence_match.group(0), '', 1)
-        
-        # Check for pinned
-        if self.patterns['pinned'].search(remaining_text):
-            parsed.pinned = True
-            remaining_text = self.patterns['pinned'].sub('', remaining_text)
-        
-        # Extract URL
-        url_match = self.patterns['url'].search(remaining_text)
-        if url_match:
-            parsed.url = url_match.group(0)
-            remaining_text = remaining_text.replace(url_match.group(0), '', 1)
-        
-        # Extract waiting for
-        waiting_match = self.patterns['waiting'].search(remaining_text)
-        if waiting_match:
-            waiting_items = [item.strip() for item in waiting_match.group(1).split(',')]
-            parsed.waiting_for.extend(waiting_items)
-            remaining_text = remaining_text.replace(waiting_match.group(0), '', 1)
-        
-        # Extract energy level
-        energy_match = self.energy_patterns.search(remaining_text)
-        if energy_match:
-            parsed.energy_level = energy_match.group(1).lower()
-            remaining_text = remaining_text.replace(energy_match.group(0), '', 1)
-        
-        # Extract time estimate
-        time_match = self.time_patterns.search(remaining_text)
-        if time_match:
-            time_str = time_match.group(1)
-            parsed.time_estimate = self._parse_time_estimate(time_str)
-            remaining_text = remaining_text.replace(time_match.group(0), '', 1)
-        
-        # Extract dates
-        parsed.due_date, remaining_text = self._extract_date(remaining_text, 'due')
-        parsed.start_date, remaining_text = self._extract_date(remaining_text, 'start')
-        parsed.scheduled_date, remaining_text = self._extract_date(remaining_text, 'scheduled')
-        
-        # Clean up remaining text for task description
-        parsed.text = ' '.join(remaining_text.split()).strip()
-        
-        if not parsed.text:
-            errors.append(ParseError(
-                "No task description found after parsing metadata",
-                suggestions=["Ensure task has descriptive text along with metadata"]
-            ))
-        
-        return parsed, errors
+            
+            return parsed, errors
+            
+        except Exception as e:
+            # Return error instead of crashing
+            return ParsedTask(text=input_text), [ParseError(f"Parsing failed: {str(e)}")]
     
     def _extract_date(self, text: str, date_type: str) -> Tuple[Optional[datetime], str]:
         """Extract and parse date from text."""

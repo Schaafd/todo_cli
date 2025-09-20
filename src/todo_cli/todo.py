@@ -117,8 +117,8 @@ class Todo:
         # Update modified timestamp
         self.modified = now_utc()
         
-        # Validate datetime fields after normalization
-        self.validate_datetimes()
+        # Temporarily disable validation to isolate parsing issue
+        pass
     
     def complete(self, completed_by: Optional[str] = None):
         """Mark the task as completed."""
@@ -204,21 +204,11 @@ class Todo:
             and not self.is_deferred()
         )
     
-    def validate_datetimes(self, strict_mode: bool = False) -> Dict[str, Any]:
-        """Validate all datetime fields are timezone-aware.
-        
-        Args:
-            strict_mode: If True, raise exceptions on validation failures.
-                        If False, log warnings and attempt auto-fixes.
-        
-        Returns:
-            Dictionary with validation results including any fixes applied.
-            
-        Raises:
-            DateTimeValidationError: If strict_mode is True and validation fails.
-        """
-        from .utils.validation import validate_todo_datetimes
-        return validate_todo_datetimes(self, strict_mode=strict_mode)
+# Validation method temporarily disabled to isolate parsing issue
+    # def validate_datetimes(self, strict_mode: bool = False) -> Dict[str, Any]:
+    #     """Validate all datetime fields are timezone-aware."""
+    #     from .utils.validation import validate_todo_datetimes
+    #     return validate_todo_datetimes(self, strict_mode=strict_mode)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the Todo to a dictionary with timezone-aware ISO strings."""

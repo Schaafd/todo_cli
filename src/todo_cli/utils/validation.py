@@ -85,15 +85,27 @@ class DateTimeValidator:
                 return None
             else:
                 # In non-strict mode, try to fix by assuming UTC
-                from .datetime import ensure_aware
-                fixed_value = ensure_aware(value)
-                self.validation_warnings.append({
-                    'field': field_name,
-                    'message': f"Auto-fixed naive datetime to UTC: {value} → {fixed_value}",
-                    'original_value': value,
-                    'fixed_value': fixed_value
-                })
-                return fixed_value
+                try:
+                    from .datetime import ensure_aware
+                    fixed_value = ensure_aware(value)
+                    self.validation_warnings.append({
+                        'field': field_name,
+                        'message': f"Auto-fixed naive datetime to UTC: {value} → {fixed_value}",
+                        'original_value': value,
+                        'fixed_value': fixed_value
+                    })
+                    return fixed_value
+                except ImportError:
+                    # Fallback if circular import
+                    from datetime import timezone
+                    fixed_value = value.replace(tzinfo=timezone.utc)
+                    self.validation_warnings.append({
+                        'field': field_name,
+                        'message': f"Auto-fixed naive datetime to UTC: {value} → {fixed_value}",
+                        'original_value': value,
+                        'fixed_value': fixed_value
+                    })
+                    return fixed_value
         
         # Check if timezone is reasonable (not far in future/past from UTC)
         utc_offset_hours = value.utcoffset().total_seconds() / 3600 if value.utcoffset() else 0
