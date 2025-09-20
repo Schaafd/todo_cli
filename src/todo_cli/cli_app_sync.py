@@ -164,13 +164,23 @@ async def _setup_provider_async(provider: AppSyncProvider, interactive: bool, ap
         return
     
     if success:
+        console.print("")
+        console.print("[bold green]═════════════════════════════════════[/bold green]")
         console.print(f"[green]✅ {provider.value.replace('_', ' ').title()} setup completed successfully![/green]")
+        console.print("")
         
         # Ask about first sync
-        if interactive and Confirm.ask("Would you like to run an initial sync now?"):
-            await _run_sync_command(provider.value)
+        if interactive:
+            console.print("[bold]Initial Sync[/bold]")
+            console.print("You can sync your todos now to start using the integration.")
+            console.print("")
+            
+            if Confirm.ask("Would you like to run an initial sync now?"):
+                await _run_sync_command(provider.value)
     else:
+        console.print("")
         console.print(f"[red]❌ {provider.value.replace('_', ' ').title()} setup failed[/red]")
+        console.print("")
 
 
 async def _setup_todoist(cred_manager: CredentialManager, interactive: bool, api_token: Optional[str],
@@ -180,10 +190,16 @@ async def _setup_todoist(cred_manager: CredentialManager, interactive: bool, api
     
     # Get API token
     if not api_token and interactive:
-        console.print("\n[bold cyan]Todoist Setup[/bold cyan]")
+        console.print("")
+        console.print("[bold cyan]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/bold cyan]")
+        console.print("[bold cyan]🔐 Todoist API Token Setup[/bold cyan]")
+        console.print("")
+        console.print("To connect to Todoist, you'll need an API token:")
+        console.print("")
         console.print("1. Go to: [link]https://todoist.com/prefs/integrations[/link]")
         console.print("2. Copy your API token")
-        console.print("3. Paste it below (input will be hidden)")
+        console.print("3. Paste it below (input will be hidden for security)")
+        console.print("")
         
         api_token = Prompt.ask("Enter your Todoist API token", password=True)
     
@@ -208,7 +224,9 @@ async def _setup_todoist(cred_manager: CredentialManager, interactive: bool, api
     
     try:
         adapter = TodoistAdapter(config)
-        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}")) as progress:
+        
+        # Use progress spinner for connection phase only
+        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as progress:
             task = progress.add_task("Connecting to Todoist...", total=None)
             
             # Add timeout to authentication
@@ -216,42 +234,8 @@ async def _setup_todoist(cred_manager: CredentialManager, interactive: bool, api
                 auth_result = await asyncio.wait_for(adapter.authenticate(), timeout=timeout)
                 if auth_result:
                     progress.update(task, description="✅ Connected to Todoist")
-                    console.print("[green]✅ Connection successful[/green]")
-                    
-                    # Get user info and projects with timeout
-                    from .adapters.todoist_adapter import TodoistAPI
-                    async with TodoistAPI(api_token) as api:
-                        console.print("Fetching user info and projects...")
-                        user_info = await asyncio.wait_for(api.get_user_info(), timeout=timeout)
-                        projects = await asyncio.wait_for(api.get_projects(), timeout=timeout)
-                    
-                    console.print(f"Connected as: [bold cyan]{user_info.get('full_name', 'Unknown User')}[/bold cyan]")
-                    console.print(f"Found {len(projects)} Todoist projects")
-                    
-                    # Setup project mapping if interactive and not explicitly skipped
-                    if interactive and projects and not skip_mapping:
-                        console.print("\n[bold cyan]📁 Project Mapping[/bold cyan]")
-                        console.print("Project mapping connects your local Todo CLI projects to Todoist projects.")
-                        console.print("This ensures todos are organized correctly when syncing between systems.\n")
-                        console.print("[yellow]Note:[/yellow] You can skip this step and set up mapping later using:")
-                        console.print("[dim]  todo app-sync map-project <local> <todoist>[/dim]")
-                        console.print("[dim]  OR use --skip-mapping flag during setup[/dim]\n")
-                        
-                        # Ask for confirmation before starting interactive mapping
-                        if Confirm.ask("Set up project mapping now?", default=True):
-                            await _setup_project_mapping(config, projects)
-                        else:
-                            console.print("[yellow]✓ Project mapping skipped - you can set this up later[/yellow]")
-                    elif skip_mapping:
-                        console.print("[yellow]Project mapping skipped (--skip-mapping)[/yellow]")
-                    elif not interactive:
-                        console.print("[yellow]Project mapping skipped (non-interactive mode)[/yellow]")
-                    
-                    # Save configuration
-                    await _save_sync_config(config)
-                    
-                    return True
                 else:
+                    progress.update(task, description="❌ Authentication failed")
                     console.print("[red]❌ Authentication failed[/red]")
                     return False
                     
@@ -260,6 +244,57 @@ async def _setup_todoist(cred_manager: CredentialManager, interactive: bool, api
                 console.print(f"[red]❌ Connection timed out after {timeout} seconds[/red]")
                 console.print("Try again with a longer timeout: --timeout <seconds>")
                 return False
+        
+        # Progress spinner is now closed, continue with clear console output
+        console.print("[green]✅ Successfully connected to Todoist[/green]\n")
+        
+        # Get user info and projects (no more spinner interference)
+        try:
+            from .adapters.todoist_adapter import TodoistAPI
+            async with TodoistAPI(api_token) as api:
+                console.print("[dim]Fetching user info and projects...[/dim]")
+                user_info = await asyncio.wait_for(api.get_user_info(), timeout=timeout)
+                projects = await asyncio.wait_for(api.get_projects(), timeout=timeout)
+            
+            console.print(f"Connected as: [bold cyan]{user_info.get('full_name', 'Unknown User')}[/bold cyan]")
+            console.print(f"Found {len(projects)} Todoist projects")
+            
+            # Clear separator before interactive sections
+            if interactive:
+                console.print("")
+            
+            # Setup project mapping if interactive and not explicitly skipped
+            if interactive and projects and not skip_mapping:
+                console.print("[bold cyan]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/bold cyan]")
+                console.print("[bold cyan]📁 Project Mapping[/bold cyan]")
+                console.print("")
+                console.print("Project mapping connects your local Todo CLI projects to Todoist projects.")
+                console.print("This ensures todos are organized correctly when syncing between systems.")
+                console.print("")
+                console.print("[yellow]Note:[/yellow] You can skip this step and set up mapping later using:")
+                console.print("[dim]  todo app-sync map-project <local> <todoist>[/dim]")
+                console.print("[dim]  OR use --skip-mapping flag during setup[/dim]")
+                console.print("")
+                
+                # Ask for confirmation before starting interactive mapping
+                if Confirm.ask("Set up project mapping now?", default=True):
+                    await _setup_project_mapping(config, projects)
+                else:
+                    console.print("[yellow]✓ Project mapping skipped - you can set this up later[/yellow]")
+            elif skip_mapping:
+                console.print("[yellow]Project mapping skipped (--skip-mapping)[/yellow]")
+            elif not interactive:
+                console.print("[yellow]Project mapping skipped (non-interactive mode)[/yellow]")
+            
+            # Save configuration
+            await _save_sync_config(config)
+            
+            return True
+            
+        except asyncio.TimeoutError:
+            console.print(f"[red]❌ Connection timed out after {timeout} seconds[/red]")
+            console.print("Try again with a longer timeout: --timeout <seconds>")
+            return False
                 
     except Exception as e:
         console.print(f"[red]❌ Connection failed: {e}[/red]")
@@ -268,7 +303,8 @@ async def _setup_todoist(cred_manager: CredentialManager, interactive: bool, api
 
 async def _setup_project_mapping(config: AppSyncConfig, todoist_projects: List[Dict]):
     """Set up project mapping between local and Todoist projects."""
-    console.print("\n[bold cyan]Project Mapping Setup[/bold cyan]")
+    console.print("\n[bold]Starting Project Mapping Setup...[/bold]")
+    console.print("")
     
     # Get local projects
     storage = get_storage()
@@ -308,20 +344,25 @@ async def _setup_project_mapping(config: AppSyncConfig, todoist_projects: List[D
     
     # Offer bulk mapping option to save time
     if len(local_projects) > 3 and len(todoist_projects) > 0:
-        console.print(f"\n[bold yellow]Quick Setup Option[/bold yellow]")
+        console.print("")
+        console.print("[bold yellow]═══ Quick Setup Option ═══[/bold yellow]")
         console.print(f"You have {len(local_projects)} local projects. You can either:")
         console.print("• [cyan]Bulk map[/cyan]: Map ALL local projects to one Todoist project (quick)")
-        console.print("• [cyan]Individual map[/cyan]: Map each project separately (precise)\n")
+        console.print("• [cyan]Individual map[/cyan]: Map each project separately (precise)")
+        console.print("")
         
         if Confirm.ask("Use bulk mapping (map all local projects to one Todoist project)?", default=False):
-            console.print("\n[dim]Choose the Todoist project for ALL your local projects:[/dim]")
+            console.print("")
+            console.print("[bold]Choose the Todoist project for ALL your local projects:[/bold]")
+            console.print("")
             console.print(todoist_table)
+            console.print("")
             
             # Show Todoist projects for selection
             project_choices = [p['name'] for p in todoist_projects]
             
             todoist_project = Prompt.ask(
-                "\nSelect ONE Todoist project for ALL local projects",
+                "Select ONE Todoist project for ALL local projects",
                 choices=project_choices
             )
             
@@ -341,23 +382,31 @@ async def _setup_project_mapping(config: AppSyncConfig, todoist_projects: List[D
                 return
     
     # Individual project mapping
-    console.print("\n[cyan]Individual Project Mapping[/cyan]")
+    console.print("")
+    console.print("[bold cyan]═══ Individual Project Mapping ═══[/bold cyan]")
     console.print("[dim]For each local project, you'll choose whether to map it and select the target Todoist project.[/dim]")
+    console.print("")
     
     # Set up mappings
     for local_project in sorted(local_projects):
-        console.print(f"\n[bold]Local Project: [cyan]{local_project}[/cyan][/bold]")
+        console.print("[bold cyan]─────────────────────────[/bold cyan]")
+        console.print(f"[bold]Local Project: [cyan]{local_project}[/cyan][/bold]")
+        console.print("")
+        
         if Confirm.ask(f"Map '{local_project}' to a Todoist project?", default=True):
             # Show the Todoist projects table again for reference
-            console.print("\n[dim]Available Todoist projects:[/dim]")
+            console.print("")
+            console.print("[dim]Available Todoist projects:[/dim]")
+            console.print("")
             console.print(todoist_table)
+            console.print("")
             
             # Get Todoist project choices
             project_choices = [p['name'] for p in todoist_projects]
             project_choices.append("skip")
             
             todoist_project = Prompt.ask(
-                f"\nSelect Todoist project for '[cyan]{local_project}[/cyan]'",
+                f"Select Todoist project for '[cyan]{local_project}[/cyan]'",
                 choices=project_choices,
                 default="skip"
             )
@@ -380,8 +429,11 @@ async def _setup_project_mapping(config: AppSyncConfig, todoist_projects: List[D
     
     # Show mapping summary
     if config.project_mappings:
-        console.print(f"\n[bold green]📋 Project Mapping Summary[/bold green]")
-        console.print(f"Successfully mapped {len(config.project_mappings)} project(s):\n")
+        console.print("")
+        console.print("[bold cyan]═════════════════════════════════════[/bold cyan]")
+        console.print("[bold green]📋 Project Mapping Summary[/bold green]")
+        console.print(f"Successfully mapped {len(config.project_mappings)} project(s):")
+        console.print("")
         
         for local_proj, remote_id in config.project_mappings.items():
             # Find the remote project name
@@ -393,11 +445,15 @@ async def _setup_project_mapping(config: AppSyncConfig, todoist_projects: List[D
             
             console.print(f"  • [cyan]{local_proj}[/cyan] → [green]{remote_name or remote_id}[/green]")
         
-        console.print("\n[dim]You can modify these mappings later using:[/dim]")
+        console.print("")
+        console.print("[dim]You can modify these mappings later using:[/dim]")
         console.print("[dim]  todo app-sync map-project <local> <todoist>[/dim]")
+        console.print("")
     else:
-        console.print("\n[yellow]No projects were mapped. You can set up mapping later using:[/yellow]")
+        console.print("")
+        console.print("[yellow]No projects were mapped. You can set up mapping later using:[/yellow]")
         console.print("[dim]  todo app-sync map-project <local> <todoist>[/dim]")
+        console.print("")
 
 
 async def _save_sync_config(config: AppSyncConfig):
