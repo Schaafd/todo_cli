@@ -142,6 +142,121 @@ def fix_datetimes(fix: bool, verbose: bool):
     click.echo("   All datetimes are now timezone-aware UTC.")
 
 
+@doctor.command(name="validate-runtime")
+@click.option('--strict', is_flag=True, help='Use strict validation mode (raise exceptions)')
+@click.option('--verbose', '-v', is_flag=True, help='Show detailed validation information')
+def validate_runtime(strict: bool, verbose: bool):
+    """Validate datetime fields at runtime with comprehensive checking.
+    
+    This command performs live validation of all Todo and Project objects,
+    checking timezone awareness and offering auto-fixes for issues found.
+    """
+    from .utils.validation import DateTimeValidator, DateTimeValidationError
+    
+    config = get_config()
+    storage = Storage(config)
+    validator = DateTimeValidator(strict_mode=strict)
+    
+    click.echo("🔍 Runtime datetime validation started...")
+    
+    validation_results = {
+        'projects_validated': 0,
+        'todos_validated': 0,
+        'projects_fixed': 0,
+        'todos_fixed': 0,
+        'total_errors': 0,
+        'total_warnings': 0
+    }
+    
+    # Get all projects
+    project_names = storage.list_projects()
+    
+    if not project_names:
+        project_names = [config.default_project]
+    
+    try:
+        for project_name in project_names:
+            if verbose:
+                click.echo(f"  Validating project: {project_name}")
+            
+            try:
+                project, todos = storage.load_project(project_name)
+                if not project:
+                    continue
+                
+                # Validate project
+                project_result = validator.validate_project_datetimes(project)
+                validation_results['projects_validated'] += 1
+                
+                if project_result['fixed_fields']:
+                    validation_results['projects_fixed'] += 1
+                    if verbose:
+                        click.echo(f"    ✅ Fixed {len(project_result['fixed_fields'])} project fields")
+                
+                validation_results['total_errors'] += len(project_result['errors'])
+                validation_results['total_warnings'] += len(project_result['warnings'])
+                
+                # Validate todos
+                for todo in todos:
+                    todo_result = validator.validate_todo_datetimes(todo)
+                    validation_results['todos_validated'] += 1
+                    
+                    if todo_result['fixed_fields']:
+                        validation_results['todos_fixed'] += 1
+                        if verbose:
+                            click.echo(f"    ✅ Fixed {len(todo_result['fixed_fields'])} fields in todo {todo.id}")
+                    
+                    validation_results['total_errors'] += len(todo_result['errors'])
+                    validation_results['total_warnings'] += len(todo_result['warnings'])
+                
+                # Save project if any fixes were applied
+                if project_result['fixed_fields'] or any(validator.validate_todo_datetimes(t)['fixed_fields'] for t in todos):
+                    if storage.save_project(project, todos):
+                        if verbose:
+                            click.echo(f"    💾 Saved fixes for project {project_name}")
+                    else:
+                        click.echo(f"    ❌ Failed to save fixes for project {project_name}")
+                
+            except DateTimeValidationError as e:
+                click.echo(f"  ❌ Validation failed for {project_name}: {e}")
+                if e.suggestions:
+                    for suggestion in e.suggestions:
+                        click.echo(f"     💡 {suggestion}")
+                validation_results['total_errors'] += 1
+                if strict:
+                    raise
+            except Exception as e:
+                click.echo(f"  ❌ Error validating project {project_name}: {e}")
+                validation_results['total_errors'] += 1
+                continue
+        
+        # Show summary
+        click.echo(f"\n📊 Runtime Validation Results:")
+        click.echo(f"   Projects validated: {validation_results['projects_validated']}")
+        click.echo(f"   Todos validated: {validation_results['todos_validated']}")
+        click.echo(f"   Projects with fixes: {validation_results['projects_fixed']}")
+        click.echo(f"   Todos with fixes: {validation_results['todos_fixed']}")
+        click.echo(f"   Total errors: {validation_results['total_errors']}")
+        click.echo(f"   Total warnings: {validation_results['total_warnings']}")
+        
+        if validation_results['total_errors'] == 0:
+            click.echo("✅ All datetime validations passed!")
+        else:
+            click.echo("⚠️  Some validation issues were found")
+            if not strict:
+                click.echo("   Run with --strict to see detailed error messages")
+        
+        if validation_results['projects_fixed'] > 0 or validation_results['todos_fixed'] > 0:
+            click.echo("🔧 Auto-fixes have been applied and saved")
+    
+    except KeyboardInterrupt:
+        click.echo("\n⚠️ Validation interrupted by user")
+    except Exception as e:
+        click.echo(f"\n❌ Validation failed with error: {e}")
+        if strict:
+            raise
+
+
 @doctor.command()
 @click.option('--verbose', '-v', is_flag=True, help='Show detailed information')
 def validate(verbose: bool):

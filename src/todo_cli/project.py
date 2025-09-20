@@ -77,6 +77,9 @@ class Project:
             }
         
         self.modified = now_utc()
+        
+        # Validate datetime fields after normalization
+        self.validate_datetimes()
     
     def archive(self):
         """Archive the project."""
@@ -206,6 +209,22 @@ class Project:
         if stakeholder in self.stakeholders:
             self.stakeholders.remove(stakeholder)
             self.modified = now_utc()
+    
+    def validate_datetimes(self, strict_mode: bool = False) -> Dict[str, Any]:
+        """Validate all datetime fields are timezone-aware.
+        
+        Args:
+            strict_mode: If True, raise exceptions on validation failures.
+                        If False, log warnings and attempt auto-fixes.
+        
+        Returns:
+            Dictionary with validation results including any fixes applied.
+            
+        Raises:
+            DateTimeValidationError: If strict_mode is True and validation fails.
+        """
+        from .utils.validation import validate_project_datetimes
+        return validate_project_datetimes(self, strict_mode=strict_mode)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the Project to a dictionary."""
