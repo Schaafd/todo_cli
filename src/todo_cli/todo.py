@@ -204,6 +204,18 @@ class Todo:
             and not self.is_deferred()
         )
     
+    @property
+    def is_completed(self) -> bool:
+        """Alias for completed field for backward compatibility."""
+        return self.completed
+    
+    # Defensive fallback: gracefully handle legacy attribute lookups
+    def __getattr__(self, name: str):
+        if name == "is_completed":
+            # Some legacy code may access todo.is_completed (attr or method)
+            return self.completed
+        raise AttributeError(f"{self.__class__.__name__} object has no attribute '{name}'")
+    
 # Validation method temporarily disabled to isolate parsing issue
     # def validate_datetimes(self, strict_mode: bool = False) -> Dict[str, Any]:
     #     """Validate all datetime fields are timezone-aware."""
