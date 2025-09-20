@@ -3,10 +3,10 @@
 > A powerful, feature-rich command-line todo application with advanced task management capabilities
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Phase 3 Complete](https://img.shields.io/badge/phase-3%20complete-green.svg)](./PLAN.md)
+[![Phase 6 In Progress](https://img.shields.io/badge/phase-6%20in%20progress-orange.svg)](./docs/PHASE_6_APP_SYNC_PLAN.md)
 [![Tests Passing](https://img.shields.io/badge/tests-32%20passing-green.svg)](#testing)
 
-## 🚀 Features (Phase 3 Complete)
+## 🚀 Features (Phase 6 In Progress)
 
 ### 🧠 **NEW: Smart Natural Language Parsing**
 - **One-Line Task Creation**: Rich metadata extraction from natural language
@@ -33,6 +33,14 @@
 - **Rich Inline Metadata**: Natural syntax (`@tags`, `!due-dates`, `~priority`, `+assignees`)
 - **Version Control Friendly**: Plain text format works great with git
 - **Organized Structure**: `~/.todo/projects/` with individual project files
+
+### 🔄 **NEW: Multi-App Synchronization (Phase 6)**
+- **Bidirectional Sync**: Keep todos in sync with external apps like Todoist
+- **Conflict Resolution**: Multiple strategies (newest wins, manual, local/remote preference)
+- **Secure Credential Storage**: System keyring integration with fallback options
+- **Project Mapping**: Map local projects to external app projects/sections
+- **Incremental Updates**: Efficient sync using change detection and timestamps
+- **Extensible Architecture**: Adapter pattern ready for Apple Reminders, TickTick, Notion, and more
 
 ### 🎯 **NEW: Enhanced Query Engine & AI Recommendations**
 - **Advanced Search**: Complex queries with logical operators (AND, OR, NOT)
@@ -232,6 +240,47 @@ todo notify config --smtp-server smtp.gmail.com --smtp-username user@example.com
 # Notification types: due_soon, overdue, recurring_generated, daily_summary
 ```
 
+### 🔄 **NEW: Multi-App Synchronization Commands**
+```bash
+# List available providers and their status
+todo app-sync list                    # Show all providers (configured vs available)
+
+# Setup synchronization with external providers
+todo app-sync setup todoist           # Interactive setup with Todoist
+todo app-sync setup todoist --api-token YOUR_TOKEN  # Non-interactive setup
+todo app-sync setup --interactive      # Choose from available providers
+
+# Perform synchronization
+todo app-sync sync todoist            # Sync with specific provider
+todo app-sync sync --all              # Sync with all configured providers
+todo app-sync sync --dry-run          # Preview sync without making changes
+
+# Check synchronization status
+todo app-sync status                  # Show status of all providers
+todo app-sync status todoist          # Show status for specific provider
+
+# Manage provider configurations
+todo app-sync enable todoist          # Enable auto-sync for provider
+todo app-sync disable todoist         # Disable auto-sync for provider
+
+# Project and label mapping
+todo app-sync project-map todoist     # Interactive project mapping setup
+todo app-sync project-map todoist --local work --remote "Work Projects"
+
+# Handle sync conflicts
+todo app-sync conflicts               # List unresolved conflicts
+todo app-sync conflicts --resolve     # Interactive conflict resolution
+todo app-sync conflicts --provider todoist  # Filter by provider
+
+# Supported providers:
+# ✅ todoist      - Full bidirectional sync with projects and labels
+# 🚧 apple_reminders - Coming soon (macOS/iOS integration)
+# 🚧 ticktick    - Coming soon (cross-platform with calendar sync)
+# 🚧 notion      - Coming soon (database integration)
+# 🚧 microsoft_todo - Coming soon (Office 365 integration)
+# 🚧 google_tasks - Coming soon (Google Workspace integration)
+```
+
 ## 📊 Dashboard View
 
 The dashboard provides an at-a-glance view of your tasks with rich formatting:
@@ -267,10 +316,14 @@ Todo CLI organizes your data in a clean, version-control-friendly structure:
 ```
 ~/.todo/
 ├── config.yaml              # Your preferences
+├── app_sync_config.yaml     # App synchronization settings
 ├── projects/
 │   ├── inbox.md             # Default project
 │   ├── work.md              # Work-related tasks
 │   └── personal.md          # Personal tasks
+├── sync/
+│   ├── mappings.db          # Sync mappings and conflict history
+│   └── credentials.json     # Encrypted credential cache (fallback)
 └── backups/                 # Automatic backups
     └── 2025-09-14/
 ```
@@ -328,6 +381,44 @@ custom_contexts: ["home", "office", "errands"]
 custom_priorities: ["someday"]
 ```
 
+### App Sync Configuration (`~/.todo/app_sync_config.yaml`)
+
+```yaml
+# Global sync settings
+global:
+  auto_sync: true
+  conflict_strategy: "newest_wins"
+  sync_interval: 300  # seconds
+  max_retry_attempts: 3
+  
+# Provider-specific configurations
+providers:
+  todoist:
+    enabled: true
+    auto_sync: true
+    conflict_strategy: "newest_wins"
+    sync_direction: "bidirectional"
+    project_mappings:
+      work: "Work Projects"
+      personal: "Personal"
+    label_mappings:
+      urgent: "@urgent"
+      important: "@important"
+    settings:
+      sync_completed: false
+      sync_labels: true
+      sync_projects: true
+      rate_limit_delay: 1.0
+      
+# Conflict resolution strategies:
+# - local_wins: Always prefer local changes
+# - remote_wins: Always prefer remote changes  
+# - newest_wins: Use timestamp to determine winner
+# - manual: Prompt user for each conflict
+# - merge: Attempt to merge changes automatically
+# - skip: Skip conflicted items
+```
+
 ## 🧪 Testing
 
 Todo CLI includes a comprehensive test suite:
@@ -351,17 +442,35 @@ Todo CLI is built with a clean, extensible architecture:
 
 ```
 src/todo_cli/
-├── __init__.py         # Package exports
-├── todo.py             # Todo model (40+ fields)
-├── project.py          # Project management
-├── config.py           # Configuration system
-├── storage.py          # Markdown + YAML storage
-├── parser.py           # Natural language parsing engine
-├── query_engine.py     # Advanced search and filtering engine
-├── recommendations.py  # AI-powered task recommendation system
-├── recurring.py        # Smart recurring task system with pattern recognition
-├── theme.py            # UI theming and formatting
-└── cli.py              # Click-based CLI interface
+├── __init__.py            # Package exports
+├── todo.py                # Todo model (40+ fields)
+├── project.py             # Project management
+├── config.py              # Configuration system
+├── storage.py             # Markdown + YAML storage
+├── parser.py              # Natural language parsing engine
+├── query_engine.py        # Advanced search and filtering engine
+├── recommendations.py     # AI-powered task recommendation system
+├── recurring.py           # Smart recurring task system with pattern recognition
+├── export.py              # Multi-format export system
+├── notifications.py       # Desktop and email notification system
+├── calendar_integration.py # Calendar sync capabilities
+├── sync.py                # Legacy multi-device sync framework
+├── app_sync_manager.py    # Multi-app sync orchestration
+├── app_sync_adapter.py    # Base adapter for external apps
+├── app_sync_models.py     # Data models for app synchronization
+├── app_sync_config.py     # App sync configuration management
+├── sync_engine.py         # Advanced conflict resolution and sync logic
+├── sync_mapping_store.py  # Persistent sync mapping storage
+├── credential_manager.py  # Secure credential storage
+├── adapters/              # External app adapters
+│   ├── __init__.py        # Adapter registry
+│   └── todoist_adapter.py # Full Todoist integration
+├── theme.py               # UI theming and formatting
+├── cli.py                 # Main CLI interface
+├── cli_app_sync.py        # App sync CLI commands
+├── cli_analytics.py       # Analytics and reporting CLI
+├── cli_backup.py          # Backup management CLI
+└── cli_calendar_sync.py   # Calendar sync CLI commands
 ```
 
 ### Key Design Principles
@@ -397,19 +506,31 @@ src/todo_cli/
 - [x] **Advanced Sorting Options** - Multi-field sorting with contextual defaults
 - [x] **Bulk Operations** - Multi-todo operations with confirmation prompts
 
-### ✅ Phase 4: Smart Integration Features (In Progress)
+### ✅ Phase 4: Smart Integration Features (Complete)
 - [x] **Recurring tasks with smart scheduling** - Full CLI integration with natural language patterns
 - [x] **Export functionality** - Multiple formats (JSON, CSV, Markdown, HTML, PDF, ICAL, YAML)
 - [x] **Notification system** - Desktop and email notifications with smart scheduling
-- [ ] Calendar integration
-- [ ] Sync capabilities
+- [x] **Calendar integration** - Bidirectional calendar sync with multiple providers
+- [x] **Multi-device sync capabilities** - Cloud storage sync with conflict resolution
 
-### 🌟 Phase 5: Advanced Reporting & Analytics (Planned)
-- [ ] Productivity insights
-- [ ] Time tracking reports
-- [ ] Project analytics
-- [ ] Custom dashboards
-- [ ] Plugin system
+### 🔄 Phase 6: Multi-App Synchronization (In Progress)
+- [x] **Extensible sync architecture** - Adapter pattern for external app integrations
+- [x] **Todoist integration** - Full bidirectional sync with projects and labels
+- [x] **Conflict resolution engine** - Multiple strategies with interactive resolution
+- [x] **Secure credential management** - System keyring with encrypted fallbacks
+- [x] **Project and label mapping** - Flexible mapping between Todo CLI and external apps
+- [x] **CLI commands for sync management** - Complete command suite for app sync
+- [ ] **Apple Reminders adapter** - macOS/iOS native integration
+- [ ] **TickTick adapter** - Cross-platform with calendar integration
+- [ ] **Notion adapter** - Database-based task management
+- [ ] **Comprehensive testing** - Unit, integration, and E2E sync tests
+
+### 🌟 Phase 7: Advanced Reporting & Analytics (Planned)
+- [ ] Productivity insights and trends
+- [ ] Time tracking reports and analysis
+- [ ] Project analytics and forecasting
+- [ ] Custom dashboards and visualizations
+- [ ] Plugin system for extensibility
 
 ## 🤝 Contributing
 
@@ -464,7 +585,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Phase 4 In Progress** 🚀 | Built with ❤️ for productivity enthusiasts
+**Phase 6 In Progress** 🚀 | Built with ❤️ for productivity enthusiasts
 
-> **NEW**: Recurring Tasks, Multi-Format Export & Smart Notifications!
-> Try: `todo notify status` or `todo notify test` to see desktop notifications in action!
+> **NEW**: Multi-App Synchronization with Todoist! Keep your todos in sync across platforms.
+> Try: `todo app-sync setup todoist` to get started, or `todo app-sync list` to see all available providers!
+> 
+> **Also New**: Recurring Tasks, Multi-Format Export & Smart Notifications!
+> Try: `todo notify status` or `todo export pdf` for professional reports!
