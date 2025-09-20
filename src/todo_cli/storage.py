@@ -4,7 +4,7 @@ import os
 import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import frontmatter
 import yaml
 
@@ -323,7 +323,7 @@ class ProjectMarkdownFormat:
             active_todos.sort(
                 key=lambda t: (
                     priority_order.get(t.priority, 2),
-                    t.due_date or datetime.max,
+                    t.due_date or datetime.max.replace(tzinfo=timezone.utc),
                 )
             )
 
@@ -336,7 +336,7 @@ class ProjectMarkdownFormat:
             content_lines.append("")
             for todo in sorted(
                 completed_todos,
-                key=lambda t: t.completed_date or datetime.min,
+                key=lambda t: t.completed_date or datetime.min.replace(tzinfo=timezone.utc),
                 reverse=True,
             ):
                 content_lines.append(TodoMarkdownFormat.to_markdown(todo))
@@ -466,7 +466,7 @@ class Storage:
             return False
 
         if backup_path is None:
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
             backup_dir = self.config.get_backup_path(timestamp)
             backup_dir.mkdir(parents=True, exist_ok=True)
             backup_path = backup_dir / f"{project_name}.md"
