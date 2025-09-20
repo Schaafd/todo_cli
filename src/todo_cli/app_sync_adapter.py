@@ -340,7 +340,7 @@ class SyncAdapter(ABC):
             True if todo should be synced
         """
         # Check if completed tasks should be synced
-        if todo.is_completed() and not self.config.sync_completed_tasks:
+        if todo.completed and not self.config.sync_completed_tasks:
             return False
         
         # Check if archived tasks should be synced

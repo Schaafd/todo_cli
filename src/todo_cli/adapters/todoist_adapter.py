@@ -19,6 +19,7 @@ from ..app_sync_models import (
     SyncDirection
 )
 from ..todo import Todo, Priority, TodoStatus
+from ..utils.datetime import ensure_aware, now_utc
 
 
 logger = logging.getLogger(__name__)
@@ -333,7 +334,7 @@ class TodoistAdapter(SyncAdapter):
                 
                 # Handle completion status change
                 current_completed = current_task.get("is_completed", False)
-                new_completed = todo.is_completed()
+                new_completed = todo.completed
                 
                 if current_completed != new_completed:
                     if new_completed:
@@ -400,12 +401,12 @@ class TodoistAdapter(SyncAdapter):
             task_data["description"] = todo.notes
         
         # Due date
-        if todo.due:
+        if todo.due_date:
             # Todoist accepts various date formats
-            task_data["due_string"] = todo.due.strftime("%Y-%m-%d %H:%M")
-            if todo.due.time() == todo.due.time().replace(hour=23, minute=59, second=59, microsecond=0):
+            task_data["due_string"] = todo.due_date.strftime("%Y-%m-%d %H:%M")
+            if todo.due_date.time() == todo.due_date.time().replace(hour=23, minute=59, second=59, microsecond=0):
                 # All-day task
-                task_data["due_string"] = todo.due.strftime("%Y-%m-%d")
+                task_data["due_string"] = todo.due_date.strftime("%Y-%m-%d")
         
         # Priority mapping (Todoist: 1=low, 2=normal, 3=high, 4=urgent)
         priority_map = {
@@ -439,7 +440,7 @@ class TodoistAdapter(SyncAdapter):
         """Map Todoist task data to ExternalTodoItem."""
         task = external_data
         
-        # Parse due date
+        # Parse due date with comprehensive timezone normalization
         due_date = None
         if task.get("due"):
             try:
@@ -448,12 +449,15 @@ class TodoistAdapter(SyncAdapter):
                     # Parse ISO format date
                     date_str = due_info["date"]
                     if "T" in date_str:
-                        due_date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                        # Full datetime with timezone info
+                        parsed_date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                        due_date = ensure_aware(parsed_date)
                     else:
-                        # All-day task
-                        due_date = datetime.strptime(date_str, "%Y-%m-%d").replace(
+                        # All-day task - create timezone-aware datetime
+                        parsed_date = datetime.strptime(date_str, "%Y-%m-%d").replace(
                             hour=23, minute=59, second=59, tzinfo=timezone.utc
                         )
+                        due_date = ensure_aware(parsed_date)
             except Exception as e:
                 self.logger.warning(f"Failed to parse due date from Todoist task: {e}")
         
@@ -471,24 +475,36 @@ class TodoistAdapter(SyncAdapter):
                 if label_name:
                     tags.append(label_name)
         
-        # Parse created and updated dates
+        # Parse created and updated dates with timezone normalization
         created_at = None
         if task.get("created_at"):
             try:
-                created_at = datetime.fromisoformat(task["created_at"].replace("Z", "+00:00"))
-            except Exception:
-                pass
+                parsed_date = datetime.fromisoformat(task["created_at"].replace("Z", "+00:00"))
+                created_at = ensure_aware(parsed_date)
+            except Exception as e:
+                self.logger.warning(f"Failed to parse created_at from Todoist task: {e}")
+        
+        # Fallback to current time if no created_at available
+        if created_at is None:
+            created_at = now_utc()
         
         updated_at = created_at  # Todoist doesn't provide separate updated_at
         
-        # Completion info
+        # Completion info with timezone normalization
         completed = task.get("is_completed", False)
         completed_at = None
         if completed and task.get("completed_at"):
             try:
-                completed_at = datetime.fromisoformat(task["completed_at"].replace("Z", "+00:00"))
-            except Exception:
-                pass
+                parsed_date = datetime.fromisoformat(task["completed_at"].replace("Z", "+00:00"))
+                completed_at = ensure_aware(parsed_date)
+            except Exception as e:
+                self.logger.warning(f"Failed to parse completed_at from Todoist task: {e}")
+        
+        # Final validation: ensure all datetime fields are timezone-aware
+        due_date = ensure_aware(due_date) if due_date else None
+        created_at = ensure_aware(created_at) if created_at else None
+        updated_at = ensure_aware(updated_at) if updated_at else None
+        completed_at = ensure_aware(completed_at) if completed_at else None
         
         return ExternalTodoItem(
             external_id=str(task["id"]),

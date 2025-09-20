@@ -1720,6 +1720,10 @@ main.add_command(get_analytics_commands())
 from .cli_app_sync import app_sync_group
 main.add_command(app_sync_group)
 
+# Add doctor command group
+from .cli_doctor import doctor
+main.add_command(doctor)
+
 
 if __name__ == "__main__":
     main()

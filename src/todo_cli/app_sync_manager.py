@@ -507,13 +507,13 @@ class AppSyncManager:
             external_id="",
             provider=AppSyncProvider.TODOIST,  # Doesn't matter for hashing
             title=todo.text,
-            description=todo.notes,
-            due_date=todo.due,
+            description=todo.description,
+            due_date=todo.due_date,
             priority=todo.priority.value if todo.priority else None,
             tags=todo.tags,
             project=todo.project,
-            completed=todo.is_completed(),
-            completed_at=todo.completed_at if todo.is_completed() else None
+            completed=todo.completed,
+            completed_at=todo.completed_date if todo.completed else None
         )
         return external_item.compute_hash()
     
