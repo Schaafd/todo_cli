@@ -451,22 +451,37 @@ async def _run_app_sync_doctor():
     # Check 4: Credentials
     total_checks += 1
     console.print("[cyan]4. Credentials Check[/cyan]")
+    
+    # Check environment variable first
     api_token = os.getenv('TODOIST_API_TOKEN')
     if api_token:
         console.print(f"   TODOIST_API_TOKEN: Set ({len(api_token)} chars)")
+        token_source = "environment"
+    else:
+        console.print("   TODOIST_API_TOKEN: Not set")
         
+        # Check keyring storage
+        from .credential_manager import CredentialManager
+        cred_manager = CredentialManager()
+        api_token = cred_manager.get_credential(AppSyncProvider.TODOIST, 'api_token')
+        if api_token:
+            console.print(f"   Keyring token: Found ({len(api_token)} chars)")
+            token_source = "keyring"
+        else:
+            console.print("   Keyring token: Not found")
+    
+    if api_token:
         # Test token validity
         try:
             from .adapters.todoist_adapter import TodoistAPI
             async with TodoistAPI(api_token) as api:
                 user_info = await asyncio.wait_for(api.get_user_info(), timeout=10.0)
-                console.print(f"   Token valid for: {user_info.get('full_name', 'Unknown')}")
+                console.print(f"   Token valid for: {user_info.get('full_name', 'Unknown')} (from {token_source})")
                 checks_passed += 1
                 console.print("   ✅ Credentials OK\n")
         except Exception as e:
             console.print(f"   ❌ Token validation failed: {e}\n")
     else:
-        console.print("   TODOIST_API_TOKEN: Not set")
         console.print("   ❌ No API token found\n")
     
     # Summary
