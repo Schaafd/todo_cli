@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .todo import Priority
 
@@ -14,8 +14,8 @@ class Project:
     name: str
     display_name: str = ""
     description: str = ""
-    created: datetime = field(default_factory=datetime.now)
-    modified: datetime = field(default_factory=datetime.now)
+    created: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    modified: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
     # Project metadata
     tags: List[str] = field(default_factory=list)
@@ -69,35 +69,35 @@ class Project:
                 "last_activity": self.created.isoformat(),
             }
         
-        self.modified = datetime.now()
+        self.modified = datetime.now(timezone.utc)
     
     def archive(self):
         """Archive the project."""
         self.archived = True
         self.active = False
-        self.modified = datetime.now()
+        self.modified = datetime.now(timezone.utc)
     
     def unarchive(self):
         """Unarchive the project."""
         self.archived = False
         self.active = True
-        self.modified = datetime.now()
+        self.modified = datetime.now(timezone.utc)
     
     def deactivate(self):
         """Deactivate the project without archiving."""
         self.active = False
-        self.modified = datetime.now()
+        self.modified = datetime.now(timezone.utc)
     
     def activate(self):
         """Activate the project."""
         self.active = True
-        self.modified = datetime.now()
+        self.modified = datetime.now(timezone.utc)
     
     def update_stats(self, todos: List[Any]):
         """Update project statistics based on todos."""
         from .todo import TodoStatus, Priority
         
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         total_tasks = len(todos)
         completed_tasks = sum(1 for todo in todos if todo.completed)
         overdue_tasks = sum(1 for todo in todos if todo.is_overdue())
@@ -145,44 +145,44 @@ class Project:
     def is_overdue(self) -> bool:
         """Check if the project is overdue."""
         if self.deadline and not self.archived:
-            return datetime.now() > self.deadline
+            return datetime.now(timezone.utc) > self.deadline
         return False
     
     def add_subproject(self, subproject_name: str):
         """Add a subproject."""
         if subproject_name not in self.subprojects:
             self.subprojects.append(subproject_name)
-            self.modified = datetime.now()
+            self.modified = datetime.now(timezone.utc)
     
     def remove_subproject(self, subproject_name: str):
         """Remove a subproject."""
         if subproject_name in self.subprojects:
             self.subprojects.remove(subproject_name)
-            self.modified = datetime.now()
+            self.modified = datetime.now(timezone.utc)
     
     def add_team_member(self, member: str):
         """Add a team member."""
         if member not in self.team_members:
             self.team_members.append(member)
-            self.modified = datetime.now()
+            self.modified = datetime.now(timezone.utc)
     
     def remove_team_member(self, member: str):
         """Remove a team member."""
         if member in self.team_members:
             self.team_members.remove(member)
-            self.modified = datetime.now()
+            self.modified = datetime.now(timezone.utc)
     
     def add_stakeholder(self, stakeholder: str):
         """Add a stakeholder."""
         if stakeholder not in self.stakeholders:
             self.stakeholders.append(stakeholder)
-            self.modified = datetime.now()
+            self.modified = datetime.now(timezone.utc)
     
     def remove_stakeholder(self, stakeholder: str):
         """Remove a stakeholder."""
         if stakeholder in self.stakeholders:
             self.stakeholders.remove(stakeholder)
-            self.modified = datetime.now()
+            self.modified = datetime.now(timezone.utc)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the Project to a dictionary."""
