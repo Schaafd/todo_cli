@@ -196,3 +196,13 @@ def load_config(config_path: Optional[Path] = None) -> ConfigModel:
 def save_config(config: ConfigModel, config_path: Optional[Path] = None) -> None:
     """Save configuration to file."""
     Config.save(config, config_path)
+
+
+def get_config_dir() -> Path:
+    """Get the configuration directory path.
+    
+    Returns:
+        Path to the configuration directory
+    """
+    config = get_config()
+    return Path(config.data_dir)

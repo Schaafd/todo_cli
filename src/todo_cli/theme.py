@@ -272,6 +272,15 @@ def get_view_header(view_name: str, count: int) -> str:
         return f"[accent]{icon} {title} ({count})[/accent]"
 
 
+def get_theme() -> Theme:
+    """Get the default theme for the application.
+    
+    Returns:
+        Rich Theme instance with productivity ninja styling
+    """
+    return PRODUCTIVITY_NINJA_THEME
+
+
 # Theme configuration for export
 THEME_CONFIG = {
     'name': 'productivity_ninja',

@@ -488,3 +488,33 @@ class Storage:
 
         max_id = max(todo.id for todo in todos)
         return max_id + 1
+    
+    def get_all_projects(self) -> List[str]:
+        """Get all project names (alias for list_projects)."""
+        return self.list_projects()
+
+
+# Global storage instance
+_storage_instance: Optional[Storage] = None
+
+
+def get_storage() -> Storage:
+    """Get the global storage instance.
+    
+    Returns:
+        Storage instance initialized with current config
+    """
+    global _storage_instance
+    
+    if _storage_instance is None:
+        from .config import get_config
+        config = get_config()
+        _storage_instance = Storage(config)
+    
+    return _storage_instance
+
+
+def reset_storage() -> None:
+    """Reset the global storage instance (useful for testing)."""
+    global _storage_instance
+    _storage_instance = None
