@@ -1,6 +1,6 @@
 [project]
 name = "todo-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "A powerful command-line todo application with advanced features"
 readme = "README.md"
 requires-python = ">=3.11"
