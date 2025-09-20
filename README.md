@@ -281,6 +281,28 @@ todo app-sync conflicts --provider todoist  # Filter by provider
 # 🚧 google_tasks - Coming soon (Google Workspace integration)
 ```
 
+### 🛠️ **Troubleshooting App Sync Issues**
+
+If you encounter any issues with app synchronization, check out our comprehensive troubleshooting guide:
+
+📖 **[App Sync Troubleshooting Guide](docs/troubleshooting-sync.md)**
+
+The guide covers:
+- Common symptoms and quick fixes (setup hangs, authentication issues, network problems)
+- Step-by-step diagnostic procedures
+- Advanced recovery techniques
+- How to report issues with proper debugging information
+
+**Quick health check:**
+```bash
+# Run diagnostics
+uv run todo app-sync doctor
+
+# Check configuration
+ls -la ~/.todo/
+uv run todo app-sync status
+```
+
 ## 📊 Dashboard View
 
 The dashboard provides an at-a-glance view of your tasks with rich formatting:
