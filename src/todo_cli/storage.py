@@ -11,7 +11,7 @@ import yaml
 from .todo import Todo, TodoStatus, Priority
 from .project import Project
 from .config import ConfigModel
-from .utils.datetime import now_utc, max_utc, min_utc
+from .utils.datetime import now_utc, max_utc, min_utc, ensure_aware
 
 
 # ID comment handling utilities
@@ -321,10 +321,11 @@ class ProjectMarkdownFormat:
                 Priority.MEDIUM: 2,
                 Priority.LOW: 3,
             }
+            # Normalize datetimes to avoid naive vs aware comparison errors
             active_todos.sort(
                 key=lambda t: (
                     priority_order.get(t.priority, 2),
-                    t.due_date or max_utc(),
+                    ensure_aware(t.due_date) if getattr(t, 'due_date', None) else max_utc(),
                 )
             )
 
@@ -337,7 +338,7 @@ class ProjectMarkdownFormat:
             content_lines.append("")
             for todo in sorted(
                 completed_todos,
-                key=lambda t: t.completed_date or min_utc(),
+                key=lambda t: ensure_aware(t.completed_date) if getattr(t, 'completed_date', None) else min_utc(),
                 reverse=True,
             ):
                 content_lines.append(TodoMarkdownFormat.to_markdown(todo))
