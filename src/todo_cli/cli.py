@@ -1716,6 +1716,10 @@ main.add_command(export)
 main.add_command(notify)
 main.add_command(get_analytics_commands())
 
+# Add app-sync command group
+from .cli_app_sync import app_sync_group
+main.add_command(app_sync_group)
+
 
 if __name__ == "__main__":
     main()
