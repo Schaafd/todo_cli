@@ -130,7 +130,7 @@ class ExternalTodoItem:
             tags=self.tags,
             due=self.due_date,
             priority=self._map_priority_from_external(),
-            status=TodoStatus.COMPLETED if self.completed else TodoStatus.TODO,
+            status=TodoStatus.COMPLETED if self.completed else TodoStatus.PENDING,
             created_at=self.created_at or datetime.now(timezone.utc),
             updated_at=self.updated_at or datetime.now(timezone.utc),
             notes=self.description or ""
