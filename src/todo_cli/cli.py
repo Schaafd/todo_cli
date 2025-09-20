@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 from rich.panel import Panel
+from .utils.datetime import ensure_aware, max_utc
 
 from .config import get_config, load_config
 from .storage import Storage
@@ -397,7 +398,7 @@ def list_todos(project, status, filter_priority, overdue, pinned, limit, priorit
             return (
                 not todo.pinned,  # Pinned tasks first
                 priority_order.get(todo.priority, 2),
-                todo.due_date or datetime.max,
+                ensure_aware(todo.due_date) if todo.due_date else max_utc(),
                 todo.id
             )
         
@@ -613,7 +614,7 @@ def _sort_todos(todos, sort_field, reverse=False):
     """Sort todos by specified field"""
     sort_keys = {
         'priority': lambda t: ({'critical': 0, 'high': 1, 'medium': 2, 'low': 3}.get(t.priority.value if t.priority else 'medium', 2), t.id),
-        'due': lambda t: (t.due_date or datetime.max, t.id),
+        'due': lambda t: ((ensure_aware(t.due_date) if t.due_date else max_utc()), t.id),
         'created': lambda t: (t.created, t.id),
         'project': lambda t: (t.project or '', t.id),
         'status': lambda t: (t.status.value if t.status else 'pending', t.id),

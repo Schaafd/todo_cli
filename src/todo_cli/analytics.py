@@ -18,6 +18,7 @@ from pathlib import Path
 from enum import Enum
 from collections import defaultdict, Counter
 import math
+from .utils.datetime import now_utc
 
 from .todo import Todo, Priority, TodoStatus
 from .config import get_config
@@ -821,7 +822,7 @@ class ProductivityAnalyzer:
     def _analyze_projects(self, todos: List[Todo]) -> Tuple[List[str], List[str]]:
         """Analyze most active and stalled projects"""
         project_activity = defaultdict(lambda: {"total": 0, "completed": 0, "recent": 0})
-        cutoff_date = datetime.now() - timedelta(days=7)
+        cutoff_date = now_utc() - timedelta(days=7)
         
         for todo in todos:
             if todo.project:
@@ -852,7 +853,7 @@ class ProductivityAnalyzer:
                          end_date: Optional[datetime] = None) -> Optional[AnalyticsReport]:
         """Get cached analytics report if available"""
         if end_date is None:
-            end_date = datetime.now()
+            end_date = now_utc()
         
         start_date = self._calculate_start_date(timeframe, end_date)
         cache_key = f"{timeframe.value}_{start_date.date()}_{end_date.date()}"
@@ -867,7 +868,7 @@ class ProductivityAnalyzer:
                               periods: int = 4) -> List[ProductivityScore]:
         """Get productivity trends over multiple periods"""
         trends = []
-        end_date = datetime.now()
+        end_date = now_utc()
         
         for i in range(periods):
             period_end = end_date - timedelta(weeks=i*4)  # 4-week periods

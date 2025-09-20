@@ -7,6 +7,7 @@ import click
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
+from .utils.datetime import ensure_aware, max_utc
 from rich.panel import Panel
 
 from .config import get_config, load_config
@@ -276,7 +277,7 @@ def list(project, status, priority, overdue, pinned, limit):
         return (
             not todo.pinned,  # Pinned tasks first
             priority_order.get(todo.priority, 2),
-            todo.due_date or datetime.max,
+            ensure_aware(todo.due_date) if todo.due_date else max_utc(),
             todo.id
         )
     

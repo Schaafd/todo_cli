@@ -141,19 +141,23 @@ class Project:
             completion_times = []
             for todo in completed_todos:
                 if todo.completed_date and todo.created:
-                    # Datetimes are already ensured to be timezone-aware above
-                    delta = todo.completed_date - todo.created
-                    completion_times.append(delta.total_seconds() / (24 * 3600))  # Convert to days
+                    # Ensure timezone-aware before subtraction
+                    cd = ensure_aware(todo.completed_date)
+                    cr = ensure_aware(todo.created)
+                    if cd and cr:
+                        delta = cd - cr
+                        completion_times.append(delta.total_seconds() / (24 * 3600))  # Convert to days
             
             avg_completion_time = sum(completion_times) / len(completion_times) if completion_times else 0.0
         else:
             avg_completion_time = 0.0
         
-        # Find last activity - all datetimes are timezone-aware
+        # Find last activity - normalize datetimes to avoid naive/aware comparisons
         last_activity = ensure_aware(self.created)
         for todo in todos:
-            if todo.modified > last_activity:
-                last_activity = todo.modified
+            mod = ensure_aware(getattr(todo, 'modified', None)) or last_activity
+            if mod > last_activity:
+                last_activity = mod
         
         # Update progress
         if total_tasks > 0:
