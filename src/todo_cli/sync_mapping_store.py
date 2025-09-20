@@ -7,7 +7,7 @@ and external items, as well as sync conflicts that need resolution.
 import sqlite3
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 
@@ -495,7 +495,7 @@ class SyncMappingStore:
         try:
             cutoff_date = datetime.now(timezone.utc).replace(
                 hour=0, minute=0, second=0, microsecond=0
-            ) - datetime.timedelta(days=older_than_days)
+            ) - timedelta(days=older_than_days)
             
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute("""
