@@ -145,7 +145,8 @@ class NaturalLanguageParser:
         self.date_patterns = {
             'due': re.compile(r'(?:due|!)\s*([^@#~*+&%\[\(]+?)(?=\s*[@#~*+&%\[\(]|$)', re.IGNORECASE),
             'start': re.compile(r'(?:start|starts?)\s*([^@#~*+&%\[\(]+?)(?=\s*[@#~*+&%\[\(]|$)', re.IGNORECASE),
-            'scheduled': re.compile(r'(?:scheduled?|at)\s*([^@#~*+&%\[\(]+?)(?=\s*[@#~*+&%\[\(]|$)', re.IGNORECASE),
+            # Add word boundaries around 'at' to avoid matching inside words like 'latest'
+            'scheduled': re.compile(r'(?:scheduled?|\bat\b)\s*([^@#~*+&%\[\(]+?)(?=\s*[@#~*+&%\[\(]|$)', re.IGNORECASE),
         }
         
         # Energy level patterns
@@ -165,6 +166,7 @@ class NaturalLanguageParser:
                 return parsed, errors
             
             # Start with the full input
+            original_text = input_text
             remaining_text = input_text.strip()
             
             # Extract project
@@ -257,15 +259,27 @@ class NaturalLanguageParser:
             parsed.due_date, remaining_text = self._extract_date(remaining_text, 'due')
             parsed.start_date, remaining_text = self._extract_date(remaining_text, 'start')
             parsed.scheduled_date, remaining_text = self._extract_date(remaining_text, 'scheduled')
+
+            # Freeform due date fallback (e.g., "for tomorrow", "by Monday", "on 9/21")
+            if not parsed.due_date:
+                remaining_text, freeform_due = self._extract_freeform_due(remaining_text)
+                if freeform_due:
+                    parsed.due_date = freeform_due
             
             # Clean up remaining text for task description
             parsed.text = ' '.join(remaining_text.split()).strip()
             
+            # Only raise a description error if the original input was metadata-only
             if not parsed.text:
-                errors.append(ParseError(
-                    "No task description found after parsing metadata",
-                    suggestions=["Ensure task has descriptive text along with metadata"]
-                ))
+                # Heuristic: original contained only metadata tokens and/or dates
+                if self._looks_metadata_only(original_text):
+                    errors.append(ParseError(
+                        "No task description found after parsing metadata",
+                        suggestions=["Ensure task has descriptive text along with metadata"]
+                    ))
+                else:
+                    # Fall back to the original text if our parsing consumed everything unexpectedly
+                    parsed.text = original_text.strip()
             
             return parsed, errors
             
@@ -286,6 +300,7 @@ class NaturalLanguageParser:
             if parsed_date:
                 # Remove the matched date from text
                 new_text = text.replace(match.group(0), '', 1)
+                new_text = self._clean_trailing_preposition(new_text)
                 return parsed_date, new_text
         
         return None, text
@@ -309,6 +324,76 @@ class NaturalLanguageParser:
         else:
             # Default to minutes if no unit specified
             return num
+
+    def _clean_trailing_preposition(self, text: str) -> str:
+        """Remove dangling prepositions left after stripping date phrases."""
+        # Remove trailing 'for', 'by', 'on', or 'at' if they end the string
+        cleaned = re.sub(r"\s*\b(?:for|by|on|at)\b\s*$", "", text, flags=re.IGNORECASE)
+        # Normalize whitespace
+        return ' '.join(cleaned.split()).strip()
+
+    def _extract_freeform_due(self, text: str) -> Tuple[str, Optional[datetime]]:
+        """Extract a freeform due date from text (e.g., 'for tomorrow', 'by Monday', 'on 9/21').
+        Returns updated_text, parsed_date. Only removes substring when parse is successful.
+        """
+        if not text:
+            return text, None
+        
+        working = text
+        
+        # 1) Look for known relative keywords first (e.g., tomorrow, today, next week)
+        keywords = sorted(self.date_parser.patterns.keys(), key=len, reverse=True)
+        if keywords:
+            kw_pattern = re.compile(r"\\b(" + "|".join(re.escape(k) for k in keywords) + r")\\b", re.IGNORECASE)
+            m = kw_pattern.search(working)
+            if m:
+                phrase = m.group(0)
+                dt = self.date_parser.parse(phrase)
+                if dt:
+                    new_text = (working[:m.start()] + working[m.end():])
+                    new_text = self._clean_trailing_preposition(new_text)
+                    return new_text, dt
+        
+        # 2) Common preposition + date phrase (validated by SmartDateParser)
+        prepositional = re.compile(r"\b(?:for|by|on|at)\b\s+([^@#~*+&%\[\(]+?)(?=\s*[@#~*+&%\[\(]|$)", re.IGNORECASE)
+        m2 = prepositional.search(working)
+        if m2:
+            phrase = m2.group(1).strip()
+            dt = self.date_parser.parse(phrase)
+            if dt:
+                # Remove the entire matched segment (including the preposition)
+                new_text = working.replace(m2.group(0), '', 1)
+                new_text = self._clean_trailing_preposition(new_text)
+                return new_text, dt
+        
+        return text, None
+
+    def _looks_metadata_only(self, original_text: str) -> bool:
+        """Heuristic to detect if the input contained only metadata tokens without real description."""
+        s = original_text.strip()
+        if not s:
+            return True
+        # Remove known metadata tokens and see if anything meaningful remains
+        s = self.patterns['project'].sub('', s)
+        s = self.patterns['tags'].sub('', s)
+        s = self.patterns['priority'].sub('', s)
+        s = self.patterns['effort'].sub('', s)
+        s = self.patterns['assignees'].sub('', s)
+        s = self.patterns['stakeholders'].sub('', s)
+        s = self.patterns['recurrence'].sub('', s)
+        s = self.patterns['pinned'].sub('', s)
+        s = self.patterns['url'].sub('', s)
+        s = self.patterns['waiting'].sub('', s)
+        s = self.energy_patterns.sub('', s)
+        s = self.time_patterns.sub('', s)
+        # Also strip explicit date directives
+        for key in ['due', 'start', 'scheduled']:
+            patt = self.date_patterns.get(key)
+            if patt:
+                s = patt.sub('', s)
+        # Normalize whitespace
+        s = ' '.join(s.split()).strip()
+        return len(s) == 0
     
     def suggest_corrections(self, input_text: str, available_projects: List[str] = None,
                           available_tags: List[str] = None,
