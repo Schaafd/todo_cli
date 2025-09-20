@@ -35,7 +35,31 @@ theme = get_theme()
 def get_app_sync_manager() -> AppSyncManager:
     """Get initialized app sync manager."""
     storage = get_storage()
-    return AppSyncManager(storage)
+    manager = AppSyncManager(storage)
+    
+    # Load configured providers and create adapters
+    from .app_sync_config import get_app_sync_config_manager
+    config_manager = get_app_sync_config_manager()
+    
+    for provider in config_manager.get_all_providers():
+        try:
+            # Get provider configuration
+            provider_config = config_manager.get_provider_config(provider)
+            
+            # Create adapter based on provider type
+            if provider == AppSyncProvider.TODOIST:
+                from .adapters.todoist_adapter import TodoistAdapter
+                adapter = TodoistAdapter(provider_config)
+                manager.register_adapter(provider, adapter)
+            # Add other providers as they're implemented
+            else:
+                continue  # Skip unsupported providers
+                
+        except Exception as e:
+            console.print(f"[dim yellow]Warning: Failed to initialize {provider.value}: {e}[/dim yellow]")
+            continue
+    
+    return manager
 
 
 @click.group(name="app-sync")

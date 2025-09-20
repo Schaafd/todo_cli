@@ -139,14 +139,43 @@ class AppSyncConfigManager:
             
             # Load global settings
             if 'global' in data:
-                self.global_settings = GlobalSyncSettings(**data['global'])
+                global_data = data['global'].copy()
+                # Convert string enum values back to enums
+                if 'default_conflict_strategy' in global_data:
+                    try:
+                        global_data['default_conflict_strategy'] = ConflictStrategy(
+                            global_data['default_conflict_strategy']
+                        )
+                    except (ValueError, TypeError):
+                        global_data['default_conflict_strategy'] = ConflictStrategy.MANUAL
+                
+                self.global_settings = GlobalSyncSettings(**global_data)
             
             # Load provider settings
             if 'providers' in data:
                 for provider_name, provider_data in data['providers'].items():
                     try:
                         provider = AppSyncProvider(provider_name)
-                        self.providers[provider] = ProviderSettings(**provider_data)
+                        
+                        # Convert string enum values back to enums
+                        provider_data_copy = provider_data.copy()
+                        if 'conflict_strategy' in provider_data_copy:
+                            try:
+                                provider_data_copy['conflict_strategy'] = ConflictStrategy(
+                                    provider_data_copy['conflict_strategy']
+                                )
+                            except (ValueError, TypeError):
+                                provider_data_copy['conflict_strategy'] = ConflictStrategy.NEWEST_WINS
+                        
+                        if 'sync_direction' in provider_data_copy:
+                            try:
+                                provider_data_copy['sync_direction'] = SyncDirection(
+                                    provider_data_copy['sync_direction']
+                                )
+                            except (ValueError, TypeError):
+                                provider_data_copy['sync_direction'] = SyncDirection.BIDIRECTIONAL
+                        
+                        self.providers[provider] = ProviderSettings(**provider_data_copy)
                     except ValueError:
                         self.logger.warning(f"Unknown provider in config: {provider_name}")
             
@@ -159,14 +188,26 @@ class AppSyncConfigManager:
     def save(self):
         """Save configuration to file."""
         try:
+            # Convert global settings with enum serialization
+            global_data = self.global_settings.dict()
+            # Convert enum values to strings
+            for key, value in global_data.items():
+                if hasattr(value, 'value'):
+                    global_data[key] = value.value
+            
             data = {
-                'global': self.global_settings.dict(),
+                'global': global_data,
                 'providers': {}
             }
             
             # Convert provider configurations
             for provider, settings in self.providers.items():
-                data['providers'][provider.value] = settings.dict()
+                provider_data = settings.dict()
+                # Convert enum values to strings
+                for key, value in provider_data.items():
+                    if hasattr(value, 'value'):
+                        provider_data[key] = value.value
+                data['providers'][provider.value] = provider_data
             
             # Add metadata
             data['_metadata'] = {
@@ -178,10 +219,10 @@ class AppSyncConfigManager:
             # Ensure config directory exists
             self.config_file.parent.mkdir(parents=True, exist_ok=True)
             
-            # Write with atomic operation
+            # Write with atomic operation using safe_dump
             temp_file = self.config_file.with_suffix('.tmp')
             with open(temp_file, 'w') as f:
-                yaml.dump(data, f, default_flow_style=False, indent=2, sort_keys=True)
+                yaml.safe_dump(data, f, default_flow_style=False, indent=2, sort_keys=True)
             
             temp_file.rename(self.config_file)
             
