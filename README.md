@@ -104,6 +104,11 @@ todo add "Call doctor @phone ~high energy:low est:15m (waiting: insurance approv
 
 # Quick pinned reminder
 todo add "Submit expense report due end of week [P]"
+
+# Freeform date phrases (no explicit 'due' needed)
+todo add "Pay rent by Monday"
+todo add "Pick up order on 9/21"
+todo add "Write recap for tomorrow"
 ```
 
 ### 🎨 Natural Language Syntax Guide
