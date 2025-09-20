@@ -5,6 +5,8 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 
+from .utils.datetime import now_utc, ensure_aware, to_iso_string
+
 
 class Priority(Enum):
     """Task priority levels."""
@@ -62,8 +64,8 @@ class Todo:
     waiting_for: List[str] = field(default_factory=list)  # People/things you're waiting on
     
     # Metadata
-    created: datetime = field(default_factory=datetime.now)
-    modified: datetime = field(default_factory=datetime.now)
+    created: datetime = field(default_factory=now_utc)
+    modified: datetime = field(default_factory=now_utc)
     pinned: bool = False
     archived: bool = False
     
@@ -96,22 +98,32 @@ class Todo:
     
     def __post_init__(self):
         """Post-initialization validation and setup."""
+        # Ensure all datetime fields are timezone-aware
+        self.created = ensure_aware(self.created)
+        self.modified = ensure_aware(self.modified)
+        self.start_date = ensure_aware(self.start_date)
+        self.due_date = ensure_aware(self.due_date)
+        self.scheduled_date = ensure_aware(self.scheduled_date)
+        self.defer_until = ensure_aware(self.defer_until)
+        self.completed_date = ensure_aware(self.completed_date)
+        self.next_due = ensure_aware(self.next_due)
+        
         if self.completed and not self.completed_date:
-            self.completed_date = datetime.now()
+            self.completed_date = now_utc()
         
         if self.status == TodoStatus.COMPLETED:
             self.completed = True
             
         # Update modified timestamp
-        self.modified = datetime.now()
+        self.modified = now_utc()
     
     def complete(self, completed_by: Optional[str] = None):
         """Mark the task as completed."""
         self.completed = True
         self.status = TodoStatus.COMPLETED
-        self.completed_date = datetime.now()
+        self.completed_date = now_utc()
         self.completed_by = completed_by
-        self.modified = datetime.now()
+        self.modified = now_utc()
         self.progress = 1.0
     
     def reopen(self):
@@ -120,7 +132,7 @@ class Todo:
         self.status = TodoStatus.PENDING
         self.completed_date = None
         self.completed_by = None
-        self.modified = datetime.now()
+        self.modified = now_utc()
         if self.progress >= 1.0:
             self.progress = 0.0
     
@@ -128,42 +140,42 @@ class Todo:
         """Mark the task as in progress."""
         self.status = TodoStatus.IN_PROGRESS
         if not self.start_date:
-            self.start_date = datetime.now()
-        self.modified = datetime.now()
+            self.start_date = now_utc()
+        self.modified = now_utc()
     
     def block(self, reason: Optional[str] = None):
         """Mark the task as blocked."""
         self.status = TodoStatus.BLOCKED
-        self.modified = datetime.now()
+        self.modified = now_utc()
         if reason:
             self.notes.append(f"Blocked: {reason}")
     
     def cancel(self, reason: Optional[str] = None):
         """Cancel the task."""
         self.status = TodoStatus.CANCELLED
-        self.modified = datetime.now()
+        self.modified = now_utc()
         if reason:
             self.notes.append(f"Cancelled: {reason}")
     
     def pin(self):
         """Pin the task to the top."""
         self.pinned = True
-        self.modified = datetime.now()
+        self.modified = now_utc()
     
     def unpin(self):
         """Unpin the task."""
         self.pinned = False
-        self.modified = datetime.now()
+        self.modified = now_utc()
     
     def add_time(self, minutes: int):
         """Add time spent on the task."""
         self.time_spent += minutes
-        self.modified = datetime.now()
+        self.modified = now_utc()
     
     def update_progress(self, progress: float):
         """Update task progress (0.0 to 1.0)."""
         self.progress = max(0.0, min(1.0, progress))
-        self.modified = datetime.now()
+        self.modified = now_utc()
         
         # Auto-complete if progress reaches 100%
         if self.progress >= 1.0 and not self.completed:
@@ -172,13 +184,13 @@ class Todo:
     def is_overdue(self) -> bool:
         """Check if the task is overdue."""
         if self.due_date and not self.completed:
-            return datetime.now() > self.due_date
+            return now_utc() > self.due_date
         return False
     
     def is_deferred(self) -> bool:
         """Check if the task is currently deferred."""
         if self.defer_until and not self.completed:
-            return datetime.now() < self.defer_until
+            return now_utc() < self.defer_until
         return False
     
     def is_active(self) -> bool:
@@ -190,22 +202,22 @@ class Todo:
         )
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert the Todo to a dictionary."""
+        """Convert the Todo to a dictionary with timezone-aware ISO strings."""
         return {
             "id": self.id,
             "text": self.text,
             "description": self.description,
             "status": self.status.value,
             "completed": self.completed,
-            "completed_date": self.completed_date.isoformat() if self.completed_date else None,
+            "completed_date": to_iso_string(self.completed_date),
             "completed_by": self.completed_by,
             "project": self.project,
             "tags": self.tags,
             "context": self.context,
-            "start_date": self.start_date.isoformat() if self.start_date else None,
-            "due_date": self.due_date.isoformat() if self.due_date else None,
-            "scheduled_date": self.scheduled_date.isoformat() if self.scheduled_date else None,
-            "defer_until": self.defer_until.isoformat() if self.defer_until else None,
+            "start_date": to_iso_string(self.start_date),
+            "due_date": to_iso_string(self.due_date),
+            "scheduled_date": to_iso_string(self.scheduled_date),
+            "defer_until": to_iso_string(self.defer_until),
             "priority": self.priority.value,
             "effort": self.effort,
             "energy_level": self.energy_level,
@@ -214,14 +226,14 @@ class Todo:
             "created_by": self.created_by,
             "delegated_to": self.delegated_to,
             "waiting_for": self.waiting_for,
-            "created": self.created.isoformat(),
-            "modified": self.modified.isoformat(),
+            "created": to_iso_string(self.created),
+            "modified": to_iso_string(self.modified),
             "pinned": self.pinned,
             "archived": self.archived,
             "recurrence": self.recurrence,
             "parent_recurring_id": self.parent_recurring_id,
             "recurring_template": self.recurring_template,
-            "next_due": self.next_due.isoformat() if self.next_due else None,
+            "next_due": to_iso_string(self.next_due),
             "recurrence_count": self.recurrence_count,
             "depends_on": self.depends_on,
             "blocks": self.blocks,
@@ -240,11 +252,12 @@ class Todo:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Todo':
         """Create a Todo from a dictionary."""
-        # Helper function to parse datetime strings
+        # Helper function to parse datetime strings with timezone awareness
         def parse_datetime(date_str: Optional[str]) -> Optional[datetime]:
             if date_str:
                 try:
-                    return datetime.fromisoformat(date_str)
+                    parsed = datetime.fromisoformat(date_str)
+                    return ensure_aware(parsed)
                 except ValueError:
                     return None
             return None
@@ -272,8 +285,8 @@ class Todo:
             created_by=data.get("created_by", ""),
             delegated_to=data.get("delegated_to"),
             waiting_for=data.get("waiting_for", []),
-            created=parse_datetime(data.get("created")) or datetime.now(),
-            modified=parse_datetime(data.get("modified")) or datetime.now(),
+            created=parse_datetime(data.get("created")) or now_utc(),
+            modified=parse_datetime(data.get("modified")) or now_utc(),
             pinned=data.get("pinned", False),
             archived=data.get("archived", False),
             recurrence=data.get("recurrence"),

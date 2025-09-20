@@ -11,6 +11,7 @@ import yaml
 from .todo import Todo, TodoStatus, Priority
 from .project import Project
 from .config import ConfigModel
+from .utils.datetime import now_utc, max_utc, min_utc
 
 
 # ID comment handling utilities
@@ -186,7 +187,7 @@ class TodoMarkdownFormat:
         m = re.search(r"\^(\d{4}-\d{2}-\d{2})", line)
         if m:
             try:
-                start_date = datetime.strptime(m.group(1), "%Y-%m-%d")
+                start_date = datetime.strptime(m.group(1), "%Y-%m-%d").replace(tzinfo=timezone.utc)
             except ValueError:
                 pass  # Ignore invalid dates
 
@@ -194,7 +195,7 @@ class TodoMarkdownFormat:
         m = re.search(r"!(\d{4}-\d{2}-\d{2})", line)
         if m:
             try:
-                due_date = datetime.strptime(m.group(1), "%Y-%m-%d")
+                due_date = datetime.strptime(m.group(1), "%Y-%m-%d").replace(tzinfo=timezone.utc)
             except ValueError:
                 pass  # Ignore invalid dates
 
@@ -323,7 +324,7 @@ class ProjectMarkdownFormat:
             active_todos.sort(
                 key=lambda t: (
                     priority_order.get(t.priority, 2),
-                    t.due_date or datetime.max.replace(tzinfo=timezone.utc),
+                    t.due_date or max_utc(),
                 )
             )
 
@@ -336,7 +337,7 @@ class ProjectMarkdownFormat:
             content_lines.append("")
             for todo in sorted(
                 completed_todos,
-                key=lambda t: t.completed_date or datetime.min.replace(tzinfo=timezone.utc),
+                key=lambda t: t.completed_date or min_utc(),
                 reverse=True,
             ):
                 content_lines.append(TodoMarkdownFormat.to_markdown(todo))
@@ -418,7 +419,17 @@ class Storage:
                 )
 
             # Update project stats
-            project.update_stats(todos)
+            try:
+                project.update_stats(todos)
+            except Exception as stats_error:
+                print(f"Error in update_stats for project {project.name}: {stats_error}")
+                print(f"Todo details:")
+                for i, todo in enumerate(todos[:3]):
+                    print(f"  Todo {i}: created={getattr(todo, 'created', None)} (tz={getattr(todo.created, 'tzinfo', 'N/A') if hasattr(todo, 'created') and todo.created else 'N/A'})")
+                    print(f"  Todo {i}: modified={getattr(todo, 'modified', None)} (tz={getattr(todo.modified, 'tzinfo', 'N/A') if hasattr(todo, 'modified') and todo.modified else 'N/A'})")
+                    print(f"  Todo {i}: due_date={getattr(todo, 'due_date', None)} (tz={getattr(todo.due_date, 'tzinfo', 'N/A') if hasattr(todo, 'due_date') and todo.due_date else 'N/A'})")
+                print(f"Project details: created={project.created} (tz={project.created.tzinfo if project.created else 'N/A'})")
+                raise stats_error
 
             # Generate markdown content
             content = ProjectMarkdownFormat.to_markdown(project, todos)
@@ -466,7 +477,7 @@ class Storage:
             return False
 
         if backup_path is None:
-            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+            timestamp = now_utc().strftime("%Y-%m-%d_%H-%M-%S")
             backup_dir = self.config.get_backup_path(timestamp)
             backup_dir.mkdir(parents=True, exist_ok=True)
             backup_path = backup_dir / f"{project_name}.md"

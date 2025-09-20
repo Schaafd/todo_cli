@@ -12,6 +12,7 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 
 from .todo import Todo, Priority, TodoStatus
+from .utils.datetime import now_utc, ensure_aware
 
 
 class AppSyncProvider(Enum):
@@ -114,10 +115,10 @@ class ExternalTodoItem:
         if isinstance(data.get('provider'), str):
             data['provider'] = AppSyncProvider(data['provider'])
         
-        # Convert ISO strings back to datetimes
+        # Convert ISO strings back to datetimes and ensure timezone awareness
         for field_name in ['due_date', 'completed_at', 'created_at', 'updated_at']:
             if data.get(field_name) and isinstance(data[field_name], str):
-                data[field_name] = datetime.fromisoformat(data[field_name])
+                data[field_name] = ensure_aware(datetime.fromisoformat(data[field_name]))
         
         return cls(**data)
     
@@ -131,8 +132,8 @@ class ExternalTodoItem:
             due_date=self.due_date,
             priority=self._map_priority_from_external(),
             status=TodoStatus.COMPLETED if self.completed else TodoStatus.PENDING,
-            created=self.created_at or datetime.now(timezone.utc),
-            modified=self.updated_at or datetime.now(timezone.utc),
+            created=self.created_at or now_utc(),
+            modified=self.updated_at or now_utc(),
             description=self.description or ""
         )
     
@@ -179,7 +180,7 @@ class SyncMapping:
     sync_hash: str  # Hash for change detection
     local_hash: Optional[str] = None  # Hash of local todo
     remote_hash: Optional[str] = None  # Hash of remote item
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=now_utc)
     sync_count: int = 0  # Number of successful syncs
     last_error: Optional[str] = None
     
@@ -198,10 +199,10 @@ class SyncMapping:
             data['provider'] = AppSyncProvider(data['provider'])
         
         if isinstance(data.get('last_synced'), str):
-            data['last_synced'] = datetime.fromisoformat(data['last_synced'])
+            data['last_synced'] = ensure_aware(datetime.fromisoformat(data['last_synced']))
         
         if isinstance(data.get('created_at'), str):
-            data['created_at'] = datetime.fromisoformat(data['created_at'])
+            data['created_at'] = ensure_aware(datetime.fromisoformat(data['created_at']))
         
         return cls(**data)
     
@@ -210,7 +211,7 @@ class SyncMapping:
         self.local_hash = local_hash
         self.remote_hash = remote_hash
         self.sync_hash = self._compute_combined_hash(local_hash, remote_hash)
-        self.last_synced = datetime.now(timezone.utc)
+        self.last_synced = now_utc()
         self.sync_count += 1
         self.last_error = None
     
@@ -231,7 +232,7 @@ class SyncConflict:
     remote_item: Optional[ExternalTodoItem] = None
     local_changes: Dict[str, Any] = field(default_factory=dict)
     remote_changes: Dict[str, Any] = field(default_factory=dict)
-    detected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    detected_at: datetime = field(default_factory=now_utc)
     resolved: bool = False
     resolution: Optional[str] = None
     resolved_at: Optional[datetime] = None
@@ -260,10 +261,10 @@ class SyncConflict:
         data['provider'] = AppSyncProvider(data['provider'])
         data['conflict_type'] = ConflictType(data['conflict_type'])
         
-        # Convert datetime strings
-        data['detected_at'] = datetime.fromisoformat(data['detected_at'])
+        # Convert datetime strings and ensure timezone awareness
+        data['detected_at'] = ensure_aware(datetime.fromisoformat(data['detected_at']))
         if data.get('resolved_at'):
-            data['resolved_at'] = datetime.fromisoformat(data['resolved_at'])
+            data['resolved_at'] = ensure_aware(datetime.fromisoformat(data['resolved_at']))
         
         # Convert nested objects
         if data.get('local_todo'):
@@ -277,7 +278,7 @@ class SyncConflict:
         """Mark conflict as resolved."""
         self.resolved = True
         self.resolution = resolution
-        self.resolved_at = datetime.now(timezone.utc)
+        self.resolved_at = now_utc()
     
     def describe(self) -> str:
         """Get human-readable description of the conflict."""
