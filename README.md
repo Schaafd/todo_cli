@@ -463,6 +463,34 @@ uv run python -m pytest tests/test_todo.py -v
 
 **Test Coverage**: 43 tests covering core functionality and natural language parsing with 100% pass rate.
 
+## 🧹 Development: Code Quality & Pre-commit
+
+This project uses Black, isort, Flake8, and MyPy. Pre-commit hooks are provided to keep the codebase clean.
+
+Setup (once per machine):
+```bash
+uv sync --all-extras
+uv run pre-commit install
+```
+
+Run formatters and linters locally:
+```bash
+# Format (non-destructive: add to commit via pre-commit)
+uv run black .
+uv run isort .
+
+# Lint
+uv run flake8
+
+# Type-check (configured to be permissive by default)
+uv run mypy --config-file pyproject.toml
+```
+
+Run all pre-commit hooks on the full repo:
+```bash
+uv run pre-commit run --all-files
+```
+
 ## 🏗️ Architecture
 
 Todo CLI is built with a clean, extensible architecture:
