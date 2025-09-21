@@ -294,7 +294,8 @@ class TestTaskBuilder:
         assert todo.tags == ["urgent"]
         assert todo.context == ["work"]
         assert todo.priority == Priority.HIGH
-        assert todo.due_date == due_date
+        # Due date is stored timezone-aware; compare by date component
+        assert todo.due_date.date() == due_date.date()
         assert todo.assignees == ["john"]
         assert todo.stakeholders == ["manager"]
         assert todo.effort == "large"

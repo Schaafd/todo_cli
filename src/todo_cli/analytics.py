@@ -18,7 +18,7 @@ from pathlib import Path
 from enum import Enum
 from collections import defaultdict, Counter
 import math
-from .utils.datetime import now_utc
+from .utils.datetime import now_utc, ensure_aware
 
 from .todo import Todo, Priority, TodoStatus
 from .config import get_config
@@ -124,6 +124,14 @@ class ProductivityInsight:
 
 
 @dataclass
+class StatisticalAnalysis:
+    """Summary statistics for analytics calculations"""
+    mean_completion_time: Optional[float] = None  # hours
+    completion_time_variance: float = 0.0
+    productivity_trend_slope: float = 0.0
+
+
+@dataclass
 class AnalyticsReport:
     """Comprehensive analytics report"""
     timeframe: AnalyticsTimeframe
@@ -213,7 +221,9 @@ class ProductivityAnalyzer:
         """Generate comprehensive productivity analysis"""
         
         if end_date is None:
-            end_date = datetime.now()
+            end_date = now_utc()
+        else:
+            end_date = ensure_aware(end_date)
         
         # Calculate timeframe start date
         start_date = self._calculate_start_date(timeframe, end_date)
@@ -284,7 +294,9 @@ class ProductivityAnalyzer:
         elif timeframe == AnalyticsTimeframe.YEARLY:
             return end_date.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
         else:  # ALL_TIME
-            return datetime(2020, 1, 1)  # Reasonable start date for all-time analysis
+            # Reasonable start date for all-time analysis, with same tz as end_date
+            base = datetime(2020, 1, 1)
+            return ensure_aware(base, tz=end_date.tzinfo) if hasattr(end_date, 'tzinfo') else base
     
     def _filter_todos_by_timeframe(self, todos: List[Todo], start_date: datetime, end_date: datetime) -> List[Todo]:
         """Filter todos by timeframe"""
@@ -864,6 +876,54 @@ class ProductivityAnalyzer:
         
         return None
     
+    def _calculate_statistical_analysis(self, todos: List[Todo]) -> StatisticalAnalysis:
+        """Calculate statistical measures over the provided todos.
+        - mean_completion_time: average hours from creation to completion
+        - completion_time_variance: variance of completion times (hours^2)
+        - productivity_trend_slope: simple linear trend of daily completions over time
+        """
+        # Completion times in hours
+        completion_hours: List[float] = []
+        for t in todos:
+            try:
+                created_dt = getattr(t, 'created', None) or getattr(t, 'created_at', None)
+                completed_dt = getattr(t, 'completed_date', None) or getattr(t, 'completed_at', None)
+                if t.completed and created_dt and completed_dt:
+                    completion_hours.append((completed_dt - created_dt).total_seconds() / 3600.0)
+            except Exception:
+                continue
+        
+        mean_ct: Optional[float] = statistics.mean(completion_hours) if completion_hours else None
+        var_ct: float = statistics.pvariance(completion_hours) if len(completion_hours) > 1 else 0.0
+        
+        # Productivity trend: count completions per day and compute slope via simple linear regression
+        daily_counts: Dict[datetime, int] = defaultdict(int)
+        for t in todos:
+            dt = getattr(t, 'completed_date', None) or getattr(t, 'completed_at', None)
+            if t.completed and dt:
+                day = dt.date()
+                # Use datetime for indexing
+                daily_counts[datetime.combine(day, datetime.min.time())] += 1
+        
+        slope = 0.0
+        if len(daily_counts) > 1:
+            # Sort by date
+            items = sorted(daily_counts.items(), key=lambda x: x[0])
+            xs = list(range(len(items)))
+            ys = [count for _, count in items]
+            # Compute slope = cov(x,y)/var(x)
+            mean_x = statistics.mean(xs)
+            mean_y = statistics.mean(ys)
+            num = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
+            den = sum((x - mean_x) ** 2 for x in xs) or 1.0
+            slope = num / den
+        
+        return StatisticalAnalysis(
+            mean_completion_time=mean_ct,
+            completion_time_variance=var_ct,
+            productivity_trend_slope=float(slope)
+        )
+
     def get_productivity_trends(self, todos: List[Todo], 
                               periods: int = 4) -> List[ProductivityScore]:
         """Get productivity trends over multiple periods"""

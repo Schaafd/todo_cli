@@ -1,7 +1,7 @@
 """Tests for Todo model."""
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from todo_cli.todo import Todo, TodoStatus, Priority
 
@@ -88,13 +88,13 @@ class TestTodo:
     def test_todo_overdue(self):
         """Test overdue detection."""
         # Task due yesterday
-        yesterday = datetime.now() - timedelta(days=1)
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
         todo = Todo(id=1, text="Overdue task", due_date=yesterday)
         
         assert todo.is_overdue()
         
         # Task due tomorrow
-        tomorrow = datetime.now() + timedelta(days=1)
+        tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
         todo.due_date = tomorrow
         
         assert not todo.is_overdue()
@@ -108,13 +108,13 @@ class TestTodo:
     def test_todo_deferred(self):
         """Test deferred task detection."""
         # Task deferred until tomorrow
-        tomorrow = datetime.now() + timedelta(days=1)
+        tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
         todo = Todo(id=1, text="Deferred task", defer_until=tomorrow)
         
         assert todo.is_deferred()
         
         # Task deferred until yesterday
-        yesterday = datetime.now() - timedelta(days=1)
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
         todo.defer_until = yesterday
         
         assert not todo.is_deferred()

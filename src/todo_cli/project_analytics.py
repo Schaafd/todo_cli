@@ -422,7 +422,12 @@ class ProjectAnalyzer:
         elif timeframe == AnalyticsTimeframe.YEARLY:
             return end_date.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
         else:  # ALL_TIME
-            return datetime(2020, 1, 1)
+            base = datetime(2020, 1, 1)
+            try:
+                from .utils.datetime import ensure_aware
+                return ensure_aware(base, tz=end_date.tzinfo)
+            except Exception:
+                return base
     
     def _filter_project_todos(self, todos: List[Todo], project_name: str, 
                             start_date: datetime, end_date: datetime) -> List[Todo]:
