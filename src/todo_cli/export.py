@@ -835,49 +835,21 @@ class HTMLExporter(BaseExporter):
 
 
 class PDFExporter(BaseExporter):
-    """Export to PDF format using HTML conversion"""
+    """Export to PDF format using lightweight text-based generation"""
     
     def export_todos(self, todos: List[Todo], **kwargs) -> str:
-        """Export todos to PDF"""
-        try:
-            import weasyprint
-        except ImportError:
-            raise ImportError(
-                "PDF export requires 'weasyprint' package. "
-                "Install with: pip install weasyprint"
-            )
+        """Export todos to PDF using simple generation (no heavy dependencies)"""
+        from .simple_pdf import TextPDFExporter
         
-        # Generate HTML content using HTML exporter
-        html_exporter = HTMLExporter()
-        html_content = html_exporter.export_todos(todos, **kwargs)
-        
-        # Convert to PDF bytes
-        pdf_bytes = weasyprint.HTML(string=html_content).write_pdf()
-        
-        # Return as base64 string for consistency (CLI will handle file writing)
-        import base64
-        return base64.b64encode(pdf_bytes).decode('utf-8')
+        pdf_exporter = TextPDFExporter()
+        return pdf_exporter.export_todos(todos, **kwargs)
     
     def export_projects(self, projects: List[Dict[str, Any]], **kwargs) -> str:
-        """Export projects to PDF"""
-        try:
-            import weasyprint
-        except ImportError:
-            raise ImportError(
-                "PDF export requires 'weasyprint' package. "
-                "Install with: pip install weasyprint"
-            )
+        """Export projects to PDF using simple generation"""
+        from .simple_pdf import TextPDFExporter
         
-        # Generate HTML content using HTML exporter
-        html_exporter = HTMLExporter()
-        html_content = html_exporter.export_projects(projects, **kwargs)
-        
-        # Convert to PDF bytes
-        pdf_bytes = weasyprint.HTML(string=html_content).write_pdf()
-        
-        # Return as base64 string
-        import base64
-        return base64.b64encode(pdf_bytes).decode('utf-8')
+        pdf_exporter = TextPDFExporter()
+        return pdf_exporter.export_projects(projects, **kwargs)
     
     def get_file_extension(self) -> str:
         return "pdf"
@@ -916,6 +888,20 @@ class ExportManager:
             kwargs['delimiter'] = '\t'
         
         content = exporter.export_todos(todos, **kwargs)
+        
+        # Handle text fallback for PDF export
+        if format == ExportFormat.PDF and content.startswith("TEXT_FALLBACK:"):
+            # Remove the prefix and handle as text
+            content = content[14:]  # Remove "TEXT_FALLBACK:" prefix
+            if output_path:
+                # Change extension to .txt for text fallback
+                import os
+                base_path = os.path.splitext(output_path)[0]
+                text_output_path = base_path + ".txt"
+                self._write_to_file(content, text_output_path)
+                # Update output_path for return message
+                # Note: This might need to be handled by the caller
+            return content
         
         if output_path:
             if format == ExportFormat.PDF:

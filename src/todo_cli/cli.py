@@ -1146,7 +1146,7 @@ def export(format_type, output, project, include_completed, exclude_completed, i
       tsv        - Tab-separated values
       markdown   - Human-readable Markdown format
       html       - Web-friendly HTML format
-      pdf        - Professional PDF report (requires weasyprint)
+      pdf        - Professional PDF report (lightweight, optional: fpdf2)
       ical       - iCalendar format for calendar apps
       yaml       - YAML format
     
@@ -1224,13 +1224,6 @@ def export(format_type, output, project, include_completed, exclude_completed, i
         # Perform the export
         console.print(f"[primary]🔄 Exporting {len(all_todos)} tasks to {format_type.upper()}...[/primary]")
         
-        if export_format == ExportFormat.PDF:
-            try:
-                import weasyprint
-            except ImportError:
-                console.print("[error]❌ PDF export requires the 'weasyprint' package.[/error]")
-                console.print("[muted]Install with: pip install weasyprint[/muted]")
-                return
         
         result = export_manager.export_todos(
             all_todos,
@@ -1267,7 +1260,6 @@ def export(format_type, output, project, include_completed, exclude_completed, i
         if open_after:
             try:
                 import subprocess
-                import sys
                 if sys.platform == "darwin":  # macOS
                     subprocess.run(["open", output])
                 elif sys.platform == "win32":  # Windows
@@ -1280,8 +1272,9 @@ def export(format_type, output, project, include_completed, exclude_completed, i
         
     except ImportError as e:
         console.print(f"[error]❌ Export failed: {e}[/error]")
-        if "weasyprint" in str(e):
-            console.print("[muted]Install PDF support with: pip install weasyprint[/muted]")
+        if "fpdf2" in str(e):
+            console.print("[muted]Install lightweight PDF support with: pip install fpdf2[/muted]")
+            console.print("[muted]Or use 'html' or 'markdown' formats for visual reports.[/muted]")
     except Exception as e:
         console.print(f"[error]❌ Export failed: {e}[/error]")
         sys.exit(1)
