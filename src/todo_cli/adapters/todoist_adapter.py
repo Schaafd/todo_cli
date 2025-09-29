@@ -42,14 +42,20 @@ class TodoistAPI:
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json"
         }
-        self.client = httpx.AsyncClient(timeout=30.0)
+        self.client = None
         self.logger = logging.getLogger(__name__)
     
     async def __aenter__(self):
+        """Create HTTP client when entering async context."""
+        if self.client is None:
+            self.client = httpx.AsyncClient(timeout=30.0)
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.client.aclose()
+        """Close HTTP client when exiting async context."""
+        if self.client is not None:
+            await self.client.aclose()
+            self.client = None
     
     async def _make_request(self, method: str, endpoint: str, data: Optional[Dict] = None, 
                            use_sync_api: bool = False) -> Dict[str, Any]:
@@ -69,6 +75,9 @@ class TodoistAPI:
             RateLimitError: If rate limit is exceeded
             NetworkError: If network request fails
         """
+        if self.client is None:
+            raise NetworkError("HTTP client not initialized. Use 'async with' context manager.")
+            
         base_url = self.SYNC_BASE_URL if use_sync_api else self.BASE_URL
         url = urljoin(base_url, endpoint)
         
@@ -255,6 +264,7 @@ class TodoistAdapter(SyncAdapter):
         
         try:
             async with TodoistAPI(self.api_token) as api:
+                # Store API instance for cache refresh
                 self.api = api
                 
                 # Refresh caches
@@ -285,6 +295,9 @@ class TodoistAdapter(SyncAdapter):
                         self.logger.warning(f"Failed to map Todoist task {task.get('id')}: {e}")
                         continue
                 
+                # Clear API reference after use
+                self.api = None
+                
                 self.logger.info(f"Fetched {len(external_items)} tasks from Todoist")
                 return external_items
                 
@@ -298,6 +311,8 @@ class TodoistAdapter(SyncAdapter):
         
         try:
             async with TodoistAPI(self.api_token) as api:
+                # Store API instance for cache refresh
+                self.api = api
                 await self._refresh_caches()
                 
                 # Map to Todoist format
@@ -306,6 +321,9 @@ class TodoistAdapter(SyncAdapter):
                 # Create the task
                 created_task = await api.create_task(**task_data)
                 task_id = created_task["id"]
+                
+                # Clear API reference after use  
+                self.api = None
                 
                 self.log_sync_operation("create", f"Created task {task_id}: {todo.text}")
                 return task_id
@@ -320,13 +338,17 @@ class TodoistAdapter(SyncAdapter):
         
         try:
             async with TodoistAPI(self.api_token) as api:
+                # Store API instance for cache refresh
+                self.api = api
                 await self._refresh_caches()
                 
                 # Get current task to compare
                 try:
                     current_task = await api.get_task(external_id)
-                except Exception:
-                    self.logger.warning(f"Task {external_id} not found in Todoist, cannot update")
+                except Exception as e:
+                    self.logger.warning(f"Task {external_id} not found in Todoist, cannot update: {e}")
+                    # Clear API reference before returning
+                    self.api = None
                     return False
                 
                 # Map to Todoist format
@@ -351,11 +373,20 @@ class TodoistAdapter(SyncAdapter):
                     if update_data:
                         await api.update_task(external_id, **update_data)
                 
+                # Clear API reference after use
+                self.api = None
+                
                 self.log_sync_operation("update", f"Updated task {external_id}: {todo.text}")
                 return True
                 
         except Exception as e:
             self.logger.error(f"Failed to update Todoist task {external_id}: {e}")
+            # Check if this is a 404 error (task not found)
+            if "404" in str(e) or "Task not found" in str(e):
+                self.logger.warning(f"Task {external_id} no longer exists in Todoist")
+                # Clear API reference before returning
+                self.api = None
+                return False
             raise NetworkError(f"Failed to update in Todoist: {e}")
     
     async def delete_item(self, external_id: str) -> bool:
@@ -529,22 +560,32 @@ class TodoistAdapter(SyncAdapter):
         """Refresh projects and labels caches."""
         try:
             if not self.api:
+                self.logger.warning("API not initialized, skipping cache refresh")
                 return
             
             # Refresh projects cache
-            projects = await self.api.get_projects()
-            self._projects_cache = {
-                project["name"]: project["id"] for project in projects
-            }
+            try:
+                projects = await self.api.get_projects()
+                self._projects_cache = {
+                    project["name"]: project["id"] for project in projects
+                }
+                self.logger.debug(f"Refreshed projects cache: {len(self._projects_cache)} projects")
+            except Exception as e:
+                self.logger.warning(f"Failed to refresh projects cache: {e}")
             
             # Refresh labels cache
-            labels = await self.api.get_labels()
-            self._labels_cache = {
-                label["name"]: label["id"] for label in labels
-            }
+            try:
+                labels = await self.api.get_labels()
+                self._labels_cache = {
+                    label["name"]: label["id"] for label in labels
+                }
+                self.logger.debug(f"Refreshed labels cache: {len(self._labels_cache)} labels")
+            except Exception as e:
+                self.logger.warning(f"Failed to refresh labels cache: {e}")
             
         except Exception as e:
-            self.logger.warning(f"Failed to refresh Todoist caches: {e}")
+            self.logger.error(f"Failed to refresh Todoist caches: {e}")
+            # Don't re-raise - cache refresh failures shouldn't stop sync
     
     def _get_project_id(self, project_name: str) -> Optional[str]:
         """Get Todoist project ID from name."""
@@ -619,3 +660,63 @@ class TodoistAdapter(SyncAdapter):
             return False
         
         return True
+    
+    async def verify_item_exists(self, external_id: str) -> bool:
+        """Verify if a task still exists in Todoist.
+        
+        Args:
+            external_id: The Todoist task ID to check
+            
+        Returns:
+            True if the task exists, False otherwise
+        """
+        await self.ensure_authenticated()
+        
+        try:
+            async with TodoistAPI(self.api_token) as api:
+                await api.get_task(external_id)
+                return True
+        except Exception as e:
+            if "404" in str(e) or "Task not found" in str(e):
+                return False
+            else:
+                # Other errors (network, auth, etc.) - assume task exists to be safe
+                self.logger.warning(f"Error checking task {external_id}: {e}")
+                return True
+    
+    async def cleanup_stale_mappings(self, mapping_store) -> int:
+        """Clean up sync mappings for tasks that no longer exist in Todoist.
+        
+        Args:
+            mapping_store: The sync mapping store instance
+            
+        Returns:
+            Number of stale mappings cleaned up
+        """
+        await self.ensure_authenticated()
+        cleaned_count = 0
+        
+        try:
+            # Get all mappings for this provider
+            mappings = await mapping_store.get_mappings_for_provider(self.provider)
+            
+            for mapping in mappings:
+                try:
+                    # Use the verify method for consistency
+                    exists = await self.verify_item_exists(mapping.external_id)
+                    if not exists:
+                        # Task doesn't exist, remove the mapping
+                        self.logger.info(f"Cleaning up stale mapping for task {mapping.external_id}")
+                        await mapping_store.delete_mapping(mapping.todo_id, self.provider)
+                        cleaned_count += 1
+                except Exception as e:
+                    self.logger.warning(f"Error checking task {mapping.external_id}: {e}")
+            
+            if cleaned_count > 0:
+                self.logger.info(f"Cleaned up {cleaned_count} stale Todoist mappings")
+            
+            return cleaned_count
+            
+        except Exception as e:
+            self.logger.error(f"Failed to cleanup stale mappings: {e}")
+            return 0

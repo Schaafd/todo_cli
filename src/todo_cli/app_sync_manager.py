@@ -313,19 +313,46 @@ class AppSyncManager:
     async def _push_local_changes(self, adapter: AppSyncAdapter, local_todos: List[Todo], 
                                   mapping_dict: Dict[int, SyncMapping], result: SyncResult):
         """Push local changes to remote service."""
+        # Track which local todos we've seen (for deletion detection)
+        seen_todo_ids = set()
+        
         for todo in local_todos:
             try:
+                seen_todo_ids.add(todo.id)
                 existing_mapping = mapping_dict.get(todo.id)
                 
                 if existing_mapping:
-                    # Update existing item
-                    success = await adapter.update_item(existing_mapping.external_id, todo)
-                    if success:
-                        result.items_updated += 1
-                        # Update mapping
-                        local_hash = self._compute_todo_hash(todo)
-                        existing_mapping.update_sync(local_hash, "")  # Remote hash will be updated on pull
-                        await self.mapping_store.save_mapping(existing_mapping)
+                    # Check if this is actually a conflict
+                    local_hash = self._compute_todo_hash(todo)
+                    if (existing_mapping.local_hash and 
+                        existing_mapping.local_hash != local_hash):
+                        # Local has changes, push them
+                        success = await adapter.update_item(existing_mapping.external_id, todo)
+                        if success:
+                            result.items_updated += 1
+                            # Update mapping - remote hash will be updated during pull
+                            existing_mapping.update_sync(local_hash, existing_mapping.remote_hash or "")
+                            await self.mapping_store.save_mapping(existing_mapping)
+                        else:
+                            # Update failed, likely because remote task doesn't exist
+                            # Remove the stale mapping and create a new task
+                            self.logger.info(f"Removing stale mapping for todo {todo.id} and creating new task")
+                            await self.mapping_store.delete_mapping(todo.id, adapter.provider)
+                            
+                            # Create new item instead
+                            external_id = await adapter.create_item(todo)
+                            result.items_created += 1
+                            
+                            # Create new mapping
+                            new_mapping = SyncMapping(
+                                todo_id=todo.id,
+                                external_id=external_id,
+                                provider=adapter.provider,
+                                last_synced=datetime.now(timezone.utc),
+                                sync_hash=local_hash,
+                                local_hash=local_hash
+                            )
+                            await self.mapping_store.save_mapping(new_mapping)
                 else:
                     # Create new item
                     external_id = await adapter.create_item(todo)
@@ -345,6 +372,9 @@ class AppSyncManager:
                     
             except Exception as e:
                 result.add_error(f"Failed to push todo {todo.id}: {str(e)}")
+        
+        # Detect local deletions: mappings that exist but weren't seen in local todos
+        await self._detect_local_deletions(adapter, mapping_dict, seen_todo_ids, result)
     
     async def _pull_remote_changes(self, adapter: AppSyncAdapter, remote_items: List[ExternalTodoItem],
                                    mapping_dict: Dict[int, SyncMapping], result: SyncResult):
@@ -352,23 +382,39 @@ class AppSyncManager:
         # Create reverse mapping (external_id -> mapping)
         external_mapping = {m.external_id: m for m in mapping_dict.values()}
         
+        # Track which remote items we've seen (for deletion detection)
+        seen_external_ids = set()
+        
         for item in remote_items:
             try:
+                seen_external_ids.add(item.external_id)
                 existing_mapping = external_mapping.get(item.external_id)
                 
                 if existing_mapping:
                     # Update existing local todo
                     local_todo = self.storage.get_todo(existing_mapping.todo_id)
                     if local_todo:
-                        # Convert external item to todo and update
-                        updated_todo = item.to_todo(existing_mapping.todo_id)
-                        self.storage.update_todo(updated_todo)
-                        result.items_updated += 1
-                        
-                        # Update mapping
+                        # Check for conflicts
+                        local_hash = self._compute_todo_hash(local_todo)
                         remote_hash = item.compute_hash()
-                        existing_mapping.update_sync(existing_mapping.local_hash or "", remote_hash)
-                        await self.mapping_store.save_mapping(existing_mapping)
+                        
+                        if (existing_mapping.local_hash and 
+                            existing_mapping.local_hash != local_hash and 
+                            existing_mapping.remote_hash != remote_hash):
+                            # Conflict detected - both local and remote have changes
+                            await self._handle_sync_conflict(existing_mapping, local_todo, item, result)
+                        else:
+                            # No conflict, safe to update
+                            updated_todo = item.to_todo(existing_mapping.todo_id)
+                            self.storage.update_todo(updated_todo)
+                            result.items_updated += 1
+                            
+                            # Update mapping
+                            existing_mapping.update_sync(local_hash, remote_hash)
+                            await self.mapping_store.save_mapping(existing_mapping)
+                    else:
+                        # Local todo was deleted - this is a deletion conflict
+                        await self._handle_deletion_conflict(existing_mapping, None, item, result)
                 else:
                     # Create new local todo
                     new_todo = item.to_todo()
@@ -383,12 +429,16 @@ class AppSyncManager:
                         provider=adapter.provider,
                         last_synced=datetime.now(timezone.utc),
                         sync_hash=remote_hash,
-                        remote_hash=remote_hash
+                        remote_hash=remote_hash,
+                        local_hash=remote_hash
                     )
                     await self.mapping_store.save_mapping(new_mapping)
                     
             except Exception as e:
                 result.add_error(f"Failed to pull remote item {item.external_id}: {str(e)}")
+        
+        # Detect deletions: mappings that exist but weren't seen in remote items
+        await self._detect_remote_deletions(adapter, mapping_dict, seen_external_ids, result)
     
     async def _resolve_conflicts(self, provider: AppSyncProvider, strategy: ConflictStrategy, result: SyncResult):
         """Resolve sync conflicts based on strategy."""
@@ -471,6 +521,117 @@ class AppSyncManager:
             await self._resolve_conflict_local_wins(conflict, result)
         else:
             await self._resolve_conflict_remote_wins(conflict, result)
+    
+    async def _detect_remote_deletions(self, adapter: AppSyncAdapter, mapping_dict: Dict[int, SyncMapping], 
+                                      seen_external_ids: Set[str], result: SyncResult):
+        """Detect items that were deleted remotely."""
+        for mapping in mapping_dict.values():
+            if mapping.external_id not in seen_external_ids:
+                # This item wasn't in the remote fetch - it might be deleted
+                try:
+                    # Verify it's actually deleted by attempting to fetch it directly
+                    if hasattr(adapter, 'verify_item_exists'):
+                        exists = await adapter.verify_item_exists(mapping.external_id)
+                        if exists:
+                            continue  # Item still exists, just wasn't in the fetch
+                    
+                    # Item was deleted remotely
+                    local_todo = self.storage.get_todo(mapping.todo_id)
+                    if local_todo:
+                        # Check if local todo was also modified
+                        local_hash = self._compute_todo_hash(local_todo)
+                        if mapping.local_hash and mapping.local_hash != local_hash:
+                            # Deletion conflict - local was modified but remote was deleted
+                            await self._handle_deletion_conflict(mapping, local_todo, None, result)
+                        else:
+                            # Safe to delete locally
+                            self.storage.delete_todo(mapping.todo_id)
+                            await self.mapping_store.delete_mapping(mapping.todo_id, adapter.provider)
+                            result.items_deleted += 1
+                            self.logger.info(f"Deleted local todo {mapping.todo_id} (deleted remotely)")
+                    else:
+                        # Local todo already deleted, just clean up mapping
+                        await self.mapping_store.delete_mapping(mapping.todo_id, adapter.provider)
+                
+                except Exception as e:
+                    result.add_error(f"Failed to handle remote deletion for {mapping.external_id}: {str(e)}")
+    
+    async def _handle_sync_conflict(self, mapping: SyncMapping, local_todo: Todo, 
+                                   remote_item: ExternalTodoItem, result: SyncResult):
+        """Handle sync conflicts between local and remote changes."""
+        # Create conflict record for resolution
+        conflict = SyncConflict(
+            todo_id=local_todo.id,
+            external_id=mapping.external_id,
+            provider=mapping.provider,
+            conflict_type="update_conflict",
+            local_todo=local_todo,
+            remote_item=remote_item,
+            detected_at=datetime.now(timezone.utc)
+        )
+        
+        await self.mapping_store.save_conflict(conflict)
+        result.conflicts_detected += 1
+        self.logger.warning(f"Sync conflict detected for todo {local_todo.id}")
+    
+    async def _detect_local_deletions(self, adapter: AppSyncAdapter, mapping_dict: Dict[int, SyncMapping], 
+                                      seen_todo_ids: Set[int], result: SyncResult):
+        """Detect items that were deleted locally."""
+        for todo_id, mapping in mapping_dict.items():
+            if todo_id not in seen_todo_ids:
+                # This todo wasn't in the local fetch - it was deleted locally
+                try:
+                    # Check if the remote item still exists and was modified
+                    if hasattr(adapter, 'verify_item_exists'):
+                        exists = await adapter.verify_item_exists(mapping.external_id)
+                        if exists:
+                            # Remote exists but local was deleted - potential conflict
+                            # We could fetch the remote item to check for modifications
+                            await self._handle_deletion_conflict(mapping, None, None, result)
+                            continue
+                    
+                    # Remote item might also be deleted, or we can't verify - delete remotely
+                    success = await adapter.delete_item(mapping.external_id)
+                    if success:
+                        result.items_deleted += 1
+                        self.logger.info(f"Deleted remote task {mapping.external_id} (deleted locally)")
+                    
+                    # Clean up mapping regardless of remote deletion success
+                    await self.mapping_store.delete_mapping(mapping.todo_id, adapter.provider)
+                    
+                except Exception as e:
+                    result.add_error(f"Failed to handle local deletion for todo {todo_id}: {str(e)}")
+    
+    async def _handle_deletion_conflict(self, mapping: SyncMapping, local_todo: Optional[Todo], 
+                                       remote_item: Optional[ExternalTodoItem], result: SyncResult):
+        """Handle conflicts involving deletions."""
+        if local_todo and not remote_item:
+            conflict_type = "remote_deleted_local_modified"
+        elif not local_todo and remote_item:
+            conflict_type = "local_deleted_remote_modified"
+        else:
+            conflict_type = "both_deleted"
+        
+        conflict = SyncConflict(
+            todo_id=mapping.todo_id,
+            external_id=mapping.external_id,
+            provider=mapping.provider,
+            conflict_type=conflict_type,
+            local_todo=local_todo,
+            remote_item=remote_item,
+            detected_at=datetime.now(timezone.utc)
+        )
+        
+        # For both_deleted conflicts, auto-resolve by cleaning up
+        if conflict_type == "both_deleted":
+            await self.mapping_store.delete_mapping(mapping.todo_id, mapping.provider)
+            conflict.resolve("both_deleted_cleanup")
+            await self.mapping_store.save_conflict(conflict)
+            result.conflicts_resolved += 1
+        else:
+            await self.mapping_store.save_conflict(conflict)
+            result.conflicts_detected += 1
+            self.logger.warning(f"Deletion conflict detected: {conflict_type} for todo {mapping.todo_id}")
     
     # Utility Methods
     

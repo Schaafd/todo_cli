@@ -226,8 +226,9 @@ class SyncConflict:
     """Represents a synchronization conflict between local and remote items."""
     
     todo_id: int
+    external_id: str
     provider: AppSyncProvider
-    conflict_type: ConflictType
+    conflict_type: Union[ConflictType, str]  # Support both enum and string types
     local_todo: Optional[Todo] = None
     remote_item: Optional[ExternalTodoItem] = None
     local_changes: Dict[str, Any] = field(default_factory=dict)
@@ -239,10 +240,12 @@ class SyncConflict:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
+        conflict_type_value = self.conflict_type.value if hasattr(self.conflict_type, 'value') else self.conflict_type
         data = {
             'todo_id': self.todo_id,
+            'external_id': self.external_id,
             'provider': self.provider.value,
-            'conflict_type': self.conflict_type.value,
+            'conflict_type': conflict_type_value,
             'local_todo': self.local_todo.to_dict() if self.local_todo else None,
             'remote_item': self.remote_item.to_dict() if self.remote_item else None,
             'local_changes': self.local_changes,
@@ -259,7 +262,14 @@ class SyncConflict:
         """Create from dictionary representation."""
         # Convert enums
         data['provider'] = AppSyncProvider(data['provider'])
-        data['conflict_type'] = ConflictType(data['conflict_type'])
+        
+        # Try to convert conflict_type to enum, but keep as string if not found
+        conflict_type = data['conflict_type']
+        try:
+            data['conflict_type'] = ConflictType(conflict_type)
+        except ValueError:
+            # Keep as string for custom conflict types
+            data['conflict_type'] = conflict_type
         
         # Convert datetime strings and ensure timezone awareness
         data['detected_at'] = ensure_aware(datetime.fromisoformat(data['detected_at']))
@@ -282,6 +292,7 @@ class SyncConflict:
     
     def describe(self) -> str:
         """Get human-readable description of the conflict."""
+        # Handle enum values
         if self.conflict_type == ConflictType.MODIFIED_BOTH:
             return f"Both local and remote versions of task '{self.local_todo.text if self.local_todo else 'Unknown'}' were modified"
         elif self.conflict_type == ConflictType.DELETED_LOCAL:
@@ -290,8 +301,18 @@ class SyncConflict:
             return f"Task '{self.local_todo.text if self.local_todo else 'Unknown'}' was modified locally but deleted remotely"
         elif self.conflict_type == ConflictType.CREATED_BOTH:
             return f"Similar task was created on both local and remote"
+        # Handle string values for custom conflict types
+        elif self.conflict_type == "update_conflict":
+            return f"Both local and remote versions of task '{self.local_todo.text if self.local_todo else 'Unknown'}' were modified"
+        elif self.conflict_type == "remote_deleted_local_modified":
+            return f"Task '{self.local_todo.text if self.local_todo else 'Unknown'}' was modified locally but deleted remotely"
+        elif self.conflict_type == "local_deleted_remote_modified":
+            return f"Task was deleted locally but modified remotely: '{self.remote_item.title if self.remote_item else 'Unknown'}'"
+        elif self.conflict_type == "both_deleted":
+            return f"Task was deleted on both local and remote (auto-resolved)"
         else:
-            return f"Unknown conflict type: {self.conflict_type.value}"
+            conflict_value = self.conflict_type.value if hasattr(self.conflict_type, 'value') else self.conflict_type
+            return f"Unknown conflict type: {conflict_value}"
 
 
 @dataclass
