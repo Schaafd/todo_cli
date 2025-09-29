@@ -56,7 +56,7 @@ class AppleScriptInterface:
                 ["osascript", "-e", script],
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=60  # Increased timeout for large lists
             )
             
             if result.returncode != 0:
@@ -98,6 +98,10 @@ class AppleScriptInterface:
             
             lists = []
             for i, name in enumerate(names):
+                # Skip empty or whitespace-only names
+                if not name or not name.strip():
+                    continue
+                    
                 list_id = ids[i] if i < len(ids) else str(i + 1)
                 lists.append({
                     "id": list_id.strip(),
@@ -119,6 +123,11 @@ class AppleScriptInterface:
         Returns:
             List of reminder dictionaries
         """
+        # Validate list name
+        if not list_name or list_name.strip() == "":
+            self.logger.warning(f"Empty list name provided, skipping")
+            return []
+        
         # Escape the list name for AppleScript
         escaped_list_name = list_name.replace('"', '\\"')
         
@@ -179,50 +188,60 @@ class AppleScriptInterface:
         end tell
         '''
         
-        try:
-            result = self.run_script(script)
-            if not result or result.strip() == "":
+        # Retry mechanism for timeouts
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                result = self.run_script(script)
+                if not result or result.strip() == "":
+                    return []
+                
+                reminders = []
+                lines = result.split(", ")
+                
+                for line in lines:
+                    if not line.strip():
+                        continue
+                    
+                    parts = line.split("|||")
+                    if len(parts) < 4:
+                        continue
+                    
+                    # Parse due date
+                    due_date = None
+                    if parts[3].strip():
+                        try:
+                            # AppleScript returns dates in format: "Friday, January 1, 2025 at 9:00:00 AM"
+                            # We'll need to parse this carefully
+                            due_date_str = parts[3].strip()
+                            due_date = self._parse_apple_date(due_date_str)
+                        except Exception as e:
+                            self.logger.warning(f"Failed to parse due date '{parts[3]}': {e}")
+                    
+                    reminder = {
+                        "name": parts[0].strip(),
+                        "completed": parts[1].strip().lower() == "true",
+                        "id": parts[2].strip(),
+                        "due_date": due_date,
+                        "body": parts[4].strip() if len(parts) > 4 else "",
+                        "priority": int(parts[5].strip()) if len(parts) > 5 and parts[5].strip().isdigit() else 5,
+                        "list_name": list_name
+                    }
+                    
+                    reminders.append(reminder)
+                
+                return reminders
+                
+            except AppleScriptError as e:
+                if "timed out" in str(e).lower() and attempt < max_retries:
+                    self.logger.warning(f"AppleScript timed out for list '{list_name}', retrying (attempt {attempt + 1}/{max_retries})")
+                    continue
+                else:
+                    self.logger.error(f"Failed to get reminders in list '{list_name}': {e}")
+                    return []
+            except Exception as e:
+                self.logger.error(f"Failed to get reminders in list '{list_name}': {e}")
                 return []
-            
-            reminders = []
-            lines = result.split(", ")
-            
-            for line in lines:
-                if not line.strip():
-                    continue
-                
-                parts = line.split("|||")
-                if len(parts) < 4:
-                    continue
-                
-                # Parse due date
-                due_date = None
-                if parts[3].strip():
-                    try:
-                        # AppleScript returns dates in format: "Friday, January 1, 2025 at 9:00:00 AM"
-                        # We'll need to parse this carefully
-                        due_date_str = parts[3].strip()
-                        due_date = self._parse_apple_date(due_date_str)
-                    except Exception as e:
-                        self.logger.warning(f"Failed to parse due date '{parts[3]}': {e}")
-                
-                reminder = {
-                    "name": parts[0].strip(),
-                    "completed": parts[1].strip().lower() == "true",
-                    "id": parts[2].strip(),
-                    "due_date": due_date,
-                    "body": parts[4].strip() if len(parts) > 4 else "",
-                    "priority": int(parts[5].strip()) if len(parts) > 5 and parts[5].strip().isdigit() else 5,
-                    "list_name": list_name
-                }
-                
-                reminders.append(reminder)
-            
-            return reminders
-            
-        except Exception as e:
-            self.logger.error(f"Failed to get reminders in list '{list_name}': {e}")
-            return []
     
     def create_reminder(self, list_name: str, name: str, body: str = "", 
                        due_date: Optional[datetime] = None, priority: int = 5) -> str:
@@ -455,6 +474,11 @@ class AppleRemindersAdapter(SyncAdapter):
             
             # Get reminders from all lists
             for list_name in self._lists_cache.keys():
+                # Skip empty or invalid list names
+                if not list_name or not list_name.strip():
+                    self.logger.warning(f"Skipping invalid list name: '{list_name}'")
+                    continue
+                    
                 try:
                     reminders = self.apple_script.get_reminders_in_list(list_name)
                     
@@ -637,7 +661,11 @@ class AppleRemindersAdapter(SyncAdapter):
         """Refresh the lists cache."""
         try:
             lists = self.apple_script.get_reminders_lists()
-            self._lists_cache = {lst["name"]: lst["id"] for lst in lists}
+            # Filter out empty list names
+            self._lists_cache = {
+                lst["name"]: lst["id"] for lst in lists 
+                if lst.get("name") and lst["name"].strip()
+            }
             self.logger.debug(f"Refreshed lists cache: {len(self._lists_cache)} lists")
         except Exception as e:
             self.logger.warning(f"Failed to refresh lists cache: {e}")

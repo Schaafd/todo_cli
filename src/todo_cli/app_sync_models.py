@@ -241,10 +241,11 @@ class SyncConflict:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
         conflict_type_value = self.conflict_type.value if hasattr(self.conflict_type, 'value') else self.conflict_type
+        provider_value = self.provider.value if hasattr(self.provider, 'value') else self.provider
         data = {
             'todo_id': self.todo_id,
             'external_id': self.external_id,
-            'provider': self.provider.value,
+            'provider': provider_value,
             'conflict_type': conflict_type_value,
             'local_todo': self.local_todo.to_dict() if self.local_todo else None,
             'remote_item': self.remote_item.to_dict() if self.remote_item else None,
@@ -260,8 +261,17 @@ class SyncConflict:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SyncConflict':
         """Create from dictionary representation."""
-        # Convert enums
-        data['provider'] = AppSyncProvider(data['provider'])
+        # Convert enums - handle both string and enum cases
+        provider = data['provider']
+        if isinstance(provider, str):
+            try:
+                data['provider'] = AppSyncProvider(provider)
+            except ValueError:
+                # Keep as string if not a valid enum value
+                data['provider'] = provider
+        elif not isinstance(provider, AppSyncProvider):
+            # Convert to string if it's some other type
+            data['provider'] = str(provider)
         
         # Try to convert conflict_type to enum, but keep as string if not found
         conflict_type = data['conflict_type']
