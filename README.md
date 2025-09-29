@@ -35,12 +35,13 @@
 - **Organized Structure**: `~/.todo/projects/` with individual project files
 
 ### 🔄 **NEW: Multi-App Synchronization (Phase 6)**
-- **Bidirectional Sync**: Keep todos in sync with external apps like Todoist
+- **Bidirectional Sync**: Keep todos in sync with external apps like Todoist and Apple Reminders
+- **Multiple Provider Support**: Todoist (API-based) and Apple Reminders (native macOS integration)
 - **Conflict Resolution**: Multiple strategies (newest wins, manual, local/remote preference)
 - **Secure Credential Storage**: System keyring integration with fallback options
-- **Project Mapping**: Map local projects to external app projects/sections
+- **Project Mapping**: Map local projects to external app projects/lists
 - **Incremental Updates**: Efficient sync using change detection and timestamps
-- **Extensible Architecture**: Adapter pattern ready for Apple Reminders, TickTick, Notion, and more
+- **Extensible Architecture**: Adapter pattern ready for TickTick, Notion, Microsoft Todo, and more
 
 ### 🎯 **NEW: Enhanced Query Engine & AI Recommendations**
 - **Advanced Search**: Complex queries with logical operators (AND, OR, NOT)
@@ -252,11 +253,13 @@ todo app-sync list                    # Show all providers (configured vs availa
 
 # Setup synchronization with external providers
 todo app-sync setup todoist           # Interactive setup with Todoist
+todo app-sync setup apple_reminders   # Interactive setup with Apple Reminders (macOS only)
 todo app-sync setup todoist --api-token YOUR_TOKEN  # Non-interactive setup
 todo app-sync setup --interactive      # Choose from available providers
 
 # Perform synchronization
-todo app-sync sync todoist            # Sync with specific provider
+todo app-sync sync todoist            # Sync with Todoist
+todo app-sync sync apple_reminders    # Sync with Apple Reminders
 todo app-sync sync --all              # Sync with all configured providers
 todo app-sync sync --dry-run          # Preview sync without making changes
 
@@ -271,6 +274,7 @@ todo app-sync disable todoist         # Disable auto-sync for provider
 # Project and label mapping
 todo app-sync project-map todoist     # Interactive project mapping setup
 todo app-sync project-map todoist --local work --remote "Work Projects"
+todo app-sync project-map apple_reminders --local personal --remote "Personal"
 
 # Handle sync conflicts
 todo app-sync conflicts               # List unresolved conflicts
@@ -278,12 +282,12 @@ todo app-sync conflicts --resolve     # Interactive conflict resolution
 todo app-sync conflicts --provider todoist  # Filter by provider
 
 # Supported providers:
-# ✅ todoist      - Full bidirectional sync with projects and labels
-# 🚧 apple_reminders - Coming soon (macOS/iOS integration)
-# 🚧 ticktick    - Coming soon (cross-platform with calendar sync)
-# 🚧 notion      - Coming soon (database integration)
+# ✅ todoist        - Full bidirectional sync with projects and labels
+# ✅ apple_reminders - Full bidirectional sync with lists (macOS native integration)
+# 🚧 ticktick      - Coming soon (cross-platform with calendar sync)
+# 🚧 notion        - Coming soon (database integration)
 # 🚧 microsoft_todo - Coming soon (Office 365 integration)
-# 🚧 google_tasks - Coming soon (Google Workspace integration)
+# 🚧 google_tasks   - Coming soon (Google Workspace integration)
 ```
 
 ### 🛠️ **Troubleshooting App Sync Issues**

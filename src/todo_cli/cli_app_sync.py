@@ -51,6 +51,10 @@ def get_app_sync_manager() -> AppSyncManager:
                 from .adapters.todoist_adapter import TodoistAdapter
                 adapter = TodoistAdapter(provider_config)
                 manager.register_adapter(provider, adapter)
+            elif provider == AppSyncProvider.APPLE_REMINDERS:
+                from .adapters.apple_reminders_adapter import AppleRemindersAdapter
+                adapter = AppleRemindersAdapter(provider_config)
+                manager.register_adapter(provider, adapter)
             # Add other providers as they're implemented
             else:
                 continue  # Skip unsupported providers
@@ -92,7 +96,7 @@ def setup_provider(provider: Optional[str], interactive: Optional[bool], api_tok
         
         providers_info = {
             AppSyncProvider.TODOIST: ("✅", "Popular todo app with projects and labels"),
-            AppSyncProvider.APPLE_REMINDERS: ("🚧", "macOS/iOS built-in reminders app"),
+            AppSyncProvider.APPLE_REMINDERS: ("✅", "macOS/iOS built-in reminders app"),
             AppSyncProvider.TICKTICK: ("🚧", "Cross-platform todo app with calendar integration"),
             AppSyncProvider.NOTION: ("🚧", "All-in-one workspace with database support"),
             AppSyncProvider.MICROSOFT_TODO: ("🚧", "Microsoft's task management app"),
@@ -159,6 +163,9 @@ async def _setup_provider_async(provider: AppSyncProvider, interactive: bool, ap
     if provider == AppSyncProvider.TODOIST:
         success = await _setup_todoist(cred_manager, interactive, api_token, auto_sync, 
                                      conflict_strategy, skip_mapping, timeout)
+    elif provider == AppSyncProvider.APPLE_REMINDERS:
+        success = await _setup_apple_reminders(cred_manager, interactive, auto_sync,
+                                             conflict_strategy, skip_mapping, timeout)
     else:
         console.print(f"[red]Provider {provider.value} is not yet implemented[/red]")
         return
@@ -453,6 +460,182 @@ async def _setup_project_mapping(config: AppSyncConfig, todoist_projects: List[D
         console.print("")
         console.print("[yellow]No projects were mapped. You can set up mapping later using:[/yellow]")
         console.print("[dim]  todo app-sync map-project <local> <todoist>[/dim]")
+        console.print("")
+
+
+async def _setup_apple_reminders(cred_manager: CredentialManager, interactive: bool, 
+                                 auto_sync: bool, conflict_strategy: str, skip_mapping: bool = False,
+                                 timeout: int = 60) -> bool:
+    """Set up Apple Reminders synchronization."""
+    
+    console.print("")
+    console.print("[bold cyan]─────────────────────────────────────[/bold cyan]")
+    console.print("[bold cyan]🍎 Apple Reminders Setup[/bold cyan]")
+    console.print("")
+    console.print("Apple Reminders sync requires no authentication since it uses")
+    console.print("your local macOS Reminders app directly.")
+    console.print("")
+    
+    # Test access to Apple Reminders
+    try:
+        from .adapters.apple_reminders_adapter import AppleRemindersAdapter
+        from .app_sync_models import AppSyncConfig, AppSyncProvider, SyncDirection, ConflictStrategy
+        
+        # Create temporary config for testing
+        temp_config = AppSyncConfig(
+            provider=AppSyncProvider.APPLE_REMINDERS,
+            enabled=True,
+            sync_direction=SyncDirection.BIDIRECTIONAL,
+            conflict_strategy=ConflictStrategy(conflict_strategy)
+        )
+        
+        adapter = AppleRemindersAdapter(temp_config)
+        
+        console.print("[dim]Testing Apple Reminders access...[/dim]")
+        can_access = await adapter.test_connection()
+        
+        if not can_access:
+            console.print("[red]❌ Apple Reminders access failed[/red]")
+            console.print("")
+            console.print("[yellow]This might be due to:[/yellow]")
+            console.print("  • Privacy settings blocking access to Reminders")
+            console.print("  • Running on non-macOS system")
+            console.print("  • Reminders app not available")
+            console.print("")
+            console.print("[yellow]To fix this:[/yellow]")
+            console.print("  1. Open System Preferences → Security & Privacy → Privacy")
+            console.print("  2. Select 'Reminders' from the left sidebar")
+            console.print("  3. Ensure Terminal/your shell is checked")
+            console.print("  4. Try running the setup again")
+            return False
+        
+        console.print("[green]✅ Apple Reminders access confirmed![/green]")
+        console.print("")
+        
+        # Get available lists
+        lists = await adapter.fetch_projects()
+        console.print(f"[green]Found {len(lists)} Reminders list(s):[/green]")
+        for list_name in lists.keys():
+            console.print(f"  • {list_name}")
+        console.print("")
+        
+    except Exception as e:
+        console.print(f"[red]❌ Setup failed: {e}[/red]")
+        return False
+    
+    # Configuration setup
+    console.print("[bold cyan]───────────────────────────[/bold cyan]")
+    console.print("[bold cyan]⚙️ Sync Configuration[/bold cyan]")
+    console.print("")
+    
+    # Create final configuration
+    config = AppSyncConfig(
+        provider=AppSyncProvider.APPLE_REMINDERS,
+        enabled=True,
+        auto_sync=auto_sync,
+        sync_direction=SyncDirection.BIDIRECTIONAL,
+        conflict_strategy=ConflictStrategy(conflict_strategy),
+        sync_completed_tasks=True,  # Apple Reminders handles this well
+        sync_archived_tasks=False,  # Not applicable to Apple Reminders
+        timeout_seconds=timeout
+    )
+    
+    # Set Apple Reminders specific settings
+    config.set_setting("default_list_name", "Reminders")
+    
+    # Interactive configuration
+    if interactive:
+        console.print("[bold]Apple Reminders Configuration:[/bold]")
+        console.print("")
+        
+        # Default list selection
+        if lists:
+            console.print("[cyan]Default List for New Todos:[/cyan]")
+            list_choices = list(lists.keys())
+            default_list = Prompt.ask(
+                "Select default list for new todos",
+                choices=list_choices,
+                default="Reminders"
+            )
+            config.set_setting("default_list_name", default_list)
+        
+        console.print("")
+        
+        # Sync completed items
+        sync_completed = Confirm.ask(
+            "Sync completed reminders?",
+            default=True
+        )
+        config.sync_completed_tasks = sync_completed
+        
+        console.print("")
+        
+        # Project mapping setup
+        if not skip_mapping and lists:
+            console.print("[bold yellow]📍 Project Mapping Setup[/bold yellow]")
+            console.print("Map your local todo projects to Apple Reminders lists.")
+            console.print("This ensures todos are organized correctly in both places.")
+            console.print("")
+            
+            # Get local projects
+            from .storage import get_storage
+            storage = get_storage()
+            local_projects = storage.get_all_projects()
+            
+            if local_projects:
+                console.print(f"[cyan]Found {len(local_projects)} local project(s):[/cyan]")
+                for proj in sorted(local_projects):
+                    console.print(f"  • {proj}")
+                console.print("")
+                
+                # Simple mapping approach for Apple Reminders
+                if Confirm.ask("Set up project-to-list mapping?", default=True):
+                    await _setup_apple_reminders_mapping(config, local_projects, lists)
+    
+    # Save configuration
+    await _save_sync_config(config)
+    
+    console.print("[green]✅ Apple Reminders setup completed successfully![/green]")
+    return True
+
+
+async def _setup_apple_reminders_mapping(config: AppSyncConfig, local_projects: List[str], 
+                                       apple_lists: Dict[str, str]):
+    """Set up project mapping for Apple Reminders."""
+    console.print("[bold cyan]─────────────────────────[/bold cyan]")
+    console.print("[bold cyan]🗺️ Project Mapping[/bold cyan]")
+    console.print("")
+    
+    console.print("[cyan]Available Apple Reminders Lists:[/cyan]")
+    for list_name in apple_lists.keys():
+        console.print(f"  • {list_name}")
+    console.print("")
+    
+    # Map each local project
+    for local_project in sorted(local_projects):
+        console.print(f"[bold]Local Project: [cyan]{local_project}[/cyan][/bold]")
+        
+        if Confirm.ask(f"Map '{local_project}' to a Reminders list?", default=True):
+            list_choices = list(apple_lists.keys())
+            list_choices.append("skip")
+            
+            selected_list = Prompt.ask(
+                f"Select Reminders list for '[cyan]{local_project}[/cyan]'",
+                choices=list_choices,
+                default=list_choices[0] if list_choices else "skip"
+            )
+            
+            if selected_list != "skip":
+                # For Apple Reminders, we map to list names directly
+                config.project_mappings[local_project] = selected_list
+                console.print(f"[green]✅ Mapped '{local_project}' → '{selected_list}'[/green]")
+        console.print("")
+    
+    # Show mapping summary
+    if config.project_mappings:
+        console.print("[bold green]📝 Mapping Summary:[/bold green]")
+        for local_proj, apple_list in config.project_mappings.items():
+            console.print(f"  • [cyan]{local_proj}[/cyan] → [green]{apple_list}[/green]")
         console.print("")
 
 
