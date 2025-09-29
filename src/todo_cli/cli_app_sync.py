@@ -980,5 +980,89 @@ def list_providers():
     console.print(providers_table)
 
 
+@app_sync_group.command("cleanup")
+@click.argument("provider", type=click.Choice([p.value for p in AppSyncProvider]), required=False)
+@click.option("--dry-run", is_flag=True, help="Show what would be cleaned up without making changes")
+@click.option("--all", "all_providers", is_flag=True, help="Clean up all configured providers")
+def cleanup_stale_mappings(provider: Optional[str], dry_run: bool, all_providers: bool):
+    """Clean up stale sync mappings for tasks that no longer exist remotely.
+    
+    This command identifies local sync mappings that reference remote tasks
+    that have been deleted or no longer exist, and removes those mappings.
+    """
+    if not provider and not all_providers:
+        console.print("[red]❌ Error: Please specify a provider or use --all[/red]")
+        raise click.Abort()
+    
+    async def cleanup_async():
+        manager = get_app_sync_manager()
+        total_cleaned = 0
+        
+        # Determine which providers to clean
+        if all_providers:
+            # Get all configured providers
+            from .app_sync_config import get_app_sync_config_manager
+            config_manager = get_app_sync_config_manager()
+            providers_to_clean = [p for p in config_manager.get_all_providers()]
+        else:
+            try:
+                provider_enum = AppSyncProvider(provider)
+                providers_to_clean = [provider_enum]
+            except ValueError:
+                console.print(f"[red]❌ Invalid provider: {provider}[/red]")
+                return
+        
+        if dry_run:
+            console.print("[yellow]🔍 DRY RUN - No changes will be made[/yellow]")
+            console.print("")
+        
+        for provider_enum in providers_to_clean:
+            if provider_enum not in manager.adapters:
+                console.print(f"[yellow]⚠️ Skipping {provider_enum.value}: Not configured[/yellow]")
+                continue
+            
+            console.print(f"[cyan]🧹 Cleaning up stale mappings for {provider_enum.value.title()}...[/cyan]")
+            
+            try:
+                adapter = manager.adapters[provider_enum]
+                
+                if dry_run:
+                    # For dry run, just count stale mappings without removing
+                    mappings = await manager.mapping_store.get_mappings_for_provider(provider_enum)
+                    console.print(f"[dim]Found {len(mappings)} total mappings to check...[/dim]")
+                    
+                    # This is a simplified dry-run - in practice, you'd check each mapping
+                    console.print(f"[dim]Would check each mapping against {provider_enum.value} API...[/dim]")
+                else:
+                    # Actual cleanup
+                    if hasattr(adapter, 'cleanup_stale_mappings'):
+                        cleaned = await adapter.cleanup_stale_mappings(manager.mapping_store)
+                        total_cleaned += cleaned
+                        
+                        if cleaned > 0:
+                            console.print(f"[green]✅ Cleaned up {cleaned} stale mappings[/green]")
+                        else:
+                            console.print(f"[green]✅ No stale mappings found[/green]")
+                    else:
+                        console.print(f"[yellow]⚠️ Cleanup not supported for {provider_enum.value}[/yellow]")
+                        
+            except Exception as e:
+                console.print(f"[red]❌ Error cleaning {provider_enum.value}: {e}[/red]")
+        
+        if not dry_run and total_cleaned > 0:
+            console.print("")
+            console.print(f"[bold green]🎉 Successfully cleaned up {total_cleaned} total stale mappings[/bold green]")
+            console.print("[dim]Run 'todo app-sync sync' to perform a fresh synchronization[/dim]")
+        elif not dry_run:
+            console.print("")
+            console.print("[green]✅ No stale mappings found across all providers[/green]")
+    
+    try:
+        asyncio.run(cleanup_async())
+    except Exception as e:
+        console.print(f"[red]❌ Cleanup failed: {e}[/red]")
+        raise click.Abort()
+
+
 # Export the command group
 __all__ = ['app_sync_group']

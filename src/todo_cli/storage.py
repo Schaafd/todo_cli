@@ -492,13 +492,20 @@ class Storage:
             print(f"Error backing up project {project_name}: {e}")
             return False
 
-    def get_next_todo_id(self, project_name: str) -> int:
-        """Get the next available todo ID for a project."""
-        _, todos = self.load_project(project_name)
-        if not todos:
+    def get_next_todo_id(self, project_name: Optional[str] = None) -> int:
+        """Get the next available todo ID globally across all projects.
+        
+        Args:
+            project_name: Optional project name (kept for backward compatibility)
+            
+        Returns:
+            Next unique ID across all projects
+        """
+        all_todos = self.get_all_todos()
+        if not all_todos:
             return 1
 
-        max_id = max(todo.id for todo in todos)
+        max_id = max(todo.id for todo in all_todos)
         return max_id + 1
     
     def get_all_projects(self) -> List[str]:
@@ -560,14 +567,15 @@ class Storage:
         project_name = todo.project or self.config.default_project
         project, todos = self.load_project(project_name)
         
-        # Ensure unique ID
+        # Ensure unique ID globally across all projects
         if not todo.id:
-            todo.id = self.get_next_todo_id(project_name)
+            todo.id = self.get_next_todo_id()
         else:
-            # Check for duplicate IDs
-            existing_ids = {t.id for t in todos}
+            # Check for duplicate IDs across all projects
+            all_todos = self.get_all_todos()
+            existing_ids = {t.id for t in all_todos}
             if todo.id in existing_ids:
-                todo.id = max(existing_ids) + 1 if existing_ids else 1
+                todo.id = self.get_next_todo_id()
         
         todos.append(todo)
         self.save_project(project, todos)
