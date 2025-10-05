@@ -9,11 +9,11 @@ import subprocess
 from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timezone
 
-from src.todo_cli.adapters.apple_reminders_adapter import AppleRemindersAdapter, AppleScriptInterface, AppleScriptError
-from src.todo_cli.app_sync_models import (
+from src.todo_cli.sync.providers.apple_reminders_adapter import AppleRemindersAdapter, AppleScriptInterface, AppleScriptError
+from src.todo_cli.sync.app_sync_models import (
     AppSyncProvider, AppSyncConfig, ExternalTodoItem, SyncDirection, ConflictStrategy
 )
-from src.todo_cli.todo import Todo, Priority, TodoStatus
+from src.todo_cli.domain import Todo, Priority, TodoStatus
 
 
 @pytest.fixture

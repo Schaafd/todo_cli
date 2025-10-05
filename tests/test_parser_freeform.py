@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 
-from src.todo_cli.parser import NaturalLanguageParser
+from src.todo_cli.domain.parser import NaturalLanguageParser
 from src.todo_cli.config import ConfigModel
 
 

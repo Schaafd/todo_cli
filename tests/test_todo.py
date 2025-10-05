@@ -3,7 +3,7 @@
 import pytest
 from datetime import datetime, timedelta, timezone
 
-from todo_cli.todo import Todo, TodoStatus, Priority
+from todo_cli.domain import Todo, TodoStatus, Priority
 
 
 class TestTodo:

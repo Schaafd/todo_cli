@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Dict, List
 from pathlib import Path
 
-from .app_sync_models import AppSyncProvider
+from .sync.app_sync_models import AppSyncProvider
 
 
 logger = logging.getLogger(__name__)

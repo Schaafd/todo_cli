@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 import yaml
 
-from .todo import Priority
+from .domain import Priority
 
 
 @dataclass 

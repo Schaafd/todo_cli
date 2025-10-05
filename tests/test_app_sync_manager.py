@@ -9,7 +9,7 @@ import pytest
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from todo_cli.app_sync_models import AppSyncProvider
+from todo_cli.sync.app_sync_models import AppSyncProvider
 
 
 class TestAppSyncManagerBasics:
@@ -31,7 +31,7 @@ class TestAppSyncManagerBasics:
     def test_manager_import_availability(self):
         """Test that we can import the manager class."""
         try:
-            from todo_cli.app_sync_manager import AppSyncManager
+            from todo_cli.sync.app_sync_manager import AppSyncManager
             assert AppSyncManager is not None
         except ImportError:
             pytest.skip("AppSyncManager not available")
@@ -43,7 +43,7 @@ class TestCLICommandAvailability:
     def test_can_import_cli_app_sync_module(self):
         """Test that the CLI module can be imported."""
         try:
-            from todo_cli import cli_app_sync
+            from todo_cli.cli import app_sync as cli_app_sync
             assert cli_app_sync is not None
         except ImportError:
             pytest.skip("CLI app sync module not available")
@@ -51,7 +51,7 @@ class TestCLICommandAvailability:
     def test_app_sync_group_exists(self):
         """Test that the app-sync command group exists."""
         try:
-            from todo_cli.cli_app_sync import app_sync_group
+            from todo_cli.cli.app_sync import app_sync_group
             assert app_sync_group is not None
             assert hasattr(app_sync_group, 'name')
         except ImportError:

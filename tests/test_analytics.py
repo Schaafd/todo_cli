@@ -21,28 +21,28 @@ from unittest.mock import Mock, patch, MagicMock
 from typing import List, Dict, Any
 
 # Import components to test
-from todo_cli.todo import Todo, Priority, TodoStatus
-from todo_cli.analytics import (
+from todo_cli.domain import Todo, Priority, TodoStatus
+from todo_cli.services.analytics import (
     ProductivityAnalyzer, AnalyticsTimeframe, AnalyticsReport,
     TaskPattern, ProductivityInsight, StatisticalAnalysis
 )
-from todo_cli.time_tracking import (
+from todo_cli.services.time_tracking import (
     TimeTracker, TimeEntry, TimeReport, ProductivityHeatmap,
     WorkPattern, EstimationAccuracy, TimeAnalyzer
 )
-from todo_cli.project_analytics import (
+from todo_cli.services.project_analytics import (
     ProjectAnalyzer, ProjectHealthScore, ProjectForecast,
     BurndownData, VelocityData, ProjectDashboard
 )
-from todo_cli.dashboard import (
+from todo_cli.services.dashboard import (
     DashboardManager, Dashboard, Widget, WidgetType, WidgetData, WidgetSize,
     TodoMetricsDataSource, ProjectMetricsDataSource, TimeTrackingDataSource
 )
-from todo_cli.plugins import (
+from todo_cli.services.plugins import (
     PluginManager, PluginInfo, PluginType, PluginStatus, 
     BasePlugin, AnalyticsPlugin, PluginAPI
 )
-from todo_cli.cli_analytics import (
+from todo_cli.cli.analytics_commands import (
     format_metric, format_table, _format_analytics_report,
     _display_heatmap, _export_to_csv
 )
@@ -186,7 +186,7 @@ class TestTimeTracker:
     @pytest.fixture
     def time_tracker(self, temp_data_dir):
         """Create time tracker with temporary storage"""
-        with patch('todo_cli.time_tracking.get_config') as mock_config:
+        with patch('todo_cli.services.time_tracking.get_config') as mock_config:
             mock_config.return_value.data_dir = temp_data_dir
             return TimeTracker()
 
@@ -443,7 +443,7 @@ class TestDashboardSystem:
     @pytest.fixture  
     def dashboard_manager(self, temp_dir):
         """Create dashboard manager with temp storage"""
-        with patch('todo_cli.dashboard.get_config') as mock_config:
+        with patch('todo_cli.services.dashboard.get_config') as mock_config:
             mock_config.return_value.data_dir = temp_dir
             return DashboardManager()
 
@@ -528,7 +528,7 @@ class TestPluginSystem:
     @pytest.fixture
     def plugin_manager(self, temp_plugins_dir):
         """Create plugin manager with temp storage"""
-        with patch('todo_cli.plugins.get_config') as mock_config:
+        with patch('todo_cli.services.plugins.get_config') as mock_config:
             mock_config.return_value.data_dir = temp_plugins_dir
             return PluginManager()
 
@@ -615,7 +615,7 @@ class TestPluginSystem:
 
     def test_sample_analytics_plugin(self):
         """Test sample analytics plugin implementation"""
-        from todo_cli.plugins import SampleAnalyticsPlugin
+        from todo_cli.services.plugins import SampleAnalyticsPlugin
         
         # Mock API
         mock_api = Mock()
@@ -800,7 +800,7 @@ class TestIntegrationScenarios:
         assert 0 <= project_health.completion_percentage <= 100
         
         # Test dashboard integration
-        with patch('todo_cli.dashboard.get_config') as mock_config:
+        with patch('todo_cli.services.dashboard.get_config') as mock_config:
             mock_config.return_value.data_dir = tempfile.mkdtemp()
             
             dashboard_manager = DashboardManager()
@@ -824,7 +824,7 @@ class TestIntegrationScenarios:
 
     def test_time_tracking_integration(self):
         """Test time tracking with analytics integration"""
-        with patch('todo_cli.time_tracking.get_config') as mock_config:
+        with patch('todo_cli.services.time_tracking.get_config') as mock_config:
             mock_config.return_value.data_dir = tempfile.mkdtemp()
             
             tracker = TimeTracker()
@@ -854,13 +854,13 @@ class TestIntegrationScenarios:
 
     def test_plugin_analytics_integration(self):
         """Test plugin system with analytics"""
-        with patch('todo_cli.plugins.get_config') as mock_config:
+        with patch('todo_cli.services.plugins.get_config') as mock_config:
             mock_config.return_value.data_dir = tempfile.mkdtemp()
             
             plugin_manager = PluginManager()
             
             # Test sample analytics plugin
-            from todo_cli.plugins import SampleAnalyticsPlugin
+            from todo_cli.services.plugins import SampleAnalyticsPlugin
             
             plugin = SampleAnalyticsPlugin(plugin_manager.api)
             plugin.initialize()

@@ -2,12 +2,12 @@
 
 import pytest
 from datetime import datetime, timedelta
-from src.todo_cli.parser import (
+from src.todo_cli.domain.parser import (
     NaturalLanguageParser, SmartDateParser, TaskBuilder, ParsedTask,
     parse_task_input
 )
 from src.todo_cli.config import ConfigModel
-from src.todo_cli.todo import Priority
+from src.todo_cli.domain import Priority
 
 
 class TestSmartDateParser:

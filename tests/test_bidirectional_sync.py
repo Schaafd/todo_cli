@@ -8,11 +8,11 @@ import pytest
 from unittest.mock import AsyncMock, Mock, patch
 from datetime import datetime, timezone
 
-from src.todo_cli.app_sync_manager import AppSyncManager
-from src.todo_cli.app_sync_models import (
+from src.todo_cli.sync.app_sync_manager import AppSyncManager
+from src.todo_cli.sync.app_sync_models import (
     AppSyncProvider, SyncMapping, ExternalTodoItem, SyncResult, SyncStatus
 )
-from src.todo_cli.todo import Todo, Priority, TodoStatus
+from src.todo_cli.domain import Todo, Priority, TodoStatus
 from src.todo_cli.storage import Storage
 
 
@@ -39,6 +39,8 @@ def sync_manager(mock_storage):
     manager._mapping_store.save_mapping = AsyncMock()
     manager._mapping_store.delete_mapping = AsyncMock()
     manager._mapping_store.save_conflict = AsyncMock()
+    manager._mapping_store.get_conflicts_for_provider = AsyncMock(return_value=[])
+    manager._mapping_store.delete_conflict = AsyncMock()
     
     return manager
 
@@ -66,16 +68,17 @@ class TestBidirectionalSync:
         """Test that remotely deleted items are deleted locally."""
         # Setup: Local todo with mapping, but not in remote fetch
         local_todo = Todo(
-            id=1, text="Test todo", project="test", 
+            id=1, text="Test todo", project="test",
             created=datetime.now(timezone.utc)
         )
+        original_local_hash = sync_manager._compute_todo_hash(local_todo)
         mapping = SyncMapping(
             todo_id=1,
             external_id="ext123",
             provider=AppSyncProvider.TODOIST,
             last_synced=datetime.now(timezone.utc),
-            sync_hash="hash123",
-            local_hash="local123",
+            sync_hash=original_local_hash,
+            local_hash=original_local_hash,
             remote_hash="remote123"
         )
         
@@ -137,17 +140,20 @@ class TestBidirectionalSync:
         """Test detection of deletion conflicts."""
         # Setup: Local todo modified, remote todo deleted
         local_todo = Todo(
-            id=1, text="Modified locally", project="test", 
-            created=datetime.now(timezone.utc),
-            modified=datetime.now(timezone.utc)
+            id=1, text="Test todo", project="test",
+            created=datetime.now(timezone.utc)
         )
+        original_local_hash = sync_manager._compute_todo_hash(local_todo)
+        # Simulate local modification after last sync
+        local_todo.text = "Modified locally"
+        local_todo.modified = datetime.now(timezone.utc)
         mapping = SyncMapping(
             todo_id=1,
             external_id="ext123", 
             provider=AppSyncProvider.TODOIST,
             last_synced=datetime.now(timezone.utc),
             sync_hash="hash123",
-            local_hash="old_hash",  # Different from current, indicating local changes
+            local_hash=original_local_hash,
             remote_hash="remote123"
         )
         
@@ -176,10 +182,23 @@ class TestBidirectionalSync:
         """Test detection of update conflicts."""
         # Setup: Both local and remote modified
         local_todo = Todo(
-            id=1, text="Modified locally", project="test",
-            created=datetime.now(timezone.utc),
-            modified=datetime.now(timezone.utc)
+            id=1, text="Original local", project="test",
+            created=datetime.now(timezone.utc)
         )
+        original_local_hash = sync_manager._compute_todo_hash(local_todo)
+        # Simulate local modification after last sync
+        local_todo.text = "Modified locally"
+        local_todo.modified = datetime.now(timezone.utc)
+
+        original_remote_item = ExternalTodoItem(
+            external_id="ext123",
+            provider=AppSyncProvider.TODOIST,
+            title="Original remote",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
+        )
+        original_remote_hash = original_remote_item.compute_hash()
+
         remote_item = ExternalTodoItem(
             external_id="ext123",
             provider=AppSyncProvider.TODOIST,
@@ -193,8 +212,8 @@ class TestBidirectionalSync:
             provider=AppSyncProvider.TODOIST,
             last_synced=datetime.now(timezone.utc),
             sync_hash="old_hash",
-            local_hash="old_local_hash",  # Different from current
-            remote_hash="old_remote_hash"  # Different from current
+            local_hash=original_local_hash,
+            remote_hash=original_remote_hash
         )
         
         # Mock storage and mapping

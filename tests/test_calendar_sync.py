@@ -11,8 +11,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from todo_cli.config import Config
-from todo_cli.todo import Todo, Priority, TodoStatus
-from todo_cli.calendar_integration import (
+from todo_cli.domain import Todo, Priority, TodoStatus
+from todo_cli.sync.calendar_integration import (
     CalendarSync, CalendarConfig, CalendarType, 
     SyncDirection, ConflictResolution, CalendarEvent
 )
@@ -77,7 +77,7 @@ def test_ical_adapter():
         )
         
         # Create adapter
-        from todo_cli.calendar_integration import ICalAdapter
+        from todo_cli.sync.calendar_integration import ICalAdapter
         adapter = ICalAdapter(config)
         
         # Check availability

@@ -8,8 +8,7 @@ from datetime import datetime, timezone
 import frontmatter
 import yaml
 
-from .todo import Todo, TodoStatus, Priority
-from .project import Project
+from .domain import Todo, TodoStatus, Priority, Project
 from .config import ConfigModel
 from .utils.datetime import now_utc, max_utc, min_utc, ensure_aware
 

@@ -12,8 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from todo_cli.storage import TodoMarkdownFormat, ProjectMarkdownFormat, Storage
-from todo_cli.todo import Todo, TodoStatus, Priority
-from todo_cli.project import Project
+from todo_cli.domain import Todo, TodoStatus, Priority, Project
 from todo_cli.config import ConfigModel
 
 

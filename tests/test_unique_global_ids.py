@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import Mock
 
 from src.todo_cli.storage import Storage
-from src.todo_cli.todo import Todo
+from src.todo_cli.domain import Todo
 from src.todo_cli.config import ConfigModel
 
 
@@ -38,7 +38,7 @@ def storage_with_existing_todos(tmp_path):
     
     for project_name, todos in projects_and_todos:
         # Create a basic project
-        from src.todo_cli.project import Project
+        from src.todo_cli.domain import Project
         project = Project(name=project_name)
         
         # Save the project with todos

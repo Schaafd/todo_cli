@@ -17,7 +17,7 @@ class TestDoctorCommandBasics:
     def test_can_import_doctor_command(self):
         """Test that we can import the doctor command."""
         try:
-            from todo_cli.cli_app_sync import app_sync_doctor
+            from todo_cli.cli.app_sync import app_sync_doctor
             assert app_sync_doctor is not None
         except ImportError:
             pytest.skip("Doctor command not available")
@@ -25,7 +25,7 @@ class TestDoctorCommandBasics:
     def test_doctor_command_exists_in_cli(self):
         """Test that doctor command is part of the CLI."""
         try:
-            from todo_cli.cli_app_sync import app_sync_group
+            from todo_cli.cli.app_sync import app_sync_group
             # Check if doctor is in the commands
             commands = list(app_sync_group.commands.keys()) if hasattr(app_sync_group, 'commands') else []
             # Doctor command should exist (may be named "doctor")
