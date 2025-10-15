@@ -1,0 +1,13 @@
+id,text,completed,project,priority,status,tags,context,assignees,due_date,created,description,effort,energy_level,time_estimate,time_spent,progress,pinned,waiting_for,url
+8,Create on email to send to G6 requesting approval to push out netezza sunset per G6 meeting last week,False,Processed,critical,pending,,,,2025-09-30T00:00:00+00:00,2025-09-28T23:58:05.627584+00:00,,,medium,,0,0.0,False,,
+5,Need a roadmap for platform engineering (Kumar working on this),False,Processed,high,pending,,,,2025-09-29T00:00:00+00:00,2025-09-28T23:58:05.627603+00:00,,,medium,,0,0.0,False,,
+11,Test sync fix - this should sync to Todoist,False,Processed,high,pending,,,,2025-09-29T00:00:00+00:00,2025-09-28T23:58:05.627618+00:00,,,medium,,0,0.0,False,,
+12,Work with Jeff to prepare CDE plan to backoffice Update,False,Processed,high,pending,,,,2025-09-29T00:00:00+00:00,2025-09-28T23:58:05.627632+00:00,,,medium,,0,0.0,False,,
+6,Bidirectional sync test task,False,Processed,medium,pending,,,,2025-09-20T00:00:00+00:00,2025-09-28T23:58:05.627644+00:00,,,medium,,0,0.0,False,,
+9,Test todo,False,Processed,medium,pending,,,,2025-09-21T00:00:00+00:00,2025-09-28T23:58:05.627655+00:00,,,medium,,0,0.0,False,,
+13,Test sync task,False,Processed,medium,pending,,,,2025-09-21T00:00:00+00:00,2025-09-28T23:58:05.627667+00:00,,,medium,,0,0.0,False,,
+10,Test todo,False,Processed,medium,pending,,,,2025-09-22T00:00:00+00:00,2025-09-28T23:58:05.627678+00:00,,,medium,,0,0.0,False,,
+7,Need a Roadmap for engineering excellence,False,Processed,medium,pending,,,,2025-09-29T00:00:00+00:00,2025-09-28T23:58:05.627692+00:00,,,medium,,0,0.0,False,,
+4,Talk to Sutapa about inner sourcing for Hinshitsu and enabling other engineers to fix issues (per Raphy),False,Processed,medium,pending,,,,2025-09-29T00:00:00+00:00,2025-09-28T23:58:05.627708+00:00,,,medium,,0,0.0,False,,
+3,Talk to Raphy about hosting session with Charles’s team on Changes they Need to Know About + Releases,False,Processed,medium,pending,,,,2025-10-23T00:00:00+00:00,2025-09-28T23:58:05.627726+00:00,,,medium,,0,0.0,False,,
+26,Test todo 3 in personal,False,Processed,medium,pending,,,,,2025-09-28T23:58:05.627736+00:00,,,medium,,0,0.0,False,,

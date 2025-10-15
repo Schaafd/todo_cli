@@ -1,0 +1,186 @@
+# Dracula Theme - Popular dark theme with purple and pink accents
+name: dracula
+display_name: "Dracula"
+description: "A dark theme with purple, pink, and cyan accents inspired by the popular Dracula color scheme"
+version: "1.0.0"
+author: "Zeno Rocha (adapted for Todo CLI)"
+min_capability: "16"
+
+palette:
+  # Primary brand colors (Dracula official colors)
+  primary: "#BD93F9"         # Purple
+  secondary: "#FF79C6"       # Pink
+  accent: "#8BE9FD"          # Cyan
+  
+  # Background and surface colors
+  background: "#282A36"      # Dark background
+  surface: "#44475A"         # Selection/surface
+  surface_light: "#6272A4"   # Comment color (lighter surface)
+  
+  # Text colors
+  text_primary: "#F8F8F2"    # Foreground (bright white)
+  text_secondary: "#6272A4"  # Comment (blue-gray)
+  text_muted: "#44475A"      # Selection (muted)
+  text_bright: "#FFFFFF"     # Pure white
+  
+  # Semantic status colors (using Dracula palette)
+  success: "#50FA7B"         # Green
+  warning: "#F1FA8C"         # Yellow
+  error: "#FFB86C"           # Orange
+  critical: "#FF5555"        # Red
+  info: "#8BE9FD"            # Cyan (same as accent)
+  hint: "#6272A4"            # Comment color
+
+semantic:
+  success: "success bold"
+  warning: "warning bold"
+  error: "error bold"  
+  critical: "critical bold"
+  info: "info"
+  hint: "hint dim"
+  link: "accent underline"
+  highlight: "secondary bold"
+  muted: "text_muted dim"
+  bright: "text_bright bold"
+  default: "text_primary"
+
+components:
+  # Headers and text
+  header: "text_bright bold"
+  subheader: "primary bold"
+  body: "text_primary"
+  caption: "text_secondary dim"
+  
+  # Panels and containers
+  border: "surface_light"
+  panel_bg: "surface"
+  panel_title: "secondary bold"
+  
+  # Tables
+  table_header: "primary bold"
+  table_row: "text_primary"
+  table_row_alt: "text_secondary"
+  
+  # Todo-specific tokens
+  todo_pending: "accent"
+  todo_completed: "success"
+  todo_pinned: "secondary"
+  todo_overdue: "critical"
+  
+  # Priority tokens
+  priority_critical: "critical bold"
+  priority_high: "error"
+  priority_medium: "text_primary"
+  priority_low: "text_muted dim"
+  
+  # Metadata tokens
+  tag: "primary"
+  assignee: "success"
+  stakeholder: "secondary"
+  due_date: "accent"
+  due_date_overdue: "critical"
+  due_date_soon: "warning"
+  
+  # Progress and gauges
+  progress_bar: "primary"
+  progress_bg: "surface_light"
+  gauge_good: "success"
+  gauge_warning: "warning" 
+  gauge_critical: "critical"
+
+typography:
+  body:
+    weight: normal
+    italic: false
+  caption:
+    weight: dim
+    italic: false
+  header:
+    weight: bold
+    italic: false
+  subheader:
+    weight: bold
+    italic: false
+  code:
+    weight: normal
+    italic: false
+  emphasis:
+    weight: normal
+    italic: true
+
+layout:
+  panel_padding: [1, 2]
+  panel_border_style: rounded
+  table_padding: [0, 1]
+  table_show_header: true
+  table_show_lines: false
+  section_spacing: 1
+  item_spacing: 0
+
+icons:
+  # Status icons with a gothic/vampiric flavor
+  pending: "🩸"
+  in_progress: "⚡"
+  completed: "🦇"
+  cancelled: "💀"
+  blocked: "🚫"
+  pinned: "📌"
+  
+  # Priority icons
+  critical: "🔴"
+  high: "🟡"
+  medium: "🟣"
+  low: "⚫"
+  
+  # UI icons
+  calendar: "📅"
+  clock: "🕰"
+  tag: "🏷️"
+  person: "👤"
+  project: "📋"
+  
+  # ASCII fallbacks
+  ascii_pending: "[ ]"
+  ascii_completed: "[x]"
+  ascii_pinned: "[*]"
+  ascii_critical: "[!]"
+  ascii_high: "[H]"
+  ascii_medium: "[M]"
+  ascii_low: "[L]"
+
+effects:
+  animations_enabled: true
+  spinner_style: "dots"
+  progress_pulse: true
+  transition_duration: 0.3
+  fade_in: true
+  slide_in: false
+  bounce: false
+
+ascii_art:
+  banner: |
+    ██████╗ ██████╗  █████╗  ██████╗██╗   ██╗██╗      █████╗ 
+    ██╔══██╗██╔══██╗██╔══██╗██╔════╝██║   ██║██║     ██╔══██╗
+    ██║  ██║██████╔╝███████║██║     ██║   ██║██║     ███████║
+    ██║  ██║██╔══██╗██╔══██║██║     ██║   ██║██║     ██╔══██║
+    ██████╔╝██║  ██║██║  ██║╚██████╗╚██████╔╝███████╗██║  ██║
+    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
+  banner_style: "secondary"
+  subtitle: "🦇 Embrace the Dark Side of Productivity 🦇"
+  subtitle_style: "primary"
+
+variants:
+  - name: high_contrast
+    description: "High contrast Dracula variant"
+    high_contrast: true
+    palette_overrides:
+      background: "#000000"
+      text_primary: "#FFFFFF"
+      surface: "#1A1A1A"
+      
+  - name: compact
+    description: "Compact Dracula layout"
+    compact: true
+    layout_overrides:
+      panel_padding: [0, 1]
+      section_spacing: 0

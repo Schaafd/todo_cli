@@ -1,7 +1,7 @@
-"""Theming system for Productivity Ninja CLI.
+"""Theming system for Todo CLI - Backward Compatibility Layer.
 
-Provides color schemes and styling inspired by dark modern themes
-like City Lights for a beautiful terminal experience.
+This module provides backward compatibility for the legacy theming system
+while delegating to the new ThemeEngine for all functionality.
 """
 
 from rich.console import Console
@@ -9,86 +9,139 @@ from rich.theme import Theme
 from rich.text import Text
 from rich.panel import Panel
 from rich.align import Align
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime, date
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Import the new theme engine
+try:
+    from .theme_engine import ThemeEngine
+    from .config import get_config
+    _THEME_ENGINE_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Theme engine not available, falling back to legacy: {e}")
+    _THEME_ENGINE_AVAILABLE = False
 
 
-# City Lights inspired color palette
+# Legacy City Lights colors for fallback
 CITY_LIGHTS_COLORS = {
-    # Background and base colors
     'background': '#1D252C',
     'surface': '#2D3B47', 
     'surface_light': '#41505E',
-    
-    # Primary colors
-    'primary': '#68D5F3',      # Bright cyan
-    'secondary': '#5CCFE6',    # Light cyan  
-    'accent': '#B7C5D3',      # Light blue-gray
-    
-    # Status colors
-    'success': '#8BD649',      # Bright green
-    'warning': '#FFD93D',      # Bright yellow
-    'error': '#F78C6C',       # Coral/orange
-    'critical': '#FF5370',     # Bright red
-    
-    # Text colors
-    'text_primary': '#B7C5D3',    # Light blue-gray
-    'text_secondary': '#718CA1',  # Medium blue-gray
-    'text_muted': '#4F5B66',      # Dark blue-gray
-    'text_bright': '#FFFFFF',     # Pure white
-    
-    # Syntax highlighting colors (inspired by City Lights)
-    'keyword': '#5CCFE6',      # Light cyan
-    'string': '#8BD649',       # Bright green  
-    'number': '#F78C6C',       # Coral
-    'comment': '#4F5B66',      # Muted
+    'primary': '#68D5F3',
+    'secondary': '#5CCFE6',
+    'accent': '#B7C5D3',
+    'success': '#8BD649',
+    'warning': '#FFD93D',
+    'error': '#F78C6C',
+    'critical': '#FF5370',
+    'text_primary': '#B7C5D3',
+    'text_secondary': '#718CA1',
+    'text_muted': '#4F5B66',
+    'text_bright': '#FFFFFF',
+    'keyword': '#5CCFE6',
+    'string': '#8BD649',
+    'number': '#F78C6C',
+    'comment': '#4F5B66',
 }
 
-# Rich theme definition
-PRODUCTIVITY_NINJA_THEME = Theme({
-    # Base styles
+# Legacy Rich theme for fallback
+_LEGACY_THEME = Theme({
     'default': f"{CITY_LIGHTS_COLORS['text_primary']}",
     'muted': f"{CITY_LIGHTS_COLORS['text_muted']}",
     'bright': f"{CITY_LIGHTS_COLORS['text_bright']} bold",
-    
-    # Status styles
     'success': f"{CITY_LIGHTS_COLORS['success']} bold",
     'warning': f"{CITY_LIGHTS_COLORS['warning']} bold", 
     'error': f"{CITY_LIGHTS_COLORS['error']} bold",
     'critical': f"{CITY_LIGHTS_COLORS['critical']} bold",
-    
-    # Priority styles
     'priority_critical': f"{CITY_LIGHTS_COLORS['critical']} bold",
     'priority_high': f"{CITY_LIGHTS_COLORS['warning']}",
     'priority_medium': f"{CITY_LIGHTS_COLORS['text_primary']}",
     'priority_low': f"{CITY_LIGHTS_COLORS['text_muted']}",
-    
-    # Component styles
     'primary': f"{CITY_LIGHTS_COLORS['primary']} bold",
     'secondary': f"{CITY_LIGHTS_COLORS['secondary']}",
     'accent': f"{CITY_LIGHTS_COLORS['accent']}",
-    
-    # Todo status styles
     'todo_pending': f"{CITY_LIGHTS_COLORS['primary']}",
     'todo_completed': f"{CITY_LIGHTS_COLORS['success']}",
     'todo_pinned': f"{CITY_LIGHTS_COLORS['warning']}",
     'todo_overdue': f"{CITY_LIGHTS_COLORS['critical']}",
-    
-    # Metadata styles
     'tag': f"{CITY_LIGHTS_COLORS['secondary']}",
     'assignee': f"{CITY_LIGHTS_COLORS['success']}",
     'due_date': f"{CITY_LIGHTS_COLORS['primary']}",
     'due_date_overdue': f"{CITY_LIGHTS_COLORS['critical']}",
-    
-    # UI elements
     'header': f"{CITY_LIGHTS_COLORS['text_bright']} bold",
     'subheader': f"{CITY_LIGHTS_COLORS['accent']} bold",
     'border': f"{CITY_LIGHTS_COLORS['surface_light']}",
 })
 
+# Global theme engine instance
+_theme_engine: Optional[ThemeEngine] = None
+
+
+def _get_theme_engine() -> Optional[ThemeEngine]:
+    """Get the global theme engine instance."""
+    global _theme_engine
+    
+    if not _THEME_ENGINE_AVAILABLE:
+        logger.debug("Theme engine not available, using legacy theming")
+        return None
+    
+    if _theme_engine is None:
+        try:
+            config = get_config()
+            _theme_engine = ThemeEngine.from_config(config)
+            logger.debug(f"Theme engine initialized with theme: {config.theme_name}")
+        except ImportError as e:
+            logger.warning(f"Theme engine dependencies missing: {e}")
+            return None
+        except FileNotFoundError as e:
+            logger.warning(f"Theme file not found: {e}. Using fallback theme.")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to initialize theme engine: {e}")
+            return None
+    
+    return _theme_engine
+
+
+def get_productivity_ninja_theme() -> Theme:
+    """Get the current theme as a Rich Theme object.
+    
+    This function delegates to the new theme engine if available,
+    otherwise falls back to the legacy City Lights theme.
+    """
+    engine = _get_theme_engine()
+    if engine:
+        try:
+            return engine.compile_rich_theme()
+        except Exception as e:
+            logger.error(f"Error compiling theme: {e}")
+    
+    # Fallback to legacy theme
+    return _LEGACY_THEME
+
+
+# Backward compatibility: expose as module-level variable
+PRODUCTIVITY_NINJA_THEME = get_productivity_ninja_theme()
+
 
 def get_ascii_title() -> str:
     """Get the ASCII art title for Productivity Ninja CLI."""
+    engine = _get_theme_engine()
+    if engine:
+        try:
+            # Try to get banner from current theme
+            theme_def = engine.registry.load_theme_definition(
+                engine.registry.get_default_theme_name()
+            )
+            if theme_def.ascii_art and theme_def.ascii_art.banner:
+                return theme_def.ascii_art.banner
+        except Exception as e:
+            logger.debug(f"Could not load theme banner: {e}")
+    
+    # Fallback to default banner
     return """
  ██████╗ ██████╗  ██████╗ ██████╗ ██╗   ██╗ ██████╗████████╗██╗██╗   ██╗██╗████████╗██╗   ██╗
  ██╔══██╗██╔══██╗██╔═══██╗██╔══██╗██║   ██║██╔════╝╚══██╔══╝██║██║   ██║██║╚══██╔══╝╚██╗ ██╔╝
@@ -108,22 +161,59 @@ def get_ascii_title() -> str:
 
 def get_themed_console() -> Console:
     """Get a console instance with the Productivity Ninja theme applied."""
-    return Console(theme=PRODUCTIVITY_NINJA_THEME)
+    engine = _get_theme_engine()
+    if engine:
+        try:
+            return engine.get_console()
+        except Exception as e:
+            logger.error(f"Error creating themed console: {e}")
+    
+    # Fallback to legacy console
+    return Console(theme=_LEGACY_THEME)
 
 
 def show_startup_banner(console: Console) -> None:
     """Display the startup banner with ASCII art and theme."""
-    title_text = Text(get_ascii_title(), style="primary")
+    # Safe styling with fallbacks
+    title_style = "primary"
+    subtitle_style = "accent"
+    version_style = "muted"
     
-    subtitle = Text("⚡ Master Your Tasks. Unleash Your Potential. ⚡", style="accent")
-    version_info = Text("v1.0.0", style="muted")
+    # Try to use theme engine styles if available
+    engine = _get_theme_engine()
+    if not engine:
+        # Fallback to basic Rich styles
+        title_style = "cyan bold"
+        subtitle_style = "blue"
+        version_style = "dim"
+    
+    title_text = Text(get_ascii_title(), style=title_style)
+    
+    # Try to get theme-specific subtitle and version
+    subtitle_text = "⚡ Master Your Tasks. Unleash Your Potential. ⚡"
+    
+    if engine:
+        try:
+            theme_def = engine.registry.load_theme_definition(
+                engine.registry.get_default_theme_name()
+            )
+            if theme_def.ascii_art:
+                if theme_def.ascii_art.subtitle:
+                    subtitle_text = theme_def.ascii_art.subtitle
+                if theme_def.ascii_art.subtitle_style:
+                    subtitle_style = theme_def.ascii_art.subtitle_style
+        except Exception as e:
+            logger.debug(f"Could not load theme subtitle: {e}")
+    
+    subtitle = Text(subtitle_text, style=subtitle_style)
+    version_info = Text("v1.0.0", style=version_style)
     
     # Create the banner panel with centered title
     banner_content = Align.center(title_text)
     banner_panel = Panel(
         banner_content,
         title="[bright]Welcome to[/bright]",
-        subtitle=f"[accent]{subtitle}[/accent]\n[muted]{version_info}[/muted]",
+        subtitle=f"[{subtitle_style}]{subtitle}[/{subtitle_style}]\n[muted]{version_info}[/muted]",
         border_style="border",
         padding=(1, 2)
     )
@@ -276,7 +366,7 @@ def get_theme() -> Theme:
     """Get the default theme for the application.
     
     Returns:
-        Rich Theme instance with productivity ninja styling
+        Rich Theme instance with current theme styling
     """
     return PRODUCTIVITY_NINJA_THEME
 

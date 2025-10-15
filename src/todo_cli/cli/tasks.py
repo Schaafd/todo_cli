@@ -1738,6 +1738,10 @@ main.add_command(app_sync_group)
 from .doctor import doctor
 main.add_command(doctor)
 
+# Add theme command group
+from .theme_cmds import get_theme_commands
+main.add_command(get_theme_commands())
+
 
 if __name__ == "__main__":
     main()

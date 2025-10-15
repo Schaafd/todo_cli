@@ -52,6 +52,13 @@ class ConfigModel:
     use_emoji: bool = True
     table_style: str = "rich"  # rich, simple, ascii
     
+    # Theme settings
+    theme_name: str = "city_lights"
+    theme_variant: Optional[str] = None
+    theme_compact: bool = False
+    theme_high_contrast: bool = False
+    theme_colorblind_safe: bool = False
+    
     def __post_init__(self):
         """Post-initialization setup."""
         # Expand user paths
@@ -89,6 +96,11 @@ class ConfigModel:
             "no_color": self.no_color,
             "use_emoji": self.use_emoji,
             "table_style": self.table_style,
+            "theme_name": self.theme_name,
+            "theme_variant": self.theme_variant,
+            "theme_compact": self.theme_compact,
+            "theme_high_contrast": self.theme_high_contrast,
+            "theme_colorblind_safe": self.theme_colorblind_safe,
         }
         return yaml.dump(data, default_flow_style=False)
     

@@ -1,0 +1,202 @@
+# One Light Theme - Clean, bright theme inspired by Atom's One Light
+name: one_light
+display_name: "One Light"
+description: "A clean, bright light theme with high readability and modern aesthetics"
+version: "1.0.0"
+author: "GitHub (adapted for Todo CLI)"
+min_capability: "16"
+
+palette:
+  # Light theme color palette
+  background: "#FAFAFA"        # Very light gray
+  surface: "#FFFFFF"           # Pure white
+  surface_light: "#F5F5F5"     # Light gray
+  
+  # Text colors (darker for light background)
+  text_primary: "#2C3E50"      # Dark blue-gray
+  text_secondary: "#586E75"    # Medium gray
+  text_muted: "#95A5A6"        # Light gray
+  text_bright: "#000000"       # Pure black
+  
+  # Brand colors
+  primary: "#0184BC"           # Blue
+  secondary: "#50A14F"         # Green
+  accent: "#A626A4"            # Purple
+  
+  # Semantic colors
+  success: "#50A14F"           # Green
+  warning: "#C18401"           # Orange
+  error: "#E45649"             # Red
+  critical: "#CA1243"          # Dark red
+  info: "#0184BC"              # Blue
+  hint: "#7F8C8D"              # Gray
+
+semantic:
+  success: "success bold"
+  warning: "warning bold"
+  error: "error bold"
+  critical: "critical bold"
+  info: "info"
+  hint: "hint dim"
+  
+  link: "primary underline"
+  highlight: "accent bold"
+  muted: "text_muted dim"
+  bright: "text_bright bold"
+  default: "text_primary"
+
+components:
+  # Headers and text
+  header: "text_bright bold"
+  subheader: "accent bold"
+  body: "text_primary"
+  caption: "text_secondary dim"
+  
+  # Panels and containers
+  border: "surface_light"
+  panel_bg: "surface"
+  panel_title: "text_bright bold"
+  
+  # Tables
+  table_header: "accent bold"
+  table_row: "text_primary"
+  table_row_alt: "text_secondary"
+  
+  # Todo-specific tokens
+  todo_pending: "primary"
+  todo_completed: "success"
+  todo_pinned: "warning"
+  todo_overdue: "critical"
+  
+  # Priority tokens
+  priority_critical: "critical bold"
+  priority_high: "warning bold"
+  priority_medium: "text_primary"
+  priority_low: "text_muted"
+  
+  # Metadata tokens
+  tag: "secondary"
+  assignee: "success"
+  stakeholder: "accent"
+  due_date: "primary"
+  due_date_overdue: "critical"
+  due_date_soon: "warning"
+  
+  # Progress and gauges
+  progress_bar: "primary"
+  progress_bg: "surface_light"
+  gauge_good: "success"
+  gauge_warning: "warning"
+  gauge_critical: "critical"
+
+typography:
+  body:
+    weight: normal
+    italic: false
+  caption:
+    weight: dim
+    italic: false
+  header:
+    weight: bold
+    italic: false
+  subheader:
+    weight: normal
+    italic: false
+  code:
+    weight: normal
+    italic: false
+  emphasis:
+    weight: normal
+    italic: true
+
+layout:
+  panel_padding: [1, 2]
+  panel_border_style: rounded
+  table_padding: [0, 1]
+  table_show_header: true
+  table_show_lines: true
+  section_spacing: 1
+  item_spacing: 0
+  breakpoint_xs: 40
+  breakpoint_sm: 60
+  breakpoint_md: 80
+  breakpoint_lg: 120
+
+icons:
+  # Status icons
+  pending: "⏳"
+  in_progress: "🔄"
+  completed: "✅"
+  cancelled: "❌"
+  blocked: "🚫"
+  pinned: "📌"
+  
+  # Priority icons
+  critical: "🔴"
+  high: "🟠"
+  medium: "🟡"
+  low: "⚪"
+  
+  # UI icons
+  calendar: "📅"
+  clock: "🕐"
+  tag: "🏷️"
+  person: "👤"
+  project: "📋"
+  
+  # ASCII fallbacks
+  ascii_pending: "[ ]"
+  ascii_completed: "[x]"
+  ascii_pinned: "[*]"
+  ascii_critical: "[!]"
+  ascii_high: "[H]"
+  ascii_medium: "[M]"
+  ascii_low: "[L]"
+
+effects:
+  animations_enabled: true
+  spinner_style: "dots"
+  progress_pulse: true
+  transition_duration: 0.3
+  fade_in: true
+  slide_in: false
+  bounce: false
+
+ascii_art:
+  banner: |
+    ██████╗ ██████╗  ██████╗ ██████╗ ██╗   ██╗ ██████╗████████╗██╗██╗   ██╗██╗████████╗██╗   ██╗
+    ██╔══██╗██╔══██╗██╔═══██╗██╔══██╗██║   ██║██╔════╝╚══██╔══╝██║██║   ██║██║╚══██╔══╝╚██╗ ██╔╝
+    ██████╔╝██████╔╝██║   ██║██║  ██║██║   ██║██║        ██║   ██║██║   ██║██║   ██║    ╚████╔╝ 
+    ██╔═══╝ ██╔══██╗██║   ██║██║  ██║██║   ██║██║        ██║   ██║╚██╗ ██╔╝██║   ██║     ╚██╔╝  
+    ██║     ██║  ██║╚██████╔╝██████╔╝╚██████╔╝╚██████╗   ██║   ██║ ╚████╔╝ ██║   ██║      ██║   
+    ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═════╝  ╚═════╝  ╚═════╝   ╚═╝   ╚═╝  ╚═══╝  ╚═╝   ╚═╝      ╚═╝   
+  banner_style: "primary"
+  subtitle: "☀️ Bright productivity in the light - clear tasks, clear mind ☀️"
+  subtitle_style: "accent"
+
+variants:
+  - name: high_contrast
+    description: "High contrast version for better accessibility"
+    high_contrast: true
+    palette_overrides:
+      background: "#FFFFFF"
+      text_primary: "#000000"
+      text_secondary: "#333333"
+      surface: "#F0F0F0"
+      
+  - name: compact
+    description: "Compact layout with reduced spacing"
+    compact: true
+    layout_overrides:
+      panel_padding: [0, 1]
+      section_spacing: 0
+      table_show_lines: false
+
+  - name: colorblind_safe
+    description: "Colorblind-safe color palette"
+    colorblind_safe: true
+    palette_overrides:
+      success: "#0173B2"    # Blue
+      warning: "#DE8F05"    # Orange
+      error: "#CC79A7"      # Pink
+      critical: "#D55E00"   # Red-orange
