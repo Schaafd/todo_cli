@@ -9,7 +9,7 @@ Uses AppleScript for macOS system integration.
 import subprocess
 import logging
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from inspect import isawaitable
 from typing import Dict, List, Optional, Any, Union
 from urllib.parse import quote
@@ -397,22 +397,64 @@ class AppleScriptInterface:
     
     def _parse_apple_date(self, date_str: str) -> Optional[datetime]:
         """Parse Apple date string to datetime.
-        
+
         Args:
             date_str: Date string from AppleScript
-            
+
         Returns:
             Parsed datetime or None
         """
         if not date_str or date_str.strip() == "":
             return None
-        
+
         # Apple returns dates like: "Friday, January 1, 2025 at 9:00:00 AM"
-        # This is complex to parse, so we'll use a simplified approach
+        # Or sometimes just: "January 15, 2025 at 3:30:00 PM" (without weekday)
         try:
-            # For now, create a dummy date - in production this would need proper parsing
-            # This is a placeholder implementation
-            return datetime.now(timezone.utc)
+            # Check if the string starts with a weekday prefix by looking for " at " marker
+            # and counting commas before it
+            at_index = date_str.find(" at ")
+            if at_index == -1:
+                return None
+
+            date_part = date_str[:at_index]
+            time_part = date_str[at_index + 4:]  # Skip " at "
+
+            # Count commas in date part
+            # Format with weekday: "Friday, January 1, 2025" (2 commas)
+            # Format without weekday: "January 15, 2025" (1 comma)
+            comma_count = date_part.count(',')
+
+            if comma_count == 2:
+                # Has weekday, remove it
+                # Split by first comma to remove weekday
+                parts = date_part.split(", ", 1)
+                date_without_day = parts[1] if len(parts) > 1 else date_part
+            else:
+                # No weekday prefix
+                date_without_day = date_part
+
+            # Reconstruct full date string
+            full_date_str = f"{date_without_day} at {time_part}"
+
+            # Parse the date using datetime.strptime
+            # Format: "January 1, 2025 at 9:00:00 AM"
+            parsed_date = datetime.strptime(full_date_str, "%B %d, %Y at %I:%M:%S %p")
+
+            # Make timezone-aware (assume local timezone, then convert to UTC)
+            # Since AppleScript returns dates in local time, we need to handle this
+            import time
+            if time.daylight:
+                utc_offset_hours = -time.altzone / 3600
+            else:
+                utc_offset_hours = -time.timezone / 3600
+
+            # Apply the local timezone offset
+            local_tz = timezone(timedelta(hours=utc_offset_hours))
+            parsed_date = parsed_date.replace(tzinfo=local_tz)
+
+            # Convert to UTC
+            return parsed_date.astimezone(timezone.utc)
+
         except Exception as e:
             self.logger.warning(f"Failed to parse Apple date '{date_str}': {e}")
             return None

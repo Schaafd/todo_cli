@@ -496,15 +496,49 @@ class TestAppleRemindersErrorHandling:
     def test_date_parsing_fallback(self):
         """Test date parsing fallback behavior."""
         interface = AppleScriptInterface()
-        
-        # Test with invalid date string
+
+        # Test with invalid date string - should return None and log warning
         result = interface._parse_apple_date("invalid date")
-        # Should return some datetime (current implementation returns now)
-        assert isinstance(result, datetime)
-        
+        assert result is None
+
         # Test with empty date string
         result = interface._parse_apple_date("")
         assert result is None
-        
+
         result = interface._parse_apple_date(None)
         assert result is None
+
+    def test_date_parsing_success(self):
+        """Test successful Apple date parsing."""
+        interface = AppleScriptInterface()
+
+        # Test with valid Apple date format
+        date_str = "Friday, January 1, 2025 at 9:00:00 AM"
+        result = interface._parse_apple_date(date_str)
+
+        # Should return a datetime object
+        assert isinstance(result, datetime)
+        assert result is not None
+
+        # Should be timezone-aware and in UTC
+        assert result.tzinfo is not None
+
+        # Check that the date components are correct (in UTC)
+        # Note: The exact time may vary based on the system's timezone
+        assert result.year == 2025
+        assert result.month == 1
+        assert result.day == 1
+
+    def test_date_parsing_without_weekday(self):
+        """Test Apple date parsing without weekday prefix."""
+        interface = AppleScriptInterface()
+
+        # Test without weekday prefix
+        date_str = "January 15, 2025 at 3:30:00 PM"
+        result = interface._parse_apple_date(date_str)
+
+        assert isinstance(result, datetime)
+        assert result is not None
+        assert result.year == 2025
+        assert result.month == 1
+        assert result.day == 15
