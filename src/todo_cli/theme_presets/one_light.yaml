@@ -1,7 +1,7 @@
 # One Light Theme - Clean, bright theme inspired by Atom's One Light
 name: one_light
 display_name: "One Light"
-description: "A clean, bright light theme with high readability and modern aesthetics"
+description: "A clean, bright theme optimized for light terminal backgrounds (white/light terminals)"
 version: "1.0.0"
 author: "GitHub (adapted for Todo CLI)"
 min_capability: "16"
@@ -12,10 +12,10 @@ palette:
   surface: "#FFFFFF"           # Pure white
   surface_light: "#F5F5F5"     # Light gray
   
-  # Text colors (darker for light background)
-  text_primary: "#2C3E50"      # Dark blue-gray
-  text_secondary: "#586E75"    # Medium gray
-  text_muted: "#95A5A6"        # Light gray
+  # Text colors (optimized for light terminals, fallback friendly)
+  text_primary: "#1A1A1A"      # Very dark gray (better contrast)
+  text_secondary: "#4A4A4A"    # Dark gray
+  text_muted: "#777777"        # Medium gray
   text_bright: "#000000"       # Pure black
   
   # Brand colors

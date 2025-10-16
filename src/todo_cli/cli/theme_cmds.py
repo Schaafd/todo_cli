@@ -71,7 +71,7 @@ def list():
         console.print(table)
         console.print()
         
-        # Show quick usage hint
+        # Show quick usage hint with terminal background guidance
         usage_text = Text.assemble(
             ("💡 Tip: Use ", "dim"),
             ("todo theme preview <name>", "cyan"),
@@ -79,11 +79,24 @@ def list():
             ("todo theme set <name>", "cyan"),
             (" to apply it.", "dim")
         )
-        console.print(Panel(
-            Align.center(usage_text),
+        
+        guidance_text = Text.assemble(
+            ("🎯 Theme Selection Guide:\n", "yellow"),
+            ("• Dark terminal: ", "dim"),
+            ("city_lights, dracula, gruvbox_dark, nord, solarized_dark", "cyan"),
+            ("\n• Light terminal: ", "dim"),
+            ("one_light", "cyan")
+        )
+        
+        combined_panel = Panel(
+            Text.assemble(
+                usage_text, "\n\n", guidance_text
+            ),
+            title="[cyan]Theme Help[/cyan]",
             border_style="blue",
             padding=(1, 2)
-        ))
+        )
+        console.print(combined_panel)
         
     except Exception as e:
         console = Console()
@@ -336,6 +349,54 @@ def validate():
         console = Console()
         console.print(f"[red]Error validating themes: {e}[/red]")
         sys.exit(1)
+
+
+@theme.command()
+def detect():
+    """Detect terminal capabilities and suggest appropriate themes."""
+    from ..theme_engine import detect_terminal_capability, TerminalCapability
+    
+    console = Console()
+    
+    # Detect terminal capability
+    capability = detect_terminal_capability()
+    
+    console.print(f"\n[bold]Terminal Detection Results[/bold]\n")
+    
+    # Color capability
+    capability_names = {
+        TerminalCapability.MONOCHROME: "Monochrome (no colors)",
+        TerminalCapability.COLOR_16: "16 colors", 
+        TerminalCapability.COLOR_256: "256 colors",
+        TerminalCapability.TRUECOLOR: "Truecolor (16 million colors)"
+    }
+    
+    console.print(f"[cyan]Color Support:[/cyan] {capability_names.get(capability, 'Unknown')}")
+    
+    # Try to detect terminal background
+    # This is tricky, but we can make educated guesses
+    import os
+    terminal_app = os.environ.get('TERM_PROGRAM', '').lower()
+    colorterm = os.environ.get('COLORTERM', '').lower()
+    
+    console.print(f"[cyan]Terminal:[/cyan] {terminal_app or 'Unknown'}")
+    
+    # Background detection hints
+    console.print("\n[yellow]🎯 Theme Recommendations:[/yellow]")
+    
+    if capability == TerminalCapability.MONOCHROME:
+        console.print("[dim]• Your terminal doesn't support colors. All themes will appear the same.[/dim]")
+    else:
+        console.print("[green]• If your terminal has a dark background:[/green]")
+        console.print("  [cyan]city_lights[/cyan] (default), [cyan]dracula[/cyan], [cyan]gruvbox_dark[/cyan], [cyan]nord[/cyan], [cyan]solarized_dark[/cyan]")
+        console.print("\n[green]• If your terminal has a light/white background:[/green]")
+        console.print("  [cyan]one_light[/cyan]")
+        
+        console.print("\n[yellow]💡 Not sure about your background?[/yellow]")
+        console.print("  Try: [cyan]todo theme preview city_lights[/cyan] vs [cyan]todo theme preview one_light[/cyan]")
+        console.print("  The one that looks better is right for your terminal!")
+    
+    console.print()
 
 
 # Register the theme group with the main CLI
