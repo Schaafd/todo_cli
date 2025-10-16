@@ -327,11 +327,11 @@ class AppSyncManager:
             if config.sync_direction.value in ['bidirectional', 'pull_only']:
                 await self._pull_remote_changes(adapter, remote_items, mapping_dict, result)
             
-            if (result.conflicts_detected == 0 and 
-                config.sync_direction.value in ['bidirectional', 'push_only']):
+            # Always attempt bidirectional sync - conflicts shouldn't block new item creation
+            if config.sync_direction.value in ['bidirectional', 'push_only']:
                 await self._push_local_changes(adapter, local_todos, mapping_dict, result)
             
-            # Handle conflicts if any were detected
+            # Handle conflicts if any were detected (after both pull and push operations)
             if result.conflicts_detected > 0:
                 await self._resolve_conflicts(provider, effective_strategy, result)
             
@@ -351,12 +351,22 @@ class AppSyncManager:
     async def _push_local_changes(self, adapter: AppSyncAdapter, local_todos: List[Todo], 
                                   mapping_dict: Dict[int, SyncMapping], result: SyncResult):
         """Push local changes to remote service."""
+        # Get list of todo_ids that have pending conflicts to avoid pushing them
+        conflicts = await self.mapping_store.get_conflicts_for_provider(adapter.provider, resolved=False)
+        conflicted_todo_ids = {conflict.todo_id for conflict in conflicts}
+        
         # Track which local todos we've seen (for deletion detection)
         seen_todo_ids = set()
         
         for todo in local_todos:
             try:
                 seen_todo_ids.add(todo.id)
+                
+                # Skip todos that have pending conflicts - they'll be handled in conflict resolution
+                if todo.id in conflicted_todo_ids:
+                    self.logger.debug(f"Skipping todo {todo.id} during push - has pending conflict")
+                    continue
+                
                 existing_mapping = mapping_dict.get(todo.id)
                 
                 if existing_mapping:

@@ -26,6 +26,38 @@ from ...domain import Todo, Priority, TodoStatus
 from ...utils.datetime import ensure_aware, now_utc
 
 
+class AppleRemindersExternalTodoItem(ExternalTodoItem):
+    """Custom ExternalTodoItem for Apple Reminders with proper priority handling."""
+    
+    def to_todo(self, todo_id: Optional[int] = None) -> Todo:
+        """Convert external item to Todo object with Apple Reminders priority mapping."""
+        # Use the stored Priority enum value if available, otherwise fall back to generic mapping
+        priority_enum_value = self.raw_data.get('priority_enum_value')
+        if priority_enum_value:
+            # Reconstruct Priority enum from stored value
+            try:
+                priority_enum = Priority(priority_enum_value)
+            except ValueError:
+                # Fallback to generic mapping if value is invalid
+                priority_enum = self._map_priority_from_external()
+        else:
+            # Fallback to generic mapping if priority_enum_value not available
+            priority_enum = self._map_priority_from_external()
+        
+        return Todo(
+            id=todo_id or 0,
+            text=self.title,
+            project=self.project or "default",
+            tags=self.tags,
+            due_date=self.due_date,
+            priority=priority_enum,
+            status=TodoStatus.COMPLETED if self.completed else TodoStatus.PENDING,
+            created=self.created_at or now_utc(),
+            modified=self.updated_at or now_utc(),
+            description=self.description or ""
+        )
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -667,14 +699,23 @@ class AppleRemindersAdapter(SyncAdapter):
         """Map Apple Reminders data to ExternalTodoItem."""
         reminder = external_data
         
-        # Parse due date
+        # Parse due date - use existing _parse_apple_date method for robustness
         due_date = reminder.get("due_date")
-        if due_date and not isinstance(due_date, datetime):
-            due_date = None
+        if due_date:
+            if isinstance(due_date, datetime):
+                # Already a datetime object
+                pass
+            elif isinstance(due_date, str):
+                # Parse Apple date string using our robust parser
+                due_date = self._parse_apple_date(due_date)
+            else:
+                # Unknown format, log and set to None
+                self.logger.warning(f"Unknown due_date format for reminder {reminder.get('id')}: {type(due_date)} {due_date}")
+                due_date = None
         
-        # Map priority from Apple's 1-9 scale to our scale
+        # Map priority from Apple's 1-9 scale to Priority enum
         apple_priority = reminder.get("priority", 5)
-        priority = self._map_priority_from_apple(apple_priority)
+        priority_enum = self._map_priority_from_apple(apple_priority)
         
         # Get list name
         list_name = reminder.get("list_name", self.default_list_name)
@@ -687,13 +728,14 @@ class AppleRemindersAdapter(SyncAdapter):
         completed = reminder.get("completed", False)
         completed_at = now_utc() if completed else None
         
-        return ExternalTodoItem(
+        # Create a custom ExternalTodoItem that directly stores the Priority enum
+        external_item = AppleRemindersExternalTodoItem(
             external_id=str(reminder["id"]),
             provider=AppSyncProvider.APPLE_REMINDERS,
             title=reminder["name"],
             description=reminder.get("body", ""),
             due_date=ensure_aware(due_date) if due_date else None,
-            priority=priority,
+            priority=apple_priority,  # Store original Apple priority for later use
             tags=[],  # Apple Reminders doesn't have tags
             project=list_name,
             project_id=self._lists_cache.get(list_name),
@@ -703,6 +745,12 @@ class AppleRemindersAdapter(SyncAdapter):
             updated_at=ensure_aware(updated_at),
             raw_data=reminder
         )
+        
+        # Store the mapped Priority enum value in raw_data for to_todo() method
+        # Store as string value to avoid JSON serialization issues
+        external_item.raw_data['priority_enum_value'] = priority_enum.value
+        
+        return external_item
     
     async def _refresh_lists_cache(self):
         """Refresh the lists cache."""
@@ -750,18 +798,18 @@ class AppleRemindersAdapter(SyncAdapter):
         }
         return priority_map.get(priority, 5)
     
-    def _map_priority_from_apple(self, apple_priority: int) -> int:
-        """Map Apple Reminders priority to our priority scale."""
+    def _map_priority_from_apple(self, apple_priority: int) -> Priority:
+        """Map Apple Reminders priority to Todo Priority enum."""
         # Apple: 1 = high, 5 = medium, 9 = low
-        # Our scale: 1 = low, 2 = medium, 3 = high, 4 = critical
+        # Map to our Priority enum
         if apple_priority <= 2:
-            return 4  # Critical
+            return Priority.CRITICAL
         elif apple_priority <= 4:
-            return 3  # High
+            return Priority.HIGH
         elif apple_priority <= 6:
-            return 2  # Medium
+            return Priority.MEDIUM
         else:
-            return 1  # Low
+            return Priority.LOW
     
     def _should_include_reminder(self, reminder: Dict[str, Any]) -> bool:
         """Check if a reminder should be included in sync."""
