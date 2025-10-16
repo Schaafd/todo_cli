@@ -550,18 +550,129 @@ class AppSyncManager:
         conflict.resolve("remote_wins")
         await self.mapping_store.save_conflict(conflict)
     
+    def _get_last_modified_timestamp(self, obj) -> Optional[datetime]:
+        """Safely retrieve and normalize timestamps for both local and external items.
+        
+        For Todo objects: uses 'modified' field with fallback to 'created'
+        For ExternalTodoItem: prefers 'updated_at' with fallbacks to other timestamp fields
+        
+        Returns timezone-aware UTC datetime or None if no timestamp found.
+        """
+        from datetime import datetime, timezone
+        
+        ts = None
+        
+        # Define search order based on object type
+        if hasattr(obj, 'modified'):  # Todo objects
+            attr_order = ("modified", "created", "updated_at", "created_at")
+        else:  # ExternalTodoItem and other objects
+            attr_order = ("updated_at", "modified_at", "last_modified", "updated", "created_at", "created")
+        
+        # Find the first available timestamp
+        for attr in attr_order:
+            if hasattr(obj, attr):
+                ts = getattr(obj, attr)
+                if ts is not None:
+                    break
+        
+        # Special handling for Todo objects - attempt fallback to storage file mtime
+        if ts is None and hasattr(obj, 'modified') and hasattr(obj, 'id'):
+            # This is likely a Todo object missing modified timestamp
+            try:
+                # Try to get file modification time from storage layer
+                file_mtime = self._get_todo_file_mtime(obj.id)
+                if file_mtime:
+                    ts = file_mtime
+                    self.logger.info(f"Used file mtime for Todo {obj.id} missing modified timestamp: {ts}")
+            except Exception as e:
+                self.logger.debug(f"Could not get file mtime for Todo {obj.id}: {e}")
+        
+        if ts is None:
+            self.logger.debug(f"No timestamp found for object {type(obj).__name__}")
+            return None
+        
+        # Handle string timestamps (ISO-8601 format)
+        if isinstance(ts, str):
+            try:
+                # Support ISO-8601 with optional Z
+                ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            except ValueError as e:
+                self.logger.warning(f"Failed to parse timestamp string '{ts}': {e}")
+                return None
+        
+        # Ensure timezone-aware and convert to UTC
+        if isinstance(ts, datetime):
+            if ts.tzinfo is None:
+                # Assume naive timestamps are UTC
+                ts = ts.replace(tzinfo=timezone.utc)
+            else:
+                # Convert to UTC
+                ts = ts.astimezone(timezone.utc)
+            return ts
+        
+        self.logger.warning(f"Unexpected timestamp type {type(ts)} for value {ts}")
+        return None
+    
+    def _get_todo_file_mtime(self, todo_id: int) -> Optional[datetime]:
+        """Get file modification time for a todo as fallback timestamp.
+        
+        Args:
+            todo_id: Local todo ID
+            
+        Returns:
+            File modification time as timezone-aware UTC datetime or None
+        """
+        try:
+            if hasattr(self.storage, 'get_todo_file_path'):
+                # If storage provides file path access
+                file_path = self.storage.get_todo_file_path(todo_id)
+                if file_path and hasattr(file_path, 'stat'):
+                    mtime = file_path.stat().st_mtime
+                    return datetime.fromtimestamp(mtime, tz=timezone.utc)
+            elif hasattr(self.storage, 'storage_path'):
+                # Try to construct path based on storage location
+                from pathlib import Path
+                storage_path = Path(self.storage.storage_path)
+                if storage_path.exists():
+                    # Look for todo file patterns
+                    todo_files = list(storage_path.glob(f"*{todo_id}*.md")) or list(storage_path.glob(f"todo_{todo_id}.*"))
+                    if todo_files:
+                        mtime = todo_files[0].stat().st_mtime
+                        return datetime.fromtimestamp(mtime, tz=timezone.utc)
+        except Exception as e:
+            self.logger.debug(f"Failed to get file mtime for todo {todo_id}: {e}")
+        
+        return None
+    
     async def _resolve_conflict_newest_wins(self, conflict: SyncConflict, result: SyncResult):
         """Resolve conflict by keeping newest version."""
         local_newer = False
         
         if conflict.local_todo and conflict.remote_item:
-            local_time = conflict.local_todo.updated_at
-            remote_time = conflict.remote_item.updated_at
+            local_time = self._get_last_modified_timestamp(conflict.local_todo)
+            remote_time = self._get_last_modified_timestamp(conflict.remote_item)
             
+            # Determine which is newer with proper fallback handling
             if local_time and remote_time:
                 local_newer = local_time > remote_time
-            elif local_time:
+            elif local_time and not remote_time:
+                # Only local has timestamp - prefer local
                 local_newer = True
+            elif remote_time and not local_time:
+                # Only remote has timestamp - prefer remote
+                local_newer = False
+            else:
+                # Neither has timestamp - default to local wins
+                local_newer = True
+                self.logger.warning(f"No timestamps available for conflict {conflict.todo_id}, defaulting to local wins")
+            
+            self.logger.info(f"Conflict resolution for todo {conflict.todo_id} (external_id={conflict.external_id}): "
+                           f"local_time={local_time}, remote_time={remote_time}, "
+                           f"choosing={'local' if local_newer else 'remote'}")
+        else:
+            # Fallback if objects are missing
+            local_newer = True
+            self.logger.warning(f"Missing objects for conflict {conflict.todo_id}, defaulting to local wins")
         
         if local_newer:
             await self._resolve_conflict_local_wins(conflict, result)

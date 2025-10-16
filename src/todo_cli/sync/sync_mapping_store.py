@@ -73,6 +73,7 @@ class SyncMappingStore:
                     CREATE TABLE IF NOT EXISTS sync_conflicts (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         todo_id INTEGER NOT NULL,
+                        external_id TEXT NOT NULL,
                         provider TEXT NOT NULL,
                         conflict_type TEXT NOT NULL,
                         local_todo TEXT,  -- JSON serialized Todo
@@ -86,6 +87,27 @@ class SyncMappingStore:
                         UNIQUE(todo_id, provider)
                     )
                 """)
+                
+                # Add external_id column if it doesn't exist (migration)
+                cursor = conn.execute("""
+                    PRAGMA table_info(sync_conflicts)
+                """)
+                columns = [row[1] for row in cursor.fetchall()]
+                if 'external_id' not in columns:
+                    # Migration: add external_id column
+                    conn.execute("""
+                        ALTER TABLE sync_conflicts ADD COLUMN external_id TEXT DEFAULT ''
+                    """)
+                    # Populate external_id from mappings where possible
+                    conn.execute("""
+                        UPDATE sync_conflicts SET external_id = (
+                            SELECT external_id FROM sync_mappings 
+                            WHERE sync_mappings.todo_id = sync_conflicts.todo_id 
+                            AND sync_mappings.provider = sync_conflicts.provider
+                            LIMIT 1
+                        )
+                        WHERE external_id = '' OR external_id IS NULL
+                    """)
                 
                 # Create indexes for better performance
                 conn.execute("""
@@ -341,12 +363,13 @@ class SyncMappingStore:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("""
                     INSERT OR REPLACE INTO sync_conflicts 
-                    (todo_id, provider, conflict_type, local_todo, remote_item,
+                    (todo_id, external_id, provider, conflict_type, local_todo, remote_item,
                      local_changes, remote_changes, detected_at, resolved, 
                      resolution, resolved_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     conflict.todo_id,
+                    conflict.external_id,
                     conflict.provider.value,
                     conflict.conflict_type.value,
                     json.dumps(conflict.local_todo.to_dict()) if conflict.local_todo else None,
@@ -531,6 +554,7 @@ class SyncMappingStore:
         
         return SyncConflict(
             todo_id=row['todo_id'],
+            external_id=row['external_id'] if 'external_id' in row.keys() else '',
             provider=AppSyncProvider(row['provider']),
             conflict_type=ConflictType(row['conflict_type']),
             local_todo=local_todo,
