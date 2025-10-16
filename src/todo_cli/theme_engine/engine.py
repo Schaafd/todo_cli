@@ -532,6 +532,12 @@ class ThemeEngine:
         rich_theme_dict.update(resolved_semantic)
         rich_theme_dict.update(resolved_components)
         
+        # Add background support if theme specifies it
+        if 'background' in palette_dict:
+            rich_theme_dict['app_bg'] = f"on_{palette_dict['background']}"
+            rich_theme_dict['panel_bg'] = f"on_{palette_dict.get('surface', palette_dict['background'])}"
+            rich_theme_dict['table_bg'] = f"on_{palette_dict.get('surface_light', palette_dict['background'])}"
+        
         # Downgrade colors for terminal capability
         for key, style in rich_theme_dict.items():
             rich_theme_dict[key] = self._adapt_style_for_capability(style)

@@ -48,7 +48,11 @@ from ..sync import SyncManager, SyncConfig, SyncProvider, ConflictStrategy, Sync
 from .analytics_commands import get_analytics_commands
 
 
-console = get_themed_console()
+# Dynamic console - no longer created at module level
+def get_console():
+    """Get a themed console that reflects current configuration."""
+    return get_themed_console()
+
 query_engine = QueryEngine()
 recommend_engine = TaskRecommendationEngine()
 recurring_manager = RecurringTaskManager()
@@ -120,7 +124,7 @@ def cli(ctx, config, verbose):
         else:
             get_config()
     except Exception as e:
-        console.print(f"[red]Configuration error: {e}[/red]")
+        get_console().print(f"[red]Configuration error: {e}[/red]")
         sys.exit(1)
 
 
@@ -169,14 +173,14 @@ def add(input_text, project, dry_run, suggest):
         
         # Show parsing errors
         if errors:
-            console.print("[bold yellow]⚠️  Parsing Issues:[/bold yellow]")
+            get_console().print("[bold yellow]⚠️  Parsing Issues:[/bold yellow]")
             for error in errors:
                 if error.severity == "error":
-                    console.print(f"  [red]❌ {error.message}[/red]")
+                    get_console().print(f"  [red]❌ {error.message}[/red]")
                     for suggestion in error.suggestions:
-                        console.print(f"     [blue]💡 {suggestion}[/blue]")
+                        get_console().print(f"     [blue]💡 {suggestion}[/blue]")
                 elif error.severity == "warning":
-                    console.print(f"  [yellow]⚠️  {error.message}[/yellow]")
+                    get_console().print(f"  [yellow]⚠️  {error.message}[/yellow]")
             
             # Don't proceed if there are blocking errors
             if any(e.severity == "error" for e in errors):
@@ -185,9 +189,9 @@ def add(input_text, project, dry_run, suggest):
         # Show suggestions if requested
         if suggest or suggestions:
             if suggestions:
-                console.print("[bold blue]💡 Suggestions:[/bold blue]")
+                get_console().print("[bold blue]💡 Suggestions:[/bold blue]")
                 for suggestion in suggestions:
-                    console.print(f"  [blue]{suggestion}[/blue]")
+                    get_console().print(f"  [blue]{suggestion}[/blue]")
             
             if suggest:
                 return
@@ -201,31 +205,31 @@ def add(input_text, project, dry_run, suggest):
         todo = builder.build(parsed, todo_id)
         
         # Show preview
-        console.print("[bold green]📋 Task Preview:[/bold green]")
+        get_console().print("[bold green]📋 Task Preview:[/bold green]")
         preview_text = format_todo_for_display(todo, show_id=True)
-        console.print(f"  {preview_text}")
+        get_console().print(f"  {preview_text}")
         
         # Show additional details that aren't in the standard format
         if todo.context:
-            console.print(f"  [dim]Context: {', '.join('@' + ctx for ctx in todo.context)}[/dim]")
+            get_console().print(f"  [dim]Context: {', '.join('@' + ctx for ctx in todo.context)}[/dim]")
         if todo.effort:
-            console.print(f"  [dim]Effort: *{todo.effort}[/dim]")
+            get_console().print(f"  [dim]Effort: *{todo.effort}[/dim]")
         if todo.energy_level != "medium":
-            console.print(f"  [dim]Energy: {todo.energy_level}[/dim]")
+            get_console().print(f"  [dim]Energy: {todo.energy_level}[/dim]")
         if todo.time_estimate:
             hours = todo.time_estimate // 60
             minutes = todo.time_estimate % 60
             if hours > 0:
-                console.print(f"  [dim]Estimate: {hours}h {minutes}m[/dim]")
+                get_console().print(f"  [dim]Estimate: {hours}h {minutes}m[/dim]")
             else:
-                console.print(f"  [dim]Estimate: {minutes}m[/dim]")
+                get_console().print(f"  [dim]Estimate: {minutes}m[/dim]")
         if todo.waiting_for:
-            console.print(f"  [dim]Waiting for: {', '.join(todo.waiting_for)}[/dim]")
+            get_console().print(f"  [dim]Waiting for: {', '.join(todo.waiting_for)}[/dim]")
         if todo.url:
-            console.print(f"  [dim]URL: {todo.url}[/dim]")
+            get_console().print(f"  [dim]URL: {todo.url}[/dim]")
         
         if dry_run:
-            console.print("[yellow]🔍 Dry run - not saved[/yellow]")
+            get_console().print("[yellow]🔍 Dry run - not saved[/yellow]")
             return
         
         # Load project and todos
@@ -237,13 +241,13 @@ def add(input_text, project, dry_run, suggest):
         
         # Save project
         if storage.save_project(proj, todos):
-            console.print(f"[success]✅ Added task {todo_id} to {target_project}[/success]")
+            get_console().print(f"[success]✅ Added task {todo_id} to {target_project}[/success]")
         else:
-            console.print(f"[error]❌ Failed to add task[/error]")
+            get_console().print(f"[error]❌ Failed to add task[/error]")
             sys.exit(1)
         
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
+        get_console().print(f"[red]Error: {e}[/red]")
         sys.exit(1)
 
 
@@ -265,7 +269,7 @@ def dashboard():
             all_todos.extend(todos)
     
     if not all_todos:
-        console.print(Panel.fit(
+        get_console().print(Panel.fit(
             "[accent]Welcome to Productivity Ninja CLI![/accent]\n\n"
             "Get started by adding your first task:\n"
             "[primary]todo add[/primary] [muted]\"Review architecture proposal @meetings due friday\"[/muted]",
@@ -294,45 +298,45 @@ def dashboard():
             upcoming_todos.append(todo)
     
     # Create dashboard
-    console.print(Panel.fit("[header]📋 Todo Dashboard[/header]", border_style="border"))
+    get_console().print(Panel.fit("[header]📋 Todo Dashboard[/header]", border_style="border"))
     
     # Track if we've printed any sections for spacing
     sections_printed = 0
     
     if pinned_todos:
         if sections_printed > 0:
-            console.print()  # Extra space between sections
-        console.print("\n[todo_pinned]⭐ Pinned Tasks[/todo_pinned]")
+            get_console().print()  # Extra space between sections
+        get_console().print("\n[todo_pinned]⭐ Pinned Tasks[/todo_pinned]")
         for todo in pinned_todos[:5]:
-            console.print(f"  {format_todo_for_display(todo)}")
+            get_console().print(f"  {format_todo_for_display(todo)}")
         if len(pinned_todos) > 5:
-            console.print(f"  [muted]... and {len(pinned_todos) - 5} more[/muted]")
+            get_console().print(f"  [muted]... and {len(pinned_todos) - 5} more[/muted]")
         sections_printed += 1
     
     if overdue_todos:
         if sections_printed > 0:
-            console.print()  # Extra space between sections
-        console.print("\n[critical]🔥 Overdue Tasks[/critical]")
+            get_console().print()  # Extra space between sections
+        get_console().print("\n[critical]🔥 Overdue Tasks[/critical]")
         for todo in overdue_todos[:5]:
-            console.print(f"  {format_todo_for_display(todo)}")
+            get_console().print(f"  {format_todo_for_display(todo)}")
         if len(overdue_todos) > 5:
-            console.print(f"  [muted]... and {len(overdue_todos) - 5} more[/muted]")
+            get_console().print(f"  [muted]... and {len(overdue_todos) - 5} more[/muted]")
         sections_printed += 1
     
     if today_todos:
         if sections_printed > 0:
-            console.print()  # Extra space between sections
-        console.print("\n[success]📅 Due Today[/success]")
+            get_console().print()  # Extra space between sections
+        get_console().print("\n[success]📅 Due Today[/success]")
         for todo in today_todos[:5]:
-            console.print(f"  {format_todo_for_display(todo)}")
+            get_console().print(f"  {format_todo_for_display(todo)}")
         sections_printed += 1
     
     if upcoming_todos:
         if sections_printed > 0:
-            console.print()  # Extra space between sections
-        console.print("\n[primary]📆 Due This Week[/primary]")
+            get_console().print()  # Extra space between sections
+        get_console().print("\n[primary]📆 Due This Week[/primary]")
         for todo in upcoming_todos[:5]:
-            console.print(f"  {format_todo_for_display(todo)}")
+            get_console().print(f"  {format_todo_for_display(todo)}")
         sections_printed += 1
     
     # Summary stats
@@ -349,8 +353,8 @@ def dashboard():
         pass
     
     if sections_printed > 0:
-        console.print()  # Extra space before summary
-    console.print(f"\n[muted]Total: {total_todos} | Active: {active_todos} | Completed: {completed_todos}[/muted]")
+        get_console().print()  # Extra space before summary
+    get_console().print(f"\n[muted]Total: {total_todos} | Active: {active_todos} | Completed: {completed_todos}[/muted]")
 
 
 @cli.command()
@@ -386,7 +390,7 @@ def list_todos(project, status, filter_priority, overdue, pinned, limit, priorit
             all_todos.extend(todos)
     
     if not all_todos:
-        console.print("[yellow]No todos found.[/yellow]")
+        get_console().print("[yellow]No todos found.[/yellow]")
         return
     
     # Apply filters
@@ -425,11 +429,11 @@ def list_todos(project, status, filter_priority, overdue, pinned, limit, priorit
         
         # Display todos
         if filtered_todos:
-            console.print(f"[bold]Found {len(filtered_todos)} todos:[/bold]")
+            get_console().print(f"[bold]Found {len(filtered_todos)} todos:[/bold]")
             for todo in filtered_todos:
-                console.print(format_todo_for_display(todo))
+                get_console().print(format_todo_for_display(todo))
         else:
-            console.print("[yellow]No todos match the specified filters.[/yellow]")
+            get_console().print("[yellow]No todos match the specified filters.[/yellow]")
     else:
         # Use organized date view when no filters are applied
         views = organize_todos_by_date(filtered_todos, sort_by_priority=priority_sort)
@@ -443,13 +447,13 @@ def list_todos(project, status, filter_priority, overdue, pinned, limit, priorit
                 view_todos = view_todos[:limit]
             
             if view_todos or view_name in ['today', 'tomorrow']:  # Always show today/tomorrow even if empty
-                console.print(f"\n{get_view_header(view_name, len(view_todos))}")
+                get_console().print(f"\n{get_view_header(view_name, len(view_todos))}")
                 
                 if view_todos:
                     for todo in view_todos:
-                        console.print(f"  {format_todo_for_display(todo)}")
+                        get_console().print(f"  {format_todo_for_display(todo)}")
                 else:
-                    console.print("  [muted]No tasks[/muted]")
+                    get_console().print("  [muted]No tasks[/muted]")
 
 
 @cli.command()
@@ -484,7 +488,7 @@ def done(todo_id, project):
             break
     
     if not found_todo:
-        console.print(f"[red]❌ Todo with ID {todo_id} not found[/red]")
+        get_console().print(f"[red]❌ Todo with ID {todo_id} not found[/red]")
         sys.exit(1)
     
     # Mark as completed
@@ -492,9 +496,9 @@ def done(todo_id, project):
     
     # Save project
     if storage.save_project(found_project, found_todos):
-        console.print(f"[green]✅ Completed task {todo_id}: {found_todo.text}[/green]")
+        get_console().print(f"[green]✅ Completed task {todo_id}: {found_todo.text}[/green]")
     else:
-        console.print(f"[red]❌ Failed to update task[/red]")
+        get_console().print(f"[red]❌ Failed to update task[/red]")
         sys.exit(1)
 
 
@@ -530,7 +534,7 @@ def pin(todo_id, project):
             break
     
     if not found_todo:
-        console.print(f"[red]❌ Todo with ID {todo_id} not found[/red]")
+        get_console().print(f"[red]❌ Todo with ID {todo_id} not found[/red]")
         sys.exit(1)
     
     # Toggle pin status
@@ -543,9 +547,9 @@ def pin(todo_id, project):
     
     # Save project
     if storage.save_project(found_project, found_todos):
-        console.print(f"[green]✅ {action} task {todo_id}: {found_todo.text}[/green]")
+        get_console().print(f"[green]✅ {action} task {todo_id}: {found_todo.text}[/green]")
     else:
-        console.print(f"[red]❌ Failed to update task[/red]")
+        get_console().print(f"[red]❌ Failed to update task[/red]")
         sys.exit(1)
 
 
@@ -585,7 +589,7 @@ def search(query, project, save_name, sort_by, limit, reverse):
             all_todos.extend(todos)
     
     if not all_todos:
-        console.print("[yellow]No todos found to search.[/yellow]")
+        get_console().print("[yellow]No todos found to search.[/yellow]")
         return
     
     try:
@@ -595,7 +599,7 @@ def search(query, project, save_name, sort_by, limit, reverse):
         # Save query if requested
         if save_name:
             query_engine.save_query(save_name, query)
-            console.print(f"[success]✅ Saved query as '{save_name}'[/success]")
+            get_console().print(f"[success]✅ Saved query as '{save_name}'[/success]")
         
         # Sort results if requested
         if sort_by:
@@ -610,18 +614,18 @@ def search(query, project, save_name, sort_by, limit, reverse):
         
         # Display results
         if results:
-            console.print(f"\n[success]Found {len(results)} todo{'s' if len(results) != 1 else ''}:[/success]")
+            get_console().print(f"\n[success]Found {len(results)} todo{'s' if len(results) != 1 else ''}:[/success]")
             if truncated:
-                console.print(f"[muted](showing first {limit} results)[/muted]")
+                get_console().print(f"[muted](showing first {limit} results)[/muted]")
             
             for todo in results:
-                console.print(f"  {format_todo_for_display(todo)}")
+                get_console().print(f"  {format_todo_for_display(todo)}")
         else:
-            console.print("[yellow]No todos match your search.[/yellow]")
+            get_console().print("[yellow]No todos match your search.[/yellow]")
         
     except ValueError as e:
-        console.print(f"[error]Search error: {e}[/error]")
-        console.print("[muted]Try: todo search --help for syntax examples[/muted]")
+        get_console().print(f"[error]Search error: {e}[/error]")
+        get_console().print("[muted]Try: todo search --help for syntax examples[/muted]")
         sys.exit(1)
 
 
@@ -672,7 +676,7 @@ def recommend(context, energy, time, limit, explain):
             all_todos.extend(todos)
     
     if not all_todos:
-        console.print("[yellow]No todos found to analyze.[/yellow]")
+        get_console().print("[yellow]No todos found to analyze.[/yellow]")
         return
     
     # Get recommendations
@@ -685,17 +689,17 @@ def recommend(context, energy, time, limit, explain):
     )
     
     if not recommendations:
-        console.print("[yellow]No active tasks to recommend.[/yellow]")
+        get_console().print("[yellow]No active tasks to recommend.[/yellow]")
         return
     
     # Display recommendations
-    console.print(f"\n[success]🎯 Top {len(recommendations)} Recommendations:[/success]")
+    get_console().print(f"\n[success]🎯 Top {len(recommendations)} Recommendations:[/success]")
     
     if context:
-        console.print(f"[muted]Context: {context}[/muted]")
-    console.print(f"[muted]Energy Level: {energy}[/muted]")
+        get_console().print(f"[muted]Context: {context}[/muted]")
+    get_console().print(f"[muted]Energy Level: {energy}[/muted]")
     if time:
-        console.print(f"[muted]Available Time: {time} minutes[/muted]")
+        get_console().print(f"[muted]Available Time: {time} minutes[/muted]")
     
     for i, rec in enumerate(recommendations, 1):
         # Category icon
@@ -708,26 +712,26 @@ def recommend(context, energy, time, limit, explain):
         }
         icon = category_icons.get(rec.category, '📋')
         
-        console.print(f"\n{i}. {icon} {format_todo_for_display(rec.todo)}")
+        get_console().print(f"\n{i}. {icon} {format_todo_for_display(rec.todo)}")
         
         if explain:
-            console.print(f"   [muted]Score: {rec.score:.1f} | Category: {rec.category}[/muted]")
+            get_console().print(f"   [muted]Score: {rec.score:.1f} | Category: {rec.category}[/muted]")
             if rec.reasons:
                 reasons_text = ", ".join(rec.reasons)
-                console.print(f"   [muted]Why: {reasons_text}[/muted]")
+                get_console().print(f"   [muted]Why: {reasons_text}[/muted]")
     
     # Show contextual suggestions
     if not context:
         suggested_contexts = get_context_suggestions(all_todos)
         if suggested_contexts:
-            console.print(f"\n[muted]💡 Suggested contexts for this time: {', '.join(suggested_contexts)}[/muted]")
+            get_console().print(f"\n[muted]💡 Suggested contexts for this time: {', '.join(suggested_contexts)}[/muted]")
     
     # Show energy-based suggestions
     energy_suggestions = get_energy_suggestions(energy)
     if energy_suggestions:
-        console.print(f"\n[muted]💪 Good for {energy} energy:[/muted]")
+        get_console().print(f"\n[muted]💪 Good for {energy} energy:[/muted]")
         for suggestion in energy_suggestions['suggestions'][:3]:
-            console.print(f"[muted]   • {suggestion}[/muted]")
+            get_console().print(f"[muted]   • {suggestion}[/muted]")
 
 
 @cli.command()
@@ -738,20 +742,20 @@ def queries(list_queries, delete_name):
     if list_queries:
         saved = query_engine.list_saved_queries()
         if saved:
-            console.print("[bold]Saved Queries:[/bold]")
+            get_console().print("[bold]Saved Queries:[/bold]")
             for name, query in saved.items():
-                console.print(f"  [primary]{name}[/primary]: {query}")
-                console.print(f"    [muted]Usage: todo search @{name}[/muted]")
+                get_console().print(f"  [primary]{name}[/primary]: {query}")
+                get_console().print(f"    [muted]Usage: todo search @{name}[/muted]")
         else:
-            console.print("[muted]No saved queries found.[/muted]")
-            console.print("[muted]Save a query with: todo search 'query' --save name[/muted]")
+            get_console().print("[muted]No saved queries found.[/muted]")
+            get_console().print("[muted]Save a query with: todo search 'query' --save name[/muted]")
     elif delete_name:
         if query_engine.delete_query(delete_name):
-            console.print(f"[success]✅ Deleted saved query '{delete_name}'[/success]")
+            get_console().print(f"[success]✅ Deleted saved query '{delete_name}'[/success]")
         else:
-            console.print(f"[error]❌ Saved query '{delete_name}' not found[/error]")
+            get_console().print(f"[error]❌ Saved query '{delete_name}' not found[/error]")
     else:
-        console.print("[muted]Use --list to see saved queries or --delete to remove one[/muted]")
+        get_console().print("[muted]Use --list to see saved queries or --delete to remove one[/muted]")
 
 
 @cli.command()
@@ -774,16 +778,16 @@ def bulk(action, ids, priority, target_project, confirm):
     config = get_config()
     
     if not ids:
-        console.print("[error]❌ No todo IDs specified[/error]")
+        get_console().print("[error]❌ No todo IDs specified[/error]")
         return
     
     # Validate required options for certain actions
     if action == 'priority' and not priority:
-        console.print("[error]❌ --priority option required for priority action[/error]")
+        get_console().print("[error]❌ --priority option required for priority action[/error]")
         return
     
     if action == 'project' and not target_project:
-        console.print("[error]❌ --project option required for project action[/error]")
+        get_console().print("[error]❌ --project option required for project action[/error]")
         return
     
     # Find all todos across all projects
@@ -799,17 +803,17 @@ def bulk(action, ids, priority, target_project, confirm):
                 project_map[todo.id] = (proj, todos)
     
     if not found_todos:
-        console.print(f"[error]❌ None of the specified todos found: {list(ids)}[/error]")
+        get_console().print(f"[error]❌ None of the specified todos found: {list(ids)}[/error]")
         return
     
     # Show what will be affected
     missing_ids = set(ids) - {t.id for t in found_todos}
     if missing_ids:
-        console.print(f"[warning]⚠️  Todo IDs not found: {sorted(missing_ids)}[/warning]")
+        get_console().print(f"[warning]⚠️  Todo IDs not found: {sorted(missing_ids)}[/warning]")
     
-    console.print(f"\n[primary]Found {len(found_todos)} todos to {action}:[/primary]")
+    get_console().print(f"\n[primary]Found {len(found_todos)} todos to {action}:[/primary]")
     for todo in found_todos:
-        console.print(f"  {format_todo_for_display(todo)}")
+        get_console().print(f"  {format_todo_for_display(todo)}")
     
     # Confirm action unless --confirm flag is set
     if not confirm:
@@ -824,7 +828,7 @@ def bulk(action, ids, priority, target_project, confirm):
         description = action_descriptions.get(action, action)
         
         if not click.confirm(f"\nProceed to {description} {len(found_todos)} todos?"):
-            console.print("[muted]Operation cancelled.[/muted]")
+            get_console().print("[muted]Operation cancelled.[/muted]")
             return
     
     # Perform the bulk action
@@ -878,13 +882,13 @@ def bulk(action, ids, priority, target_project, confirm):
                 projects_to_save.add(proj.name)
                 
         except Exception as e:
-            console.print(f"[error]❌ Failed to {action} todo {todo.id}: {e}[/error]")
+            get_console().print(f"[error]❌ Failed to {action} todo {todo.id}: {e}[/error]")
     
     # Save all affected projects
     for proj_name in projects_to_save:
         proj, todos = storage.load_project(proj_name)
         if not storage.save_project(proj, todos):
-            console.print(f"[error]❌ Failed to save project {proj_name}[/error]")
+            get_console().print(f"[error]❌ Failed to save project {proj_name}[/error]")
     
     # Show results
     if success_count > 0:
@@ -897,9 +901,9 @@ def bulk(action, ids, priority, target_project, confirm):
             'delete': 'deleted'
         }
         past_tense = action_past_tense.get(action, f'{action}d')
-        console.print(f"\n[success]✅ Successfully {past_tense} {success_count} todos[/success]")
+        get_console().print(f"\n[success]✅ Successfully {past_tense} {success_count} todos[/success]")
     else:
-        console.print(f"\n[warning]⚠️  No todos were modified[/warning]")
+        get_console().print(f"\n[warning]⚠️  No todos were modified[/warning]")
 
 
 @cli.command()
@@ -934,47 +938,47 @@ def recurring(task_text, pattern, project, max_occurrences, end_date, preview):
             try:
                 recurrence_pattern.end_date = datetime.strptime(end_date, '%Y-%m-%d')
             except ValueError:
-                console.print(f"[error]❌ Invalid end date format. Use YYYY-MM-DD[/error]")
+                get_console().print(f"[error]❌ Invalid end date format. Use YYYY-MM-DD[/error]")
                 return
         
         if preview:
             # Show preview of next few occurrences
-            console.print(f"\n[primary]📅 Preview of recurring task:[/primary]")
-            console.print(f"  [bold]{template.text}[/bold]")
-            console.print(f"  Pattern: {pattern}")
-            console.print(f"  Project: {template.project}")
+            get_console().print(f"\n[primary]📅 Preview of recurring task:[/primary]")
+            get_console().print(f"  [bold]{template.text}[/bold]")
+            get_console().print(f"  Pattern: {pattern}")
+            get_console().print(f"  Project: {template.project}")
             
             # Calculate next few occurrences
-            console.print(f"\n[primary]Next 5 occurrences:[/primary]")
+            get_console().print(f"\n[primary]Next 5 occurrences:[/primary]")
             current_date = datetime.now()
             
             for i in range(5):
                 next_occurrence = recurring_manager.calculate_next_occurrence(current_date, recurrence_pattern)
                 if next_occurrence:
-                    console.print(f"  {i+1}. {next_occurrence.strftime('%Y-%m-%d %H:%M')}")
+                    get_console().print(f"  {i+1}. {next_occurrence.strftime('%Y-%m-%d %H:%M')}")
                     current_date = next_occurrence
                 else:
                     break
             
-            console.print(f"\n[muted]Use without --preview to create the recurring task[/muted]")
+            get_console().print(f"\n[muted]Use without --preview to create the recurring task[/muted]")
             return
         
         # Create the recurring task
         recurring_task = recurring_manager.create_recurring_task(template, recurrence_pattern)
         
-        console.print(f"\n[success]✅ Created recurring task:[/success]")
-        console.print(f"  [bold]{template.text}[/bold]")
-        console.print(f"  Pattern: {pattern}")
-        console.print(f"  Next due: {recurring_task.next_due.strftime('%Y-%m-%d %H:%M') if recurring_task.next_due else 'Unknown'}")
-        console.print(f"  ID: {recurring_task.id}")
+        get_console().print(f"\n[success]✅ Created recurring task:[/success]")
+        get_console().print(f"  [bold]{template.text}[/bold]")
+        get_console().print(f"  Pattern: {pattern}")
+        get_console().print(f"  Next due: {recurring_task.next_due.strftime('%Y-%m-%d %H:%M') if recurring_task.next_due else 'Unknown'}")
+        get_console().print(f"  ID: {recurring_task.id}")
         
         if max_occurrences:
-            console.print(f"  Max occurrences: {max_occurrences}")
+            get_console().print(f"  Max occurrences: {max_occurrences}")
         if end_date:
-            console.print(f"  Ends: {end_date}")
+            get_console().print(f"  Ends: {end_date}")
             
     except ValueError as e:
-        console.print(f"[error]❌ {e}[/error]")
+        get_console().print(f"[error]❌ {e}[/error]")
         sys.exit(1)
 
 
@@ -984,25 +988,25 @@ def list_recurring():
     recurring_tasks = recurring_manager.list_recurring_tasks()
     
     if not recurring_tasks:
-        console.print("[muted]No recurring tasks found.[/muted]")
-        console.print("[muted]Create one with: todo recurring 'task description' 'pattern'[/muted]")
+        get_console().print("[muted]No recurring tasks found.[/muted]")
+        get_console().print("[muted]Create one with: todo recurring 'task description' 'pattern'[/muted]")
         return
     
-    console.print(f"\n[primary]📋 Recurring Tasks ({len(recurring_tasks)}):[/primary]")
+    get_console().print(f"\n[primary]📋 Recurring Tasks ({len(recurring_tasks)}):[/primary]")
     
     for task in recurring_tasks:
         status_icon = "✅" if task.active else "⏸️"
-        console.print(f"\n{status_icon} [bold]{task.template.text}[/bold]")
-        console.print(f"   ID: {task.id}")
-        console.print(f"   Pattern: {task.pattern.type.value}")
-        console.print(f"   Project: {task.template.project}")
-        console.print(f"   Next due: {task.next_due.strftime('%Y-%m-%d %H:%M') if task.next_due else 'N/A'}")
-        console.print(f"   Occurrences: {task.occurrence_count}")
+        get_console().print(f"\n{status_icon} [bold]{task.template.text}[/bold]")
+        get_console().print(f"   ID: {task.id}")
+        get_console().print(f"   Pattern: {task.pattern.type.value}")
+        get_console().print(f"   Project: {task.template.project}")
+        get_console().print(f"   Next due: {task.next_due.strftime('%Y-%m-%d %H:%M') if task.next_due else 'N/A'}")
+        get_console().print(f"   Occurrences: {task.occurrence_count}")
         
         if task.pattern.max_occurrences:
-            console.print(f"   Max occurrences: {task.pattern.max_occurrences}")
+            get_console().print(f"   Max occurrences: {task.pattern.max_occurrences}")
         if task.pattern.end_date:
-            console.print(f"   End date: {task.pattern.end_date.strftime('%Y-%m-%d')}")
+            get_console().print(f"   End date: {task.pattern.end_date.strftime('%Y-%m-%d')}")
 
 
 @cli.command("recurring-generate")
@@ -1021,14 +1025,14 @@ def generate_recurring(days, dry_run):
     generated_tasks = recurring_manager.generate_due_tasks(until_date)
     
     if not generated_tasks:
-        console.print("[muted]No recurring tasks due for generation.[/muted]")
+        get_console().print("[muted]No recurring tasks due for generation.[/muted]")
         return
     
     if dry_run:
-        console.print(f"\n[primary]Would generate {len(generated_tasks)} tasks:[/primary]")
+        get_console().print(f"\n[primary]Would generate {len(generated_tasks)} tasks:[/primary]")
         for task in generated_tasks:
-            console.print(f"  • {task.text} (due: {task.due_date.strftime('%Y-%m-%d') if task.due_date else 'No date'})")
-        console.print(f"\n[muted]Run without --dry-run to actually create these tasks[/muted]")
+            get_console().print(f"  • {task.text} (due: {task.due_date.strftime('%Y-%m-%d') if task.due_date else 'No date'})")
+        get_console().print(f"\n[muted]Run without --dry-run to actually create these tasks[/muted]")
     else:
         # Actually save the generated tasks
         storage = get_storage()
@@ -1050,11 +1054,11 @@ def generate_recurring(days, dry_run):
             if storage.save_project(proj, todos):
                 saved_count += 1
         
-        console.print(f"\n[success]✅ Generated and saved {saved_count} recurring tasks[/success]")
+        get_console().print(f"\n[success]✅ Generated and saved {saved_count} recurring tasks[/success]")
         
         if saved_count != len(generated_tasks):
             failed_count = len(generated_tasks) - saved_count
-            console.print(f"[warning]⚠️  Failed to save {failed_count} tasks[/warning]")
+            get_console().print(f"[warning]⚠️  Failed to save {failed_count} tasks[/warning]")
         
         # Send notification about generated tasks
         if saved_count > 0:
@@ -1073,15 +1077,15 @@ def pause_recurring(task_id):
     """Pause a recurring task."""
     task = recurring_manager.get_recurring_task(task_id)
     if not task:
-        console.print(f"[error]❌ Recurring task '{task_id}' not found[/error]")
+        get_console().print(f"[error]❌ Recurring task '{task_id}' not found[/error]")
         return
     
     if not task.active:
-        console.print(f"[warning]⚠️  Task '{task_id}' is already paused[/warning]")
+        get_console().print(f"[warning]⚠️  Task '{task_id}' is already paused[/warning]")
         return
     
     recurring_manager.pause_recurring_task(task_id)
-    console.print(f"[success]✅ Paused recurring task: {task.template.text}[/success]")
+    get_console().print(f"[success]✅ Paused recurring task: {task.template.text}[/success]")
 
 
 @cli.command("recurring-resume")
@@ -1090,15 +1094,15 @@ def resume_recurring(task_id):
     """Resume a paused recurring task."""
     task = recurring_manager.get_recurring_task(task_id)
     if not task:
-        console.print(f"[error]❌ Recurring task '{task_id}' not found[/error]")
+        get_console().print(f"[error]❌ Recurring task '{task_id}' not found[/error]")
         return
     
     if task.active:
-        console.print(f"[warning]⚠️  Task '{task_id}' is already active[/warning]")
+        get_console().print(f"[warning]⚠️  Task '{task_id}' is already active[/warning]")
         return
     
     recurring_manager.resume_recurring_task(task_id)
-    console.print(f"[success]✅ Resumed recurring task: {task.template.text}[/success]")
+    get_console().print(f"[success]✅ Resumed recurring task: {task.template.text}[/success]")
 
 
 @cli.command("recurring-delete")
@@ -1108,20 +1112,20 @@ def delete_recurring(task_id, confirm):
     """Delete a recurring task."""
     task = recurring_manager.get_recurring_task(task_id)
     if not task:
-        console.print(f"[error]❌ Recurring task '{task_id}' not found[/error]")
+        get_console().print(f"[error]❌ Recurring task '{task_id}' not found[/error]")
         return
     
-    console.print(f"\n[warning]Will delete recurring task:[/warning]")
-    console.print(f"  [bold]{task.template.text}[/bold]")
-    console.print(f"  Pattern: {task.template.recurrence}")
-    console.print(f"  Occurrences generated: {task.occurrence_count}")
+    get_console().print(f"\n[warning]Will delete recurring task:[/warning]")
+    get_console().print(f"  [bold]{task.template.text}[/bold]")
+    get_console().print(f"  Pattern: {task.template.recurrence}")
+    get_console().print(f"  Occurrences generated: {task.occurrence_count}")
     
     if not confirm and not click.confirm("\nAre you sure you want to delete this recurring task?"):
-        console.print("[muted]Deletion cancelled.[/muted]")
+        get_console().print("[muted]Deletion cancelled.[/muted]")
         return
     
     recurring_manager.delete_recurring_task(task_id)
-    console.print(f"[success]✅ Deleted recurring task[/success]")
+    get_console().print(f"[success]✅ Deleted recurring task[/success]")
 
 
 @cli.command()
@@ -1131,16 +1135,16 @@ def projects():
     project_names = storage.list_projects()
     
     if not project_names:
-        console.print("[yellow]No projects found.[/yellow]")
+        get_console().print("[yellow]No projects found.[/yellow]")
         return
     
-    console.print("[bold]Projects:[/bold]")
+    get_console().print("[bold]Projects:[/bold]")
     for name in sorted(project_names):
         proj, todos = storage.load_project(name)
         if proj:
             total = len(todos)
             completed = sum(1 for t in todos if t.completed)
-            console.print(f"  {name} ({completed}/{total} completed)")
+            get_console().print(f"  {name} ({completed}/{total} completed)")
 
 
 @cli.command()
@@ -1213,7 +1217,7 @@ def export(format_type, output, project, include_completed, exclude_completed, i
             all_todos.extend(todos)
     
     if not all_todos:
-        console.print("[yellow]No tasks found to export.[/yellow]")
+        get_console().print("[yellow]No tasks found to export.[/yellow]")
         return
     
     # Generate output filename if not specified
@@ -1237,7 +1241,7 @@ def export(format_type, output, project, include_completed, exclude_completed, i
     
     try:
         # Perform the export
-        console.print(f"[primary]🔄 Exporting {len(all_todos)} tasks to {format_type.upper()}...[/primary]")
+        get_console().print(f"[primary]🔄 Exporting {len(all_todos)} tasks to {format_type.upper()}...[/primary]")
         
         
         result = export_manager.export_todos(
@@ -1256,8 +1260,8 @@ def export(format_type, output, project, include_completed, exclude_completed, i
             'overdue': sum(1 for t in exported_todos if t.is_overdue() and not t.completed)
         }
         
-        console.print(f"\n[success]✅ Successfully exported to {output}[/success]")
-        console.print(f"[muted]📊 Stats: {stats['total']} total, {stats['completed']} completed, {stats['pending']} pending, {stats['overdue']} overdue[/muted]")
+        get_console().print(f"\n[success]✅ Successfully exported to {output}[/success]")
+        get_console().print(f"[muted]📊 Stats: {stats['total']} total, {stats['completed']} completed, {stats['pending']} pending, {stats['overdue']} overdue[/muted]")
         
         # Show file size
         from pathlib import Path
@@ -1269,7 +1273,7 @@ def export(format_type, output, project, include_completed, exclude_completed, i
         else:
             size_str = f"{file_size} bytes"
         
-        console.print(f"[muted]📁 File size: {size_str}[/muted]")
+        get_console().print(f"[muted]📁 File size: {size_str}[/muted]")
         
         # Open file if requested
         if open_after:
@@ -1281,17 +1285,17 @@ def export(format_type, output, project, include_completed, exclude_completed, i
                     subprocess.run(["start", output], shell=True)
                 else:  # Linux and others
                     subprocess.run(["xdg-open", output])
-                console.print(f"[success]🚀 Opened {output}[/success]")
+                get_console().print(f"[success]🚀 Opened {output}[/success]")
             except Exception as e:
-                console.print(f"[warning]⚠️  Could not open file: {e}[/warning]")
+                get_console().print(f"[warning]⚠️  Could not open file: {e}[/warning]")
         
     except ImportError as e:
-        console.print(f"[error]❌ Export failed: {e}[/error]")
+        get_console().print(f"[error]❌ Export failed: {e}[/error]")
         if "fpdf2" in str(e):
-            console.print("[muted]Install lightweight PDF support with: pip install fpdf2[/muted]")
-            console.print("[muted]Or use 'html' or 'markdown' formats for visual reports.[/muted]")
+            get_console().print("[muted]Install lightweight PDF support with: pip install fpdf2[/muted]")
+            get_console().print("[muted]Or use 'html' or 'markdown' formats for visual reports.[/muted]")
     except Exception as e:
-        console.print(f"[error]❌ Export failed: {e}[/error]")
+        get_console().print(f"[error]❌ Export failed: {e}[/error]")
         sys.exit(1)
 
 
@@ -1311,26 +1315,26 @@ def status(test):
     """Show notification system status and availability."""
     notification_manager = NotificationManager()
     
-    console.print("[header]🔔 Notification System Status[/header]\n")
+    get_console().print("[header]🔔 Notification System Status[/header]\n")
     
     # Show preferences status
     prefs = notification_manager.preferences
     enabled_icon = "✅" if prefs.enabled else "❌"
-    console.print(f"{enabled_icon} [bold]Notifications:[/bold] {'Enabled' if prefs.enabled else 'Disabled'}")
+    get_console().print(f"{enabled_icon} [bold]Notifications:[/bold] {'Enabled' if prefs.enabled else 'Disabled'}")
     
     # Check availability
     availability = notification_manager.is_available()
     
     desktop_icon = "✅" if availability['desktop'] else "❌"
     desktop_enabled = "✅" if prefs.desktop_enabled else "❌"
-    console.print(f"{desktop_icon} [bold]Desktop:[/bold] {'Available' if availability['desktop'] else 'Not Available'} | {desktop_enabled} {'Enabled' if prefs.desktop_enabled else 'Disabled'}")
+    get_console().print(f"{desktop_icon} [bold]Desktop:[/bold] {'Available' if availability['desktop'] else 'Not Available'} | {desktop_enabled} {'Enabled' if prefs.desktop_enabled else 'Disabled'}")
     
     email_icon = "✅" if availability['email'] else "❌"
     email_enabled = "✅" if prefs.email_enabled else "❌"
-    console.print(f"{email_icon} [bold]Email:[/bold] {'Available' if availability['email'] else 'Not Available'} | {email_enabled} {'Enabled' if prefs.email_enabled else 'Disabled'}")
+    get_console().print(f"{email_icon} [bold]Email:[/bold] {'Available' if availability['email'] else 'Not Available'} | {email_enabled} {'Enabled' if prefs.email_enabled else 'Disabled'}")
     
     # Show notification types
-    console.print("\n[subheader]Notification Types:[/subheader]")
+    get_console().print("\n[subheader]Notification Types:[/subheader]")
     type_status = [
         ("Due Soon", prefs.notify_due_soon, f"{prefs.due_soon_hours}h before"),
         ("Overdue", prefs.notify_overdue, f"Every {prefs.overdue_reminder_hours}h"),
@@ -1341,21 +1345,21 @@ def status(test):
     
     for name, enabled, timing in type_status:
         icon = "✅" if enabled else "❌"
-        console.print(f"  {icon} {name}: {timing if enabled else 'Disabled'}")
+        get_console().print(f"  {icon} {name}: {timing if enabled else 'Disabled'}")
     
     # Show quiet hours
     if prefs.quiet_enabled:
-        console.print(f"\n[muted]😴 Quiet hours: {prefs.quiet_start:02d}:00 - {prefs.quiet_end:02d}:00[/muted]")
+        get_console().print(f"\n[muted]😴 Quiet hours: {prefs.quiet_start:02d}:00 - {prefs.quiet_end:02d}:00[/muted]")
     
     # Test notifications if requested
     if test:
-        console.print("\n[primary]📨 Testing notifications...[/primary]")
+        get_console().print("\n[primary]📨 Testing notifications...[/primary]")
         test_results = notification_manager.test_notifications()
         
         for method, success in test_results.items():
             icon = "✅" if success else "❌"
             status_text = "Success" if success else "Failed"
-            console.print(f"  {icon} {method.title()}: {status_text}")
+            get_console().print(f"  {icon} {method.title()}: {status_text}")
 
 
 @notify.command()
@@ -1436,15 +1440,15 @@ def config(enabled, desktop, email, due_soon_hours, overdue_hours, quiet_start,
         changes_made = True
     
     if smtp_password:
-        console.print("[warning]⚠️  Warning: Passwords are stored in plain text. Consider using app-specific passwords.[/warning]")
+        get_console().print("[warning]⚠️  Warning: Passwords are stored in plain text. Consider using app-specific passwords.[/warning]")
         prefs.smtp_password = smtp_password
         changes_made = True
     
     if changes_made:
         notification_manager.save_preferences()
-        console.print("[success]✅ Notification preferences updated[/success]")
+        get_console().print("[success]✅ Notification preferences updated[/success]")
     else:
-        console.print("[yellow]No changes specified. Use --help to see available options.[/yellow]")
+        get_console().print("[yellow]No changes specified. Use --help to see available options.[/yellow]")
 
 
 @notify.command()
@@ -1473,10 +1477,10 @@ def history(limit, notification_type):
     )
     
     if not notifications:
-        console.print("[yellow]No notifications found in history.[/yellow]")
+        get_console().print("[yellow]No notifications found in history.[/yellow]")
         return
     
-    console.print(f"[header]📜 Notification History ({len(notifications)} recent)[/header]\n")
+    get_console().print(f"[header]📜 Notification History ({len(notifications)} recent)[/header]\n")
     
     for notification in notifications:
         # Format timestamp
@@ -1496,13 +1500,13 @@ def history(limit, notification_type):
         # Status indicator
         status = "✅" if notification.sent_at else "⏸️"
         
-        console.print(f"{icon} {status} [{time_str}] [bold]{notification.title}[/bold]")
-        console.print(f"    [muted]{notification.message}[/muted]")
+        get_console().print(f"{icon} {status} [{time_str}] [bold]{notification.title}[/bold]")
+        get_console().print(f"    [muted]{notification.message}[/muted]")
         
         if notification.todo_id:
-            console.print(f"    [muted]Task ID: {notification.todo_id}[/muted]")
+            get_console().print(f"    [muted]Task ID: {notification.todo_id}[/muted]")
         
-        console.print()
+        get_console().print()
 
 
 @notify.command()
@@ -1518,10 +1522,10 @@ def test(title, message):
     notification_manager = NotificationManager()
     
     if not notification_manager.preferences.enabled:
-        console.print("[error]❌ Notifications are disabled. Enable with: todo notify config --enabled[/error]")
+        get_console().print("[error]❌ Notifications are disabled. Enable with: todo notify config --enabled[/error]")
         return
     
-    console.print("[primary]📨 Sending test notification...[/primary]")
+    get_console().print("[primary]📨 Sending test notification...[/primary]")
     
     results = {}
     if notification_manager.preferences.desktop_enabled:
@@ -1537,15 +1541,15 @@ def test(title, message):
     for method, success in results.items():
         icon = "✅" if success else "❌"
         status_text = "Success" if success else "Failed"
-        console.print(f"  {icon} {method.title()}: {status_text}")
+        get_console().print(f"  {icon} {method.title()}: {status_text}")
         if success:
             success_count += 1
     
     if success_count > 0:
-        console.print(f"\n[success]✅ Sent test notification via {success_count} method(s)[/success]")
+        get_console().print(f"\n[success]✅ Sent test notification via {success_count} method(s)[/success]")
     else:
-        console.print("\n[error]❌ No test notifications could be sent[/error]")
-        console.print("[muted]Check your notification settings with: todo notify status[/muted]")
+        get_console().print("\n[error]❌ No test notifications could be sent[/error]")
+        get_console().print("[muted]Check your notification settings with: todo notify status[/muted]")
 
 
 @notify.command()
@@ -1560,7 +1564,7 @@ def check():
     notification_manager = NotificationManager()
     
     if not notification_manager.preferences.enabled:
-        console.print("[yellow]Notifications are disabled. Enable with: todo notify config --enabled[/yellow]")
+        get_console().print("[yellow]Notifications are disabled. Enable with: todo notify config --enabled[/yellow]")
         return
     
     # Get all todos
@@ -1574,14 +1578,14 @@ def check():
         if todos:
             all_todos.extend(todos)
     
-    console.print("[primary]🔍 Checking for due and overdue tasks...[/primary]")
+    get_console().print("[primary]🔍 Checking for due and overdue tasks...[/primary]")
     
     notifications_sent = notification_manager.check_and_send_notifications(all_todos)
     
     if notifications_sent > 0:
-        console.print(f"[success]✅ Sent {notifications_sent} notification(s)[/success]")
+        get_console().print(f"[success]✅ Sent {notifications_sent} notification(s)[/success]")
     else:
-        console.print("[muted]😴 No notifications needed at this time[/muted]")
+        get_console().print("[muted]😴 No notifications needed at this time[/muted]")
 
 
 # Create main function that invokes dashboard by default
@@ -1604,14 +1608,14 @@ def main(ctx, config, verbose, no_banner):
         else:
             get_config()
     except Exception as e:
-        console.print(f"[error]Configuration error: {e}[/error]")
+        get_console().print(f"[error]Configuration error: {e}[/error]")
         sys.exit(1)
     
     # If no command provided, show startup experience
     if ctx.invoked_subcommand is None:
         if not no_banner:
-            show_startup_banner(console)
-            show_quick_help(console)
+            show_startup_banner(get_console())
+            show_quick_help(get_console())
         ctx.invoke(dashboard)
 
 

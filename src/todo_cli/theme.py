@@ -106,6 +106,16 @@ def _get_theme_engine() -> Optional[ThemeEngine]:
     return _theme_engine
 
 
+def clear_theme_cache():
+    """Clear the cached theme engine to force reload on next access."""
+    global _theme_engine
+    _theme_engine = None
+    
+    # Also update the global theme reference
+    global PRODUCTIVITY_NINJA_THEME
+    PRODUCTIVITY_NINJA_THEME = get_productivity_ninja_theme()
+
+
 def get_productivity_ninja_theme() -> Theme:
     """Get the current theme as a Rich Theme object.
     

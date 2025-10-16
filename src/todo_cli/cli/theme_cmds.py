@@ -218,6 +218,10 @@ def set(name: str, variant: Optional[str], compact: bool, high_contrast: bool, c
         # Clear cached config instance to force reload
         Config._instance = None
         
+        # Clear theme cache to ensure new theme is loaded
+        from ..theme import clear_theme_cache
+        clear_theme_cache()
+        
         # Create console with new theme
         new_engine = ThemeEngine.from_config(config)
         console = new_engine.get_console()
