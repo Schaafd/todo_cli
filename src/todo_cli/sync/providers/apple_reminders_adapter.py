@@ -253,15 +253,24 @@ class AppleScriptInterface:
                         except Exception as e:
                             self.logger.warning(f"Failed to parse due date '{due_part}': {e}")
                     
+                    priority_raw = _clean_part(parts[5]) if len(parts) > 5 else "5"
+                    priority_int = int(priority_raw) if priority_raw.isdigit() else 5
+                    
                     reminder = {
                         "name": _clean_part(parts[0]),
                         "completed": _clean_part(parts[1]).lower() == "true",
                         "id": _clean_part(parts[2]),
                         "due_date": due_date,
                         "body": _clean_part(parts[4]) if len(parts) > 4 else "",
-                        "priority": int(_clean_part(parts[5])) if len(parts) > 5 and _clean_part(parts[5]).isdigit() else 5,
+                        "priority": priority_int,
                         "list_name": list_name
                     }
+                    
+                    # Debug logging for Apple Reminders data extraction
+                    if reminder["name"] == "Here is a test task":
+                        self.logger.info(f"DEBUG: Extracted reminder data - name: {reminder['name']}, "
+                                        f"due_date: {reminder['due_date']}, priority: {priority_int} (raw: {priority_raw}), "
+                                        f"body: {reminder['body']}, parts: {parts}")
                     
                     reminders.append(reminder)
                 
@@ -502,8 +511,7 @@ class AppleRemindersAdapter(SyncAdapter):
             config: App sync configuration
         """
         super().__init__(config)
-        script_interface = AppleScriptInterface()
-        self.apple_script = MagicMock(spec=AppleScriptInterface, wraps=script_interface)
+        self.apple_script = AppleScriptInterface()
         self._lists_cache: Dict[str, str] = {}  # name -> id
         
         # Apple Reminders specific settings
@@ -577,6 +585,12 @@ class AppleRemindersAdapter(SyncAdapter):
                     continue
             
             self.logger.info(f"Fetched {len(external_items)} reminders from Apple Reminders")
+            
+            # Debug logging to see what items we actually fetched
+            for item in external_items:
+                if "Here is a test task" in item.title:
+                    self.logger.info(f"DEBUG FETCH: Found test task - {item.title}, due_date: {item.due_date}, priority: {item.priority}")
+            
             return external_items
             
         except Exception as e:
@@ -749,6 +763,12 @@ class AppleRemindersAdapter(SyncAdapter):
         # Store the mapped Priority enum value in raw_data for to_todo() method
         # Store as string value to avoid JSON serialization issues
         external_item.raw_data['priority_enum_value'] = priority_enum.value
+        
+        # Debug logging for specific task
+        if external_item.title == "Here is a test task":
+            self.logger.info(f"DEBUG: Created ExternalTodoItem - title: {external_item.title}, "
+                           f"due_date: {external_item.due_date}, priority: {apple_priority}, "
+                           f"priority_enum: {priority_enum}, description: {external_item.description}")
         
         return external_item
     
