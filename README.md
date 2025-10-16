@@ -57,6 +57,15 @@
 - **Powerful Filtering**: By project, status, priority, assignee, due date
 - **Intuitive Commands**: Natural command structure with helpful options
 
+### 🎨 **NEW: Advanced Theming System**
+- **14 Built-in Themes**: From professional light themes to dramatic dark experiences
+- **Background Colors**: Rich panel backgrounds with proper color contrast
+- **Themed Borders**: Distinct styling for different dashboard sections
+- **Light & Dark Options**: Themes optimized for different terminal backgrounds
+- **Accessibility Features**: High contrast variants and colorblind-safe palettes
+- **Live Theme Switching**: Change themes instantly without restarting
+- **Theme Validation**: Built-in contrast checking and accessibility validation
+
 ## 📦 Installation
 
 ### Prerequisites
@@ -290,6 +299,52 @@ todo app-sync conflicts --provider todoist  # Filter by provider
 # 🚧 google_tasks   - Coming soon (Google Workspace integration)
 ```
 
+### 🎨 **NEW: Theme Management Commands**
+```bash
+# List all available themes
+todo theme list                       # Show all themes with descriptions and variants
+
+# Get detailed theme information
+todo theme info city_lights          # Show palette, variants, and validation results
+todo theme info forest --show-palette  # Display color palette details
+
+# Preview themes before applying
+todo theme preview matrix             # Preview Matrix theme without applying
+todo theme preview autumn --variant high_contrast  # Preview with variant
+
+# Apply themes
+todo theme set city_lights            # Set to default City Lights theme
+todo theme set forest --compact       # Apply Forest theme with compact layout
+todo theme set sky --high-contrast    # Apply Sky theme with high contrast
+todo theme set matrix --colorblind-safe  # Apply colorblind-safe Matrix variant
+
+# Validate themes for accessibility
+todo theme validate                   # Check all themes for contrast issues
+todo theme validate forest            # Validate specific theme
+
+# Available Themes:
+# 🌃 city_lights     - Modern dark theme inspired by city lights at night (default)
+# 🌅 dracula         - Dark theme with purple, pink, and cyan accents
+# 🍂 gruvbox_dark    - Retro groove with warm, earthy tones
+# ❄️  nord           - Arctic, north-bluish minimalist theme
+# ☀️  one_light      - Clean, bright theme for light terminals
+# 🌙 solarized_dark  - Scientifically-designed dark color scheme
+#
+# 🌲 forest          - Fresh forest greens with natural earth tones
+# 🍁 autumn          - Warm autumn oranges with harvest colors
+# 🌤️  sky            - Bright sky blues with cloud whites
+#
+# 🔋 matrix          - Enter the Matrix - bright green code on black
+# 🌅 sunset          - Warm sunset colors with orange/pink/purple backgrounds
+# 🌊 ocean           - Deep ocean blues with aquatic gradients
+# 💻 terminal        - Nostalgic retro terminal with amber/green CRT colors
+#
+# Theme Variants Available:
+# --high-contrast    - Enhanced contrast for better accessibility
+# --compact          - Reduced padding and spacing for minimal layouts
+# --colorblind-safe  - Optimized colors for colorblind accessibility
+```
+
 ### 🛠️ **Troubleshooting App Sync Issues**
 
 If you encounter any issues with app synchronization, check out our comprehensive troubleshooting guide:
@@ -314,31 +369,44 @@ uv run todo app-sync status
 
 ## 📊 Dashboard View
 
-The dashboard provides an at-a-glance view of your tasks with rich formatting:
+The dashboard provides an at-a-glance view of your tasks with rich themed formatting:
 
 ```
-📋 Todo Dashboard
+╒═══════════════════╕
+│ 📋 Todo Dashboard │
+╚═══════════════════╝
 
-⭐ Pinned Tasks
-  1 ⭐ ⏳ Review security PR @urgent !2025-09-15 +reviewer
-  Context: @work
-  Estimate: 2h 0m
-  
-  3 🔄 Team standup @meetings !2025-09-19 +team
-  Effort: *large
+╒────────────────────────────────── ⭐ Pinned Tasks ─────────────────────────────────╕
+│ 1 ⭐ ⏳ Review security PR @urgent !2025-09-15 +reviewer                                              │
+│ Context: @work                                                                                        │
+│ Estimate: 2h 0m                                                                                       │
+│                                                                                                        │
+│ 3 🔄 Team standup @meetings !2025-09-19 +team                                                         │
+│ Effort: *large                                                                                        │
+╚───────────────────────────────────────────────────────────────────────────────────────────────────────╝
 
-🔥 Overdue Tasks
-  2 ⏳ Update documentation @docs !2025-09-14 ~medium
+╒───────────────────────────────── 🔥 Overdue Tasks ─────────────────────────────────╕
+│ 2 ⏳ Update documentation @docs !2025-09-14 ~medium                                                   │
+╚───────────────────────────────────────────────────────────────────────────────────────────────────────╝
 
-📅 Due Today
-  4 ⏳ Call doctor
-  Context: @phone
-  Energy: low
-  Estimate: 15m
-  Waiting for: insurance approval
+╒─────────────────────────────────── 📅 Due Today ───────────────────────────────────╕
+│ 4 ⏳ Call doctor                                                                                    │
+│ Context: @phone                                                                                       │
+│ Energy: low                                                                                           │
+│ Estimate: 15m                                                                                         │
+│ Waiting for: insurance approval                                                                       │
+╚───────────────────────────────────────────────────────────────────────────────────────────────────────╝
 
-Total: 12 | Active: 8 | Completed: 4
+╒──────────────────────────────────────── Summary ───────────────────────────────────────╕
+│ Total: 12 | Active: 8 | Completed: 4                                                                 │
+╚───────────────────────────────────────────────────────────────────────────────────────────────────────╝
 ```
+
+**Theme Features in Dashboard:**
+- 🎨 **Rich Background Colors**: Each section has themed background colors that change with your selected theme
+- 🌈 **Themed Borders**: Overdue tasks have red borders, pinned tasks have gold borders, etc.
+- 📏 **Visual Hierarchy**: Different themes provide distinct visual experiences (Matrix = green on black, Sky = light blues, Forest = greens)
+- ✨ **Consistent Styling**: Colors automatically adapt to your chosen theme for a cohesive experience
 
 ## 🗃️ File Structure
 
@@ -402,6 +470,13 @@ show_completed: true
 max_completed_days: 30
 no_color: false
 use_emoji: true
+
+# Theme settings
+theme_name: "city_lights"          # Active theme name
+theme_variant: null                # Optional theme variant
+theme_compact: false               # Compact layout mode
+theme_high_contrast: false         # High contrast accessibility mode
+theme_colorblind_safe: false       # Colorblind-safe color palette
 
 # Behavior
 auto_archive_completed: false
@@ -524,12 +599,33 @@ src/todo_cli/
 ├── adapters/              # External app adapters
 │   ├── __init__.py        # Adapter registry
 │   └── todoist_adapter.py # Full Todoist integration
-├── theme.py               # UI theming and formatting
-├── cli.py                 # Main CLI interface
-├── cli_app_sync.py        # App sync CLI commands
-├── cli_analytics.py       # Analytics and reporting CLI
-├── cli_backup.py          # Backup management CLI
-└── cli_calendar_sync.py   # Calendar sync CLI commands
+├── theme.py               # UI theming and formatting (backward compatibility)
+├── theme_engine/          # Advanced theming system
+│   ├── __init__.py        # Theme engine package
+│   ├── engine.py          # Core theme engine with compilation and caching
+│   ├── registry.py        # Theme registry and loader
+│   ├── schema.py          # Theme definition models and validation
+│   └── utils.py           # Color utilities and terminal detection
+├── theme_presets/         # Built-in theme definitions
+│   ├── city_lights.yaml   # Default modern dark theme
+│   ├── dracula.yaml       # Dark theme with purple/pink accents
+│   ├── forest.yaml        # Light green nature theme
+│   ├── autumn.yaml        # Warm orange harvest theme
+│   ├── sky.yaml           # Light blue sky theme
+│   ├── matrix.yaml        # Matrix green-on-black theme
+│   ├── sunset.yaml        # Warm sunset gradient theme
+│   ├── ocean.yaml         # Deep ocean blue theme
+│   ├── terminal.yaml      # Retro CRT amber/green theme
+│   ├── gruvbox_dark.yaml  # Retro warm earth tones
+│   ├── nord.yaml          # Arctic minimalist blues
+│   ├── one_light.yaml     # Clean bright light theme
+│   └── solarized_dark.yaml # Scientific dark color scheme
+├── cli/                   # CLI command modules
+│   ├── tasks.py           # Main CLI interface and dashboard
+│   ├── theme_cmds.py      # Theme management commands
+│   ├── app_sync.py        # App sync CLI commands
+│   ├── analytics_commands.py # Analytics and reporting CLI
+│   └── calendar.py        # Calendar sync CLI commands
 ```
 
 ### Key Design Principles
@@ -571,6 +667,16 @@ src/todo_cli/
 - [x] **Notification system** - Desktop and email notifications with smart scheduling
 - [x] **Calendar integration** - Bidirectional calendar sync with multiple providers
 - [x] **Multi-device sync capabilities** - Cloud storage sync with conflict resolution
+
+### ✅ Phase 5: Advanced Theming System (Complete)
+- [x] **14 Built-in Themes** - Professional light themes to dramatic dark experiences
+- [x] **Background Color Support** - Rich panel backgrounds with RGB color conversion
+- [x] **Themed Borders & Panels** - Distinct styling for dashboard sections
+- [x] **Theme Variants** - High contrast, compact, and colorblind-safe options
+- [x] **Live Theme Switching** - Change themes instantly without CLI restart
+- [x] **Accessibility Features** - WCAG contrast validation and colorblind support
+- [x] **Smart Cache Management** - Efficient theme loading with cache invalidation
+- [x] **Theme Validation** - Built-in contrast checking and error reporting
 
 ### 🔄 Phase 6: Multi-App Synchronization (In Progress)
 - [x] **Extensible sync architecture** - Adapter pattern for external app integrations
@@ -629,12 +735,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Built with [Click](https://click.palletsprojects.com/) for CLI framework
-- [Rich](https://rich.readthedocs.io/) for beautiful terminal output
+- [Rich](https://rich.readthedocs.io/) for beautiful terminal output and theming
 - [uv](https://github.com/astral-sh/uv) for fast Python package management
-- [PyYAML](https://pyyaml.org/) for configuration management
+- [PyYAML](https://pyyaml.org/) for configuration and theme definition management
 - [python-frontmatter](https://python-frontmatter.readthedocs.io/) for markdown processing
 - [parsedatetime](https://github.com/bear/parsedatetime) for natural language date parsing
 - [fuzzywuzzy](https://github.com/seatgeek/fuzzywuzzy) for intelligent typo detection
+- [Pydantic](https://pydantic.dev/) for theme validation and data modeling
 
 ## 📞 Support
 
