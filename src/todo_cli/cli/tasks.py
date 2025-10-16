@@ -269,13 +269,20 @@ def dashboard():
             all_todos.extend(todos)
     
     if not all_todos:
-        get_console().print(Panel.fit(
+        # Create themed welcome panel with background colors
+        welcome_panel = Panel(
             "[accent]Welcome to Productivity Ninja CLI![/accent]\n\n"
             "Get started by adding your first task:\n"
-            "[primary]todo add[/primary] [muted]\"Review architecture proposal @meetings due friday\"[/muted]",
-            title="[header]📋 Todo Dashboard[/header]",
-            border_style="border"
-        ))
+            "[primary]todo add[/primary] [muted]\"Review architecture proposal @meetings due friday\"[/muted]\n\n"
+            "[muted]💡 Try some examples:[/muted]\n"
+            "[primary]todo add[/primary] [muted]\"Call client @phone ~high due tomorrow\"[/muted]\n"
+            "[primary]todo add[/primary] [muted]\"Deploy app #project1 @work +john\"[/muted]\n"
+            "[primary]todo add[/primary] [muted]\"Meeting prep [PIN] est:1h\"[/muted]",
+            title="[header]🚀 Getting Started[/header]",
+            border_style="welcome_border",
+            style="welcome_bg"
+        )
+        get_console().print(welcome_panel)
         return
     
     # Categorize todos
@@ -306,37 +313,77 @@ def dashboard():
     if pinned_todos:
         if sections_printed > 0:
             get_console().print()  # Extra space between sections
-        get_console().print("\n[todo_pinned]⭐ Pinned Tasks[/todo_pinned]")
+        
+        # Create bordered panel for pinned tasks
+        content_lines = []
         for todo in pinned_todos[:5]:
-            get_console().print(f"  {format_todo_for_display(todo)}")
+            content_lines.append(format_todo_for_display(todo, show_id=True))
         if len(pinned_todos) > 5:
-            get_console().print(f"  [muted]... and {len(pinned_todos) - 5} more[/muted]")
+            content_lines.append(f"[muted]... and {len(pinned_todos) - 5} more[/muted]")
+        
+        panel = Panel(
+            "\n".join(content_lines),
+            title="[todo_pinned]⭐ Pinned Tasks[/todo_pinned]",
+            border_style="pinned_border",
+            style="pinned_bg"
+        )
+        get_console().print(panel)
         sections_printed += 1
     
     if overdue_todos:
         if sections_printed > 0:
             get_console().print()  # Extra space between sections
-        get_console().print("\n[critical]🔥 Overdue Tasks[/critical]")
+        
+        # Create bordered panel for overdue tasks
+        content_lines = []
         for todo in overdue_todos[:5]:
-            get_console().print(f"  {format_todo_for_display(todo)}")
+            content_lines.append(format_todo_for_display(todo, show_id=True))
         if len(overdue_todos) > 5:
-            get_console().print(f"  [muted]... and {len(overdue_todos) - 5} more[/muted]")
+            content_lines.append(f"[muted]... and {len(overdue_todos) - 5} more[/muted]")
+        
+        panel = Panel(
+            "\n".join(content_lines),
+            title="[critical]🔥 Overdue Tasks[/critical]",
+            border_style="overdue_border",
+            style="overdue_bg"
+        )
+        get_console().print(panel)
         sections_printed += 1
     
     if today_todos:
         if sections_printed > 0:
             get_console().print()  # Extra space between sections
-        get_console().print("\n[success]📅 Due Today[/success]")
+        
+        # Create bordered panel for today's tasks
+        content_lines = []
         for todo in today_todos[:5]:
-            get_console().print(f"  {format_todo_for_display(todo)}")
+            content_lines.append(format_todo_for_display(todo, show_id=True))
+        
+        panel = Panel(
+            "\n".join(content_lines),
+            title="[success]📅 Due Today[/success]",
+            border_style="today_border",
+            style="today_bg"
+        )
+        get_console().print(panel)
         sections_printed += 1
     
     if upcoming_todos:
         if sections_printed > 0:
             get_console().print()  # Extra space between sections
-        get_console().print("\n[primary]📆 Due This Week[/primary]")
+        
+        # Create bordered panel for upcoming tasks
+        content_lines = []
         for todo in upcoming_todos[:5]:
-            get_console().print(f"  {format_todo_for_display(todo)}")
+            content_lines.append(format_todo_for_display(todo, show_id=True))
+        
+        panel = Panel(
+            "\n".join(content_lines),
+            title="[primary]📆 Due This Week[/primary]",
+            border_style="upcoming_border",
+            style="upcoming_bg"
+        )
+        get_console().print(panel)
         sections_printed += 1
     
     # Summary stats
@@ -354,7 +401,15 @@ def dashboard():
     
     if sections_printed > 0:
         get_console().print()  # Extra space before summary
-    get_console().print(f"\n[muted]Total: {total_todos} | Active: {active_todos} | Completed: {completed_todos}[/muted]")
+    
+    # Create bordered panel for summary stats
+    summary_panel = Panel(
+        f"[header]Total: {total_todos}[/header] | [primary]Active: {active_todos}[/primary] | [success]Completed: {completed_todos}[/success]",
+        title="[panel_title]Summary[/panel_title]",
+        border_style="section_border",
+        style="container_bg"
+    )
+    get_console().print(summary_panel)
 
 
 @cli.command()
@@ -369,7 +424,7 @@ def dashboard():
 @click.option("--priority-sort", is_flag=True, help="Sort tasks by priority (highest to lowest) instead of ID")
 def list_todos(project, status, filter_priority, overdue, pinned, limit, priority_sort):
     """List todo items organized by date views."""
-    from .theme import organize_todos_by_date, get_view_header
+    from ..theme import organize_todos_by_date, get_view_header
     
     storage = get_storage()
     config = get_config()

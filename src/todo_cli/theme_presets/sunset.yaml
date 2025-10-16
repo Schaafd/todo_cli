@@ -1,0 +1,201 @@
+# Sunset Theme - Warm orange and pink backgrounds with golden hour aesthetics
+name: sunset
+display_name: "Sunset"
+description: "Warm sunset colors with orange, pink, and purple backgrounds like golden hour"
+version: "1.0.0"
+author: "Todo CLI Team"
+min_capability: "16"
+
+palette:
+  # Sunset warm colors
+  primary: "#FF6B35"           # Bright orange
+  secondary: "#F7931E"         # Golden orange
+  accent: "#FFB347"            # Peach
+  
+  # Background colors - sunset gradients
+  background: "#2D1B69"        # Deep sunset purple
+  surface: "#4A0E4E"           # Dark magenta
+  surface_light: "#8B3A62"     # Lighter magenta
+  
+  # Text colors - warm and contrasting
+  text_primary: "#FFF8E1"      # Warm white
+  text_secondary: "#FFE0B2"    # Light peach
+  text_muted: "#FFAB91"        # Muted peach
+  text_bright: "#FFFFFF"       # Pure white
+  
+  # Semantic colors - sunset palette
+  success: "#4CAF50"           # Fresh green
+  warning: "#FFC107"           # Golden yellow
+  error: "#FF5722"             # Deep orange-red
+  critical: "#D32F2F"          # Sunset red
+  info: "#FF9800"              # Amber
+  hint: "#FF7043"              # Light orange
+
+semantic:
+  success: "success bold"
+  warning: "warning bold"
+  error: "error bold"
+  critical: "critical bold"
+  info: "info"
+  hint: "hint dim"
+  link: "primary underline"
+  highlight: "accent bold"
+  muted: "text_muted dim"
+  bright: "text_bright bold"
+  default: "text_primary"
+
+components:
+  # Headers and text
+  header: "text_bright bold"
+  subheader: "accent bold"
+  body: "text_primary"
+  caption: "text_secondary dim"
+  
+  # Panels and containers with sunset backgrounds
+  border: "primary"
+  border_dim: "secondary"
+  panel_bg: "surface"
+  panel_title: "text_bright bold"
+  section_border: "accent"
+  container_bg: "background"
+  
+  # Dashboard sections - sunset themed
+  overdue_border: "critical"
+  today_border: "success"
+  upcoming_border: "primary"
+  pinned_border: "warning"
+  
+  # Welcome/Getting Started - sunset themed
+  welcome_border: "accent"
+  welcome_bg: "surface"
+  
+  # Tables
+  table_header: "accent bold"
+  table_row: "text_primary"
+  table_row_alt: "text_secondary"
+  
+  # Todo-specific tokens
+  todo_pending: "primary"
+  todo_completed: "success"
+  todo_pinned: "warning"
+  todo_overdue: "critical"
+  
+  # Priority tokens
+  priority_critical: "critical bold"
+  priority_high: "error"
+  priority_medium: "text_primary"
+  priority_low: "text_muted dim"
+  
+  # Metadata tokens
+  tag: "accent"
+  assignee: "success"
+  stakeholder: "secondary"
+  due_date: "info"
+  due_date_overdue: "critical"
+  due_date_soon: "warning"
+  
+  # Progress and gauges
+  progress_bar: "primary"
+  progress_bg: "surface_light"
+  gauge_good: "success"
+  gauge_warning: "warning"
+  gauge_critical: "critical"
+
+typography:
+  body:
+    weight: normal
+    italic: false
+  caption:
+    weight: dim
+    italic: false
+  header:
+    weight: bold
+    italic: false
+  subheader:
+    weight: bold
+    italic: false
+  code:
+    weight: normal
+    italic: false
+  emphasis:
+    weight: normal
+    italic: true
+
+layout:
+  panel_padding: [1, 2]
+  panel_border_style: rounded
+  table_padding: [0, 1]
+  table_show_header: true
+  table_show_lines: false
+  section_spacing: 1
+  item_spacing: 0
+
+icons:
+  # Sunset-themed icons
+  pending: "🌅"
+  in_progress: "🔥"
+  completed: "🌟"
+  cancelled: "🌑"
+  blocked: "⛔"
+  pinned: "📌"
+  
+  # Priority icons with warm colors
+  critical: "🔴"
+  high: "🟠"
+  medium: "🟡"
+  low: "⚪"
+  
+  # UI icons
+  calendar: "📅"
+  clock: "⏰"
+  tag: "🏷️"
+  person: "👤"
+  project: "📋"
+  
+  # ASCII fallbacks
+  ascii_pending: "[ ]"
+  ascii_completed: "[x]"
+  ascii_pinned: "[*]"
+  ascii_critical: "[!]"
+  ascii_high: "[H]"
+  ascii_medium: "[M]"
+  ascii_low: "[L]"
+
+effects:
+  animations_enabled: true
+  spinner_style: "dots"
+  progress_pulse: true
+  transition_duration: 0.4
+  fade_in: true
+  slide_in: true
+  bounce: false
+
+ascii_art:
+  banner: |
+    ╔══════════════════════════════════════════════════════════════════╗
+    ║   ████████╗██╗   ██╗███╗   ██╗███████╗███████╗████████╗          ║
+    ║   ╚══██╔══╝██║   ██║████╗  ██║██╔════╝██╔════╝╚══██╔══╝          ║
+    ║      ██║   ██║   ██║██╔██╗ ██║███████╗█████╗     ██║             ║
+    ║      ██║   ██║   ██║██║╚██╗██║╚════██║██╔══╝     ██║             ║
+    ║      ██║   ╚██████╔╝██║ ╚████║███████║███████╗   ██║             ║
+    ║      ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚══════╝   ╚═╝             ║
+    ╚══════════════════════════════════════════════════════════════════╝
+  banner_style: "primary"
+  subtitle: "🌅 Embrace the golden hour of productivity 🌅"
+  subtitle_style: "accent"
+
+variants:
+  - name: high_contrast
+    description: "High contrast sunset variant"
+    high_contrast: true
+    palette_overrides:
+      background: "#1A0033"
+      text_primary: "#FFFFFF"
+      surface: "#330066"
+      
+  - name: compact
+    description: "Compact sunset layout"
+    compact: true
+    layout_overrides:
+      panel_padding: [0, 1]
+      section_spacing: 0

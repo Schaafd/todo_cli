@@ -55,6 +55,9 @@ class ThemeEngine:
         self._compiled_cache: Dict[str, CompiledTheme] = {}
         self._console_cache: Dict[str, Console] = {}
         
+        # Track current theme for cache invalidation
+        self._current_theme = None
+        
         logger.debug(f"ThemeEngine initialized with capability: {self.terminal_capability}")
     
     @classmethod
@@ -86,6 +89,12 @@ class ThemeEngine:
         engine = cls(config_dir)
         engine.load_theme(theme_name, variant)
         return engine
+    
+    def clear_caches(self) -> None:
+        """Clear all cached themes and consoles."""
+        self._compiled_cache.clear()
+        self._console_cache.clear()
+        logger.debug("Theme engine caches cleared")
     
     def load_theme(self, theme_name: str, variant: Optional[str] = None,
                    user_overrides: Optional[UserThemeOverrides] = None,
@@ -166,6 +175,11 @@ class ThemeEngine:
         # Generate cache key
         cache_key = self._generate_cache_key(theme_name, variant, None, runtime_flags)
         console_key = f"console_{cache_key}"
+        
+        # Clear cache if theme has changed
+        if self._current_theme != theme_name:
+            self.clear_caches()
+            self._current_theme = theme_name
         
         # Check console cache
         if console_key in self._console_cache:
@@ -501,13 +515,42 @@ class ThemeEngine:
                     new_g = max(0, int(fg_g * factor))
                     new_b = max(0, int(fg_b * factor))
                 
-                return rgb_to_hex((new_r, new_g, new_b))
+                return rgb_to_hex(new_r, new_g, new_b)
             
         except (ValueError, AttributeError):
             # Return original color if enhancement fails
             pass
         
         return fg_color
+    
+    def _add_background_styles(self, rich_theme_dict: Dict[str, str], palette_dict: Dict[str, str]) -> None:
+        """Add background color styles to Rich theme dictionary."""
+        from .utils import hex_to_rgb
+        
+        # Background color mappings from palette
+        background_mappings = {
+            'panel_bg': 'background',
+            'container_bg': 'background', 
+            'section_bg': 'surface',
+            'overdue_bg': 'background',
+            'today_bg': 'background',
+            'upcoming_bg': 'background',
+            'pinned_bg': 'background',
+            'welcome_bg': 'surface'
+        }
+        
+        for style_name, palette_key in background_mappings.items():
+            if palette_key in palette_dict:
+                hex_color = palette_dict[palette_key]
+                if hex_color.startswith('#'):
+                    try:
+                        r, g, b = hex_to_rgb(hex_color)
+                        # Rich accepts RGB format: "on rgb(r,g,b)"
+                        bg_style = f"on rgb({r},{g},{b})"
+                        rich_theme_dict[style_name] = bg_style
+                    except (ValueError, AttributeError):
+                        # Skip if color can't be converted
+                        pass
     
     def _compile_theme(self, theme_def: ThemeDefinition,
                       variant: Optional[ThemeVariant],
@@ -532,11 +575,8 @@ class ThemeEngine:
         rich_theme_dict.update(resolved_semantic)
         rich_theme_dict.update(resolved_components)
         
-        # Add background support if theme specifies it
-        if 'background' in palette_dict:
-            rich_theme_dict['app_bg'] = f"on_{palette_dict['background']}"
-            rich_theme_dict['panel_bg'] = f"on_{palette_dict.get('surface', palette_dict['background'])}"
-            rich_theme_dict['table_bg'] = f"on_{palette_dict.get('surface_light', palette_dict['background'])}"
+        # Add background color support by converting hex colors to RGB format
+        self._add_background_styles(rich_theme_dict, palette_dict)
         
         # Downgrade colors for terminal capability
         for key, style in rich_theme_dict.items():

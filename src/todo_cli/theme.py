@@ -88,20 +88,21 @@ def _get_theme_engine() -> Optional[ThemeEngine]:
         logger.debug("Theme engine not available, using legacy theming")
         return None
     
-    if _theme_engine is None:
-        try:
-            config = get_config()
-            _theme_engine = ThemeEngine.from_config(config)
-            logger.debug(f"Theme engine initialized with theme: {config.theme_name}")
-        except ImportError as e:
-            logger.warning(f"Theme engine dependencies missing: {e}")
-            return None
-        except FileNotFoundError as e:
-            logger.warning(f"Theme file not found: {e}. Using fallback theme.")
-            return None
-        except Exception as e:
-            logger.error(f"Failed to initialize theme engine: {e}")
-            return None
+    # Always recreate the theme engine to ensure it reflects current config
+    # This fixes the issue where theme changes weren't being applied
+    try:
+        config = get_config()
+        _theme_engine = ThemeEngine.from_config(config)
+        logger.debug(f"Theme engine initialized with theme: {config.theme_name}")
+    except ImportError as e:
+        logger.warning(f"Theme engine dependencies missing: {e}")
+        return None
+    except FileNotFoundError as e:
+        logger.warning(f"Theme file not found: {e}. Using fallback theme.")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to initialize theme engine: {e}")
+        return None
     
     return _theme_engine
 
@@ -174,7 +175,9 @@ def get_themed_console() -> Console:
     engine = _get_theme_engine()
     if engine:
         try:
-            return engine.get_console()
+            # Force reload of current theme by passing the current theme name
+            config = get_config()
+            return engine.get_console(theme_name=config.theme_name)
         except Exception as e:
             logger.error(f"Error creating themed console: {e}")
     

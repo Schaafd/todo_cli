@@ -1,0 +1,210 @@
+# Terminal Theme - Retro amber/green CRT terminal with nostalgic styling
+name: terminal
+display_name: "Terminal"
+description: "Nostalgic retro terminal with amber/green CRT colors and scanline aesthetics"
+version: "1.0.0"
+author: "Todo CLI Team"
+min_capability: "16"
+
+palette:
+  # Classic CRT terminal colors
+  primary: "#00FF00"           # Bright green CRT
+  secondary: "#FFAA00"         # Amber CRT
+  accent: "#CCFF00"            # Lime green
+  
+  # Background colors - deep CRT black
+  background: "#000000"        # Pure CRT black
+  surface: "#0A0A0A"           # Slightly lighter black
+  surface_light: "#1A1A1A"     # Dark gray
+  
+  # Text colors - classic terminal
+  text_primary: "#00FF00"      # Bright green
+  text_secondary: "#FFAA00"    # Amber
+  text_muted: "#00AA00"        # Darker green
+  text_bright: "#FFFFFF"       # White
+  
+  # Semantic colors - retro terminal palette
+  success: "#00FF00"           # Bright green
+  warning: "#FFAA00"           # Amber
+  error: "#FF0000"             # Bright red
+  critical: "#FF4444"          # Light red
+  info: "#00AAAA"              # Cyan
+  hint: "#555555"              # Dark gray
+
+semantic:
+  success: "success bold"
+  warning: "warning bold"
+  error: "error bold"
+  critical: "critical bold"
+  info: "info"
+  hint: "hint dim"
+  link: "primary underline"
+  highlight: "accent bold"
+  muted: "text_muted dim"
+  bright: "text_bright bold"
+  default: "text_primary"
+
+components:
+  # Headers and text
+  header: "text_bright bold"
+  subheader: "secondary bold"
+  body: "text_primary"
+  caption: "text_secondary dim"
+  
+  # Panels and containers with terminal backgrounds
+  border: "primary"
+  border_dim: "text_muted"
+  panel_bg: "surface"
+  panel_title: "text_bright bold"
+  section_border: "secondary"
+  container_bg: "background"
+  
+  # Dashboard sections - terminal themed
+  overdue_border: "critical"
+  today_border: "success"
+  upcoming_border: "primary"
+  pinned_border: "warning"
+  
+  # Welcome/Getting Started - terminal themed
+  welcome_border: "secondary"
+  welcome_bg: "surface"
+  
+  # Tables
+  table_header: "secondary bold"
+  table_row: "text_primary"
+  table_row_alt: "text_secondary"
+  
+  # Todo-specific tokens
+  todo_pending: "primary"
+  todo_completed: "success"
+  todo_pinned: "warning"
+  todo_overdue: "critical"
+  
+  # Priority tokens
+  priority_critical: "critical bold"
+  priority_high: "warning"
+  priority_medium: "text_primary"
+  priority_low: "text_muted dim"
+  
+  # Metadata tokens
+  tag: "accent"
+  assignee: "success"
+  stakeholder: "secondary"
+  due_date: "info"
+  due_date_overdue: "critical"
+  due_date_soon: "warning"
+  
+  # Progress and gauges
+  progress_bar: "primary"
+  progress_bg: "surface_light"
+  gauge_good: "success"
+  gauge_warning: "warning"
+  gauge_critical: "critical"
+
+typography:
+  body:
+    weight: normal
+    italic: false
+  caption:
+    weight: dim
+    italic: false
+  header:
+    weight: bold
+    italic: false
+  subheader:
+    weight: bold
+    italic: false
+  code:
+    weight: normal
+    italic: false
+  emphasis:
+    weight: normal
+    italic: true
+
+layout:
+  panel_padding: [1, 2]
+  panel_border_style: ascii  # Use ASCII borders for retro feel
+  table_padding: [0, 1]
+  table_show_header: true
+  table_show_lines: true     # Show more lines for retro terminal feel
+  section_spacing: 1
+  item_spacing: 0
+
+icons:
+  # Retro terminal ASCII icons
+  pending: "[-]"
+  in_progress: "[~]"
+  completed: "[X]"
+  cancelled: "[/]"
+  blocked: "[#]"
+  pinned: "[*]"
+  
+  # Priority icons - ASCII style
+  critical: "[!]"
+  high: "[H]"
+  medium: "[M]"
+  low: "[L]"
+  
+  # UI icons - ASCII fallbacks
+  calendar: "[C]"
+  clock: "[T]"
+  tag: "[#]"
+  person: "[@]"
+  project: "[P]"
+  
+  # ASCII fallbacks (same as main icons for consistency)
+  ascii_pending: "[-]"
+  ascii_completed: "[X]"
+  ascii_pinned: "[*]"
+  ascii_critical: "[!]"
+  ascii_high: "[H]"
+  ascii_medium: "[M]"
+  ascii_low: "[L]"
+
+effects:
+  animations_enabled: false    # No animations for retro feel
+  spinner_style: "line"
+  progress_pulse: false
+  transition_duration: 0.1
+  fade_in: false
+  slide_in: false
+  bounce: false
+
+ascii_art:
+  banner: |
+    +===============================================================+
+    |  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄  |
+    |  ████ ███████ ████████  ████ ███ ██████  █████ ██          |
+    |  ████ ███▄▄▄▄ ████▄▄██  ████▄███ ██▄▄██  ████▄ ██          |
+    |  ████ ███████ ███████▄  ███████▄ ██████  ████▄ ██          |
+    |  ▀▀▀▀ ▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀  ▀▀▀▀▀ ▀▀          |
+    +===============================================================+
+  banner_style: "primary"
+  subtitle: "> SYSTEM READY. EXECUTE PRODUCTIVITY PROTOCOLS."
+  subtitle_style: "secondary"
+
+variants:
+  - name: amber
+    description: "Pure amber CRT variant"
+    palette_overrides:
+      primary: "#FFAA00"
+      secondary: "#FF8800"
+      accent: "#FFCC00"
+      text_primary: "#FFAA00"
+      success: "#FFAA00"
+      
+  - name: green
+    description: "Pure green CRT variant" 
+    palette_overrides:
+      primary: "#00FF00"
+      secondary: "#00AA00"
+      accent: "#44FF44"
+      text_primary: "#00FF00"
+      warning: "#00FF00"
+      
+  - name: compact
+    description: "Compact terminal layout"
+    compact: true
+    layout_overrides:
+      panel_padding: [0, 1]
+      section_spacing: 0

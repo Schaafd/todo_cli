@@ -1,0 +1,212 @@
+# Sky Theme - Light blue backgrounds with sky and cloud colors
+name: sky
+display_name: "Sky"
+description: "Bright sky blues with cloud whites - clear and uplifting"
+version: "1.0.0"
+author: "Todo CLI Team"
+min_capability: "16"
+
+palette:
+  # Sky blue colors
+  primary: "#1E3A8A"           # Royal blue
+  secondary: "#3B82F6"         # Blue
+  accent: "#60A5FA"            # Sky blue
+  
+  # Background colors - light blue sky
+  background: "#E0F2FE"        # Very light sky blue
+  surface: "#BAE6FD"           # Light sky blue
+  surface_light: "#93C5FD"     # Sky blue
+  
+  # Text colors - dark blues for contrast
+  text_primary: "#0C4A6E"      # Very dark blue
+  text_secondary: "#0369A1"    # Dark sky blue
+  text_muted: "#0284C7"        # Medium blue
+  text_bright: "#082F49"       # Darkest blue
+  
+  # Semantic colors - sky and weather palette
+  success: "#16A34A"           # Green (grass)
+  warning: "#EAB308"           # Yellow (sun)
+  error: "#DC2626"             # Red (sunset)
+  critical: "#B91C1C"          # Dark red
+  info: "#0EA5E9"              # Light blue
+  hint: "#6B7280"              # Gray (clouds)
+
+semantic:
+  primary: "primary"
+  secondary: "secondary"
+  accent: "accent"
+  success: "success bold"
+  warning: "warning bold"
+  error: "error bold"
+  critical: "critical bold"
+  info: "info"
+  hint: "hint dim"
+  link: "primary underline"
+  highlight: "accent bold"
+  muted: "text_muted dim"
+  bright: "text_bright bold"
+  default: "text_primary"
+
+components:
+  # Headers and text
+  header: "text_bright bold"
+  subheader: "primary bold"
+  body: "text_primary"
+  caption: "text_secondary dim"
+  
+  # Panels and containers with sky backgrounds
+  border: "primary"
+  border_dim: "secondary"
+  panel_bg: "surface"
+  panel_title: "text_bright bold"
+  section_border: "accent"
+  container_bg: "background"
+  
+  # Dashboard sections - sky themed
+  overdue_border: "critical"
+  today_border: "success"
+  upcoming_border: "primary"
+  pinned_border: "warning"
+  
+  # Welcome/Getting Started - sky themed
+  welcome_border: "accent"
+  welcome_bg: "surface"
+  
+  # Tables
+  table_header: "primary bold"
+  table_row: "text_primary"
+  table_row_alt: "text_secondary"
+  
+  # Todo-specific tokens
+  todo_pending: "primary"
+  todo_completed: "success"
+  todo_pinned: "warning"
+  todo_overdue: "critical"
+  
+  # Priority tokens
+  priority_critical: "critical bold"
+  priority_high: "warning bold"
+  priority_medium: "text_primary"
+  priority_low: "text_muted dim"
+  
+  # Metadata tokens
+  tag: "accent"
+  assignee: "success"
+  stakeholder: "secondary"
+  due_date: "info"
+  due_date_overdue: "critical"
+  due_date_soon: "warning"
+  
+  # Progress and gauges
+  progress_bar: "primary"
+  progress_bg: "surface_light"
+  gauge_good: "success"
+  gauge_warning: "warning"
+  gauge_critical: "critical"
+
+typography:
+  body:
+    weight: normal
+    italic: false
+  caption:
+    weight: dim
+    italic: false
+  header:
+    weight: bold
+    italic: false
+  subheader:
+    weight: bold
+    italic: false
+  code:
+    weight: normal
+    italic: false
+  emphasis:
+    weight: normal
+    italic: true
+
+layout:
+  panel_padding: [1, 2]
+  panel_border_style: rounded
+  table_padding: [0, 1]
+  table_show_header: true
+  table_show_lines: false
+  section_spacing: 1
+  item_spacing: 0
+
+icons:
+  # Sky-themed icons
+  pending: "☁️"
+  in_progress: "🌤️"
+  completed: "☀️"
+  cancelled: "🌧️"
+  blocked: "⛈️"
+  pinned: "📌"
+  
+  # Priority icons with weather theme
+  critical: "🔴"
+  high: "🟠"
+  medium: "🔵"
+  low: "⚪"
+  
+  # UI icons
+  calendar: "📅"
+  clock: "⏰"
+  tag: "🏷️"
+  person: "👤"
+  project: "📋"
+  
+  # ASCII fallbacks
+  ascii_pending: "[ ]"
+  ascii_completed: "[x]"
+  ascii_pinned: "[*]"
+  ascii_critical: "[!]"
+  ascii_high: "[H]"
+  ascii_medium: "[M]"
+  ascii_low: "[L]"
+
+effects:
+  animations_enabled: true
+  spinner_style: "dots"
+  progress_pulse: true
+  transition_duration: 0.3
+  fade_in: true
+  slide_in: false
+  bounce: false
+
+ascii_art:
+  banner: |
+    ╔══════════════════════════════════════════════════════════════════╗
+    ║   ███████╗██╗  ██╗██╗   ██╗    ██████╗ ██╗     ██╗   ██╗███████╗  ║
+    ║   ██╔════╝██║ ██╔╝╚██╗ ██╔╝    ██╔══██╗██║     ██║   ██║██╔════╝  ║
+    ║   ███████╗█████╔╝  ╚████╔╝     ██████╔╝██║     ██║   ██║█████╗    ║
+    ║   ╚════██║██╔═██╗   ╚██╔╝      ██╔══██╗██║     ██║   ██║██╔══╝    ║
+    ║   ███████║██║  ██╗   ██║       ██████╔╝███████╗╚██████╔╝███████╗  ║
+    ║   ╚══════╝╚═╝  ╚═╝   ╚═╝       ╚═════╝ ╚══════╝ ╚═════╝ ╚══════╝  ║
+    ╚══════════════════════════════════════════════════════════════════╝
+  banner_style: "primary"
+  subtitle: "☁️ Reach for the clouds of productivity ☁️"
+  subtitle_style: "accent"
+
+variants:
+  - name: high_contrast
+    description: "High contrast sky variant"
+    high_contrast: true
+    palette_overrides:
+      background: "#F0F9FF"
+      text_primary: "#000000"
+      surface: "#E0F2FE"
+      
+  - name: compact
+    description: "Compact sky layout"
+    compact: true
+    layout_overrides:
+      panel_padding: [0, 1]
+      section_spacing: 0
+
+  - name: storm
+    description: "Stormy sky variant with darker blues"
+    palette_overrides:
+      background: "#DBEAFE"
+      surface: "#BFDBFE"
+      primary: "#1D4ED8"
+      secondary: "#2563EB"

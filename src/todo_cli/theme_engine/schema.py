@@ -202,6 +202,11 @@ class Effects(BaseModel):
 class SemanticTokens(BaseModel):
     """Semantic color tokens that map to palette colors"""
     
+    # Base palette colors as semantic tokens
+    primary: str = "primary"
+    secondary: str = "secondary"  
+    accent: str = "accent"
+    
     # Status semantics
     success: str = "success bold"
     warning: str = "warning bold"
@@ -229,8 +234,21 @@ class ComponentTokens(BaseModel):
     
     # Panels and containers
     border: str = "surface_light"
+    border_dim: str = "surface_light"
     panel_bg: str = "surface"
     panel_title: str = "text_bright bold"
+    section_border: str = "accent"
+    container_bg: str = "background"
+    
+    # Dashboard section borders
+    overdue_border: str = "critical"
+    today_border: str = "success"
+    upcoming_border: str = "primary"
+    pinned_border: str = "warning"
+    
+    # Welcome/Getting Started styling
+    welcome_border: str = "primary"
+    welcome_bg: str = "background"
     
     # Tables
     table_header: str = "accent bold"

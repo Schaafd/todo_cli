@@ -18,18 +18,18 @@ palette:
   text_muted: "#a89984"      # Dark cream
   text_bright: "#fbf1c7"     # Bright cream
   
-  # Brand colors
-  primary: "#83a598"         # Blue
-  secondary: "#8ec07c"       # Green
+  # Brand colors (brightened for better contrast)
+  primary: "#8ec07c"         # Green (brighter)
+  secondary: "#b8bb26"       # Bright green
   accent: "#d3869b"          # Purple
   
-  # Semantic colors
+  # Semantic colors (adjusted for readability)
   success: "#b8bb26"         # Bright green
   warning: "#fabd2f"         # Yellow
-  error: "#fb4934"           # Red
-  critical: "#cc241d"        # Dark red
-  info: "#83a598"            # Blue
-  hint: "#928374"            # Gray
+  error: "#fb4934"           # Bright red
+  critical: "#fb4934"        # Bright red (more visible)
+  info: "#8ec07c"            # Bright blue-green
+  hint: "#a89984"            # Lighter gray
 
 semantic:
   success: "success bold"

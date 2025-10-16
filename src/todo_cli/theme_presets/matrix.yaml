@@ -1,0 +1,201 @@
+# Matrix Theme - Green-on-black terminal aesthetic inspired by The Matrix
+name: matrix
+display_name: "Matrix"
+description: "Enter the Matrix - bright green code on deep black backgrounds"
+version: "1.0.0"
+author: "Todo CLI Team"
+min_capability: "16"
+
+palette:
+  # Matrix green colors
+  primary: "#00FF41"           # Bright Matrix green
+  secondary: "#008F11"         # Darker green
+  accent: "#41FF00"            # Lime green
+  
+  # Background colors - pure black Matrix aesthetic
+  background: "#000000"        # Pure black
+  surface: "#001100"           # Very dark green tint
+  surface_light: "#002200"     # Slightly lighter green tint
+  
+  # Text colors - all green variants
+  text_primary: "#00FF41"      # Bright green
+  text_secondary: "#00CC33"    # Medium green
+  text_muted: "#008F11"        # Dark green
+  text_bright: "#41FF00"       # Lime green
+  
+  # Semantic colors - Matrix style
+  success: "#00FF41"           # Bright green
+  warning: "#FFFF00"           # Bright yellow (warning in the Matrix)
+  error: "#FF0000"             # Red (glitch/error)
+  critical: "#FF3333"          # Bright red
+  info: "#00CCCC"              # Cyan
+  hint: "#006600"              # Dim green
+
+semantic:
+  success: "success bold"
+  warning: "warning bold"
+  error: "error bold"
+  critical: "critical bold"
+  info: "info"
+  hint: "hint dim"
+  link: "primary underline"
+  highlight: "accent bold"
+  muted: "text_muted dim"
+  bright: "text_bright bold"
+  default: "text_primary"
+
+components:
+  # Headers and text
+  header: "text_bright bold"
+  subheader: "primary bold"
+  body: "text_primary"
+  caption: "text_secondary dim"
+  
+  # Panels and containers with Matrix backgrounds
+  border: "primary"
+  border_dim: "secondary"
+  panel_bg: "surface"
+  panel_title: "text_bright bold"
+  section_border: "accent"
+  container_bg: "background"
+  
+  # Dashboard sections - Matrix style
+  overdue_border: "critical"
+  today_border: "success"
+  upcoming_border: "primary"
+  pinned_border: "warning"
+  
+  # Welcome/Getting Started - Matrix style
+  welcome_border: "primary"
+  welcome_bg: "surface"
+  
+  # Tables
+  table_header: "primary bold"
+  table_row: "text_primary"
+  table_row_alt: "text_secondary"
+  
+  # Todo-specific tokens
+  todo_pending: "primary"
+  todo_completed: "success"
+  todo_pinned: "warning"
+  todo_overdue: "critical"
+  
+  # Priority tokens
+  priority_critical: "critical bold"
+  priority_high: "warning"
+  priority_medium: "text_primary"
+  priority_low: "text_muted dim"
+  
+  # Metadata tokens
+  tag: "accent"
+  assignee: "success"
+  stakeholder: "primary"
+  due_date: "info"
+  due_date_overdue: "critical"
+  due_date_soon: "warning"
+  
+  # Progress and gauges
+  progress_bar: "primary"
+  progress_bg: "surface_light"
+  gauge_good: "success"
+  gauge_warning: "warning"
+  gauge_critical: "critical"
+
+typography:
+  body:
+    weight: normal
+    italic: false
+  caption:
+    weight: dim
+    italic: false
+  header:
+    weight: bold
+    italic: false
+  subheader:
+    weight: bold
+    italic: false
+  code:
+    weight: normal
+    italic: false
+  emphasis:
+    weight: normal
+    italic: true
+
+layout:
+  panel_padding: [1, 2]
+  panel_border_style: rounded
+  table_padding: [0, 1]
+  table_show_header: true
+  table_show_lines: false
+  section_spacing: 1
+  item_spacing: 0
+
+icons:
+  # Matrix-style icons
+  pending: "⋯"
+  in_progress: "⟳"
+  completed: "✓"
+  cancelled: "✗"
+  blocked: "⊗"
+  pinned: "⬢"
+  
+  # Priority icons
+  critical: "▲"
+  high: "●"
+  medium: "◐"
+  low: "○"
+  
+  # UI icons
+  calendar: "⧗"
+  clock: "⟲"
+  tag: "◈"
+  person: "◉"
+  project: "▣"
+  
+  # ASCII fallbacks
+  ascii_pending: "[-]"
+  ascii_completed: "[x]"
+  ascii_pinned: "[*]"
+  ascii_critical: "[!]"
+  ascii_high: "[H]"
+  ascii_medium: "[M]"
+  ascii_low: "[L]"
+
+effects:
+  animations_enabled: true
+  spinner_style: "dots"
+  progress_pulse: true
+  transition_duration: 0.2
+  fade_in: true
+  slide_in: false
+  bounce: false
+
+ascii_art:
+  banner: |
+    ╔═══════════════════════════════════════════════════════════════╗
+    ║  ████╗ ██╗ █████╗ ████████╗██████╗ ██╗██╗  ██╗               ║
+    ║  ██╔██╗██║██╔══██╗╚══██╔══╝██╔══██╗██║╚██╗██╔╝               ║
+    ║  ██║╚████║███████║   ██║   ██████╔╝██║ ╚███╔╝                ║
+    ║  ██║ ╚███║██╔══██║   ██║   ██╔══██╗██║ ██╔██╗                ║
+    ║  ██║  ╚██║██║  ██║   ██║   ██║  ██║██║██╔╝ ██╗               ║
+    ║  ╚═╝   ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝               ║
+    ╚═══════════════════════════════════════════════════════════════╝
+  banner_style: "primary"
+  subtitle: "⬢ Wake up, Neo. Your tasks are calling. ⬢"
+  subtitle_style: "accent"
+
+variants:
+  - name: high_contrast
+    description: "Ultra high contrast Matrix variant"
+    high_contrast: true
+    palette_overrides:
+      background: "#000000"
+      text_primary: "#00FF00"
+      surface: "#000000"
+      
+  - name: compact
+    description: "Compact Matrix layout"
+    compact: true
+    layout_overrides:
+      panel_padding: [0, 1]
+      section_spacing: 0

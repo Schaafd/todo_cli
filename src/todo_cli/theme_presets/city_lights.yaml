@@ -55,9 +55,22 @@ components:
   caption: "text_secondary dim"
   
   # Panels and containers
-  border: "surface_light"
+  border: "primary"
+  border_dim: "surface_light"
   panel_bg: "surface"
   panel_title: "text_bright bold"
+  section_border: "accent"
+  container_bg: "background"
+  
+  # Dashboard sections
+  overdue_border: "critical"
+  today_border: "success"
+  upcoming_border: "primary"
+  pinned_border: "warning"
+  
+  # Welcome/Getting Started
+  welcome_border: "accent"
+  welcome_bg: "surface"
   
   # Tables
   table_header: "accent bold"

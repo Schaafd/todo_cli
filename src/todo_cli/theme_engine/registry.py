@@ -434,6 +434,8 @@ class ThemeRegistry:
         """Clear the theme cache and rescan."""
         self._theme_cache.clear()
         self._variant_cache.clear()
+        # Clear lru_cache decorators
+        self.get_default_theme_name.cache_clear()
         self._scan_builtin_themes()
         self._scan_user_themes()
     

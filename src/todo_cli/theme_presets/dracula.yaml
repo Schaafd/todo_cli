@@ -52,9 +52,18 @@ components:
   caption: "text_secondary dim"
   
   # Panels and containers
-  border: "surface_light"
+  border: "secondary"
+  border_dim: "surface_light"
   panel_bg: "surface"
   panel_title: "secondary bold"
+  section_border: "primary"
+  container_bg: "background"
+  
+  # Dashboard sections
+  overdue_border: "critical"
+  today_border: "success"
+  upcoming_border: "accent"
+  pinned_border: "secondary"
   
   # Tables
   table_header: "primary bold"
