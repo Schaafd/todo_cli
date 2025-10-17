@@ -231,7 +231,10 @@ class AppleScriptInterface:
                     return []
                 
                 reminders = []
-                lines = result.split(", ")
+                # Parse the AppleScript result which is a comma-separated list of reminder entries
+                # Each entry has the format: name|||completed|||id|||due_date|||body|||priority
+                # Problem: due_date contains commas, so we need to reconstruct the entries
+                lines = self._parse_applescript_reminder_list(result)
                 
                 def _clean_part(value: str) -> str:
                     return value.strip().lstrip("|") if value else ""
@@ -435,6 +438,54 @@ class AppleScriptInterface:
             return result.strip().lower() == "true"
         except Exception:
             return False
+    
+    def _parse_applescript_reminder_list(self, result: str) -> List[str]:
+        """Parse AppleScript result that contains multiple reminder entries.
+        
+        The AppleScript returns a comma-separated list of reminders, but each reminder
+        entry also contains dates with commas. We need to carefully reconstruct the
+        individual reminder entries.
+        
+        Each reminder has the format: name|||completed|||id|||due_date|||body|||priority
+        Where due_date can be: "Wednesday, October 22, 2025 at 6:00:00 PM" or empty
+        
+        Args:
+            result: Raw AppleScript result string with multiple reminders
+            
+        Returns:
+            List of individual reminder strings
+        """
+        lines = []
+        current_entry = ""
+        
+        # Split by comma and reassemble entries
+        parts = result.split(", ")
+        
+        for part in parts:
+            if current_entry:
+                current_entry += ", " + part
+            else:
+                current_entry = part
+            
+            # Check if we have a complete entry by counting ||| delimiters
+            # Each complete reminder should have exactly 5 ||| delimiters
+            delimiter_count = current_entry.count("|||")
+            
+            if delimiter_count >= 5:
+                # We have a complete entry
+                lines.append(current_entry)
+                current_entry = ""
+            elif delimiter_count > 5:
+                # This shouldn't happen, but if it does, we might have multiple entries
+                # concatenated. For now, just add it and reset.
+                lines.append(current_entry)
+                current_entry = ""
+        
+        # Add any remaining content (shouldn't happen with well-formed data)
+        if current_entry.strip():
+            lines.append(current_entry)
+        
+        return lines
     
     def _parse_apple_date(self, date_str: str) -> Optional[datetime]:
         """Parse Apple date string to datetime.

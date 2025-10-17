@@ -361,6 +361,23 @@ class SyncMappingStore:
         """
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # Safely serialize objects with custom datetime handling
+                local_todo_json = None
+                if conflict.local_todo:
+                    try:
+                        local_todo_json = json.dumps(conflict.local_todo.to_dict(), default=self._json_datetime_handler)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to serialize local todo: {e}")
+                        local_todo_json = json.dumps({"error": "serialization_failed"})
+                
+                remote_item_json = None
+                if conflict.remote_item:
+                    try:
+                        remote_item_json = json.dumps(conflict.remote_item.to_dict(), default=self._json_datetime_handler)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to serialize remote item: {e}")
+                        remote_item_json = json.dumps({"error": "serialization_failed"})
+                
                 conn.execute("""
                     INSERT OR REPLACE INTO sync_conflicts 
                     (todo_id, external_id, provider, conflict_type, local_todo, remote_item,
@@ -372,10 +389,10 @@ class SyncMappingStore:
                     conflict.external_id,
                     conflict.provider.value,
                     conflict.conflict_type.value,
-                    json.dumps(conflict.local_todo.to_dict()) if conflict.local_todo else None,
-                    json.dumps(conflict.remote_item.to_dict()) if conflict.remote_item else None,
-                    json.dumps(conflict.local_changes),
-                    json.dumps(conflict.remote_changes),
+                    local_todo_json,
+                    remote_item_json,
+                    json.dumps(conflict.local_changes, default=self._json_datetime_handler),
+                    json.dumps(conflict.remote_changes, default=self._json_datetime_handler),
                     conflict.detected_at.isoformat(),
                     conflict.resolved,
                     conflict.resolution,
@@ -644,6 +661,12 @@ class SyncMappingStore:
         except Exception as e:
             self.logger.error(f"Failed to cleanup orphaned mappings: {e}")
             return 0
+    
+    def _json_datetime_handler(self, obj):
+        """JSON serializer function that handles datetime objects."""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
     
     def close(self):
         """Close the database connection (for cleanup)."""
