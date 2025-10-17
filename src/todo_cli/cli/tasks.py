@@ -198,56 +198,97 @@ def add(input_text, project, dry_run, suggest):
         
         # Get next todo ID for the project
         target_project = parsed.project or project or config.default_project
-        todo_id = storage.get_next_todo_id(target_project)
+        proj, existing_todos = storage.load_project(target_project)
         
-        # Build todo with our enhanced data
-        builder = TaskBuilder(config)
-        todo = builder.build(parsed, todo_id)
+        if existing_todos:
+            next_id = max(todo.id for todo in existing_todos) + 1
+        else:
+            next_id = 1
         
-        # Show preview
-        get_console().print("[bold green]📋 Task Preview:[/bold green]")
-        preview_text = format_todo_for_display(todo, show_id=True)
-        get_console().print(f"  {preview_text}")
-        
-        # Show additional details that aren't in the standard format
-        if todo.context:
-            get_console().print(f"  [dim]Context: {', '.join('@' + ctx for ctx in todo.context)}[/dim]")
-        if todo.effort:
-            get_console().print(f"  [dim]Effort: *{todo.effort}[/dim]")
-        if todo.energy_level != "medium":
-            get_console().print(f"  [dim]Energy: {todo.energy_level}[/dim]")
-        if todo.time_estimate:
-            hours = todo.time_estimate // 60
-            minutes = todo.time_estimate % 60
-            if hours > 0:
-                get_console().print(f"  [dim]Estimate: {hours}h {minutes}m[/dim]")
-            else:
-                get_console().print(f"  [dim]Estimate: {minutes}m[/dim]")
-        if todo.waiting_for:
-            get_console().print(f"  [dim]Waiting for: {', '.join(todo.waiting_for)}[/dim]")
-        if todo.url:
-            get_console().print(f"  [dim]URL: {todo.url}[/dim]")
+        # Set the ID and project
+        parsed.id = next_id
+        parsed.project = target_project
         
         if dry_run:
-            get_console().print("[yellow]🔍 Dry run - not saved[/yellow]")
+            get_console().print("[bold yellow]🔍 DRY RUN - Would create:[/bold yellow]")
+            get_console().print(f"  {format_todo_for_display(parsed)}")
             return
         
-        # Load project and todos
-        proj, todos = storage.load_project(target_project)
-        if not proj:
-            proj = Project(name=target_project)
+        # Add the todo
+        existing_todos.append(parsed)
         
-        todos.append(todo)
+        # Save the project
+        if storage.save_project(proj, existing_todos):
+            get_console().print(f"[green]✅ Added:[/green] {format_todo_for_display(parsed)}")
+        else:
+            get_console().print("[red]❌ Failed to save todo[/red]")
+            sys.exit(1)
+            
+    except Exception as e:
+        get_console().print(f"[red]❌ Error creating todo: {e}[/red]")
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("text", required=True)
+@click.option("--project", "-p", help="Project to add to (default: inbox)")
+@click.option("--priority", type=click.Choice(['critical', 'high', 'medium', 'low']), default='medium', help="Task priority")
+@click.option("--tag", "-t", multiple=True, help="Add tags (can be used multiple times)")
+@click.option("--context", "-c", multiple=True, help="Add contexts (can be used multiple times)")
+def quick(text, project, priority, tag, context):
+    """Quick capture - add a todo with minimal processing.
+    
+    Examples:
+      todo quick "Call the client"
+      todo quick "Review PR" --tag work --priority high
+      todo quick "Buy groceries" --context errands --project personal
+    """
+    try:
+        storage = get_storage()
+        config = get_config()
+        
+        # Use provided project or default
+        target_project = project or config.default_project
+        
+        # Get next todo ID for the project
+        proj, existing_todos = storage.load_project(target_project)
+        if existing_todos:
+            next_id = max(todo.id for todo in existing_todos) + 1
+        else:
+            next_id = 1
+        
+        # Create todo with minimal processing
+        todo = Todo(
+            id=next_id,
+            text=text.strip(),
+            project=target_project,
+            priority=Priority(priority),
+            tags=list(tag) if tag else [],
+            context=list(context) if context else []
+        )
+        
+        # Add to project
+        existing_todos.append(todo)
         
         # Save project
-        if storage.save_project(proj, todos):
-            get_console().print(f"[success]✅ Added task {todo_id} to {target_project}[/success]")
+        if storage.save_project(proj, existing_todos):
+            # Quick feedback - just show the essential info
+            priority_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🔵"}
+            emoji = priority_emoji.get(priority, "🟡")
+            
+            tags_str = f" #{' #'.join(tag)}" if tag else ""
+            context_str = f" @{' @'.join(context)}" if context else ""
+            proj_str = f" ({target_project})" if target_project != "inbox" else ""
+            
+            get_console().print(
+                f"[green]✅ Quick added:[/green] {emoji} {text.strip()}{tags_str}{context_str}{proj_str}"
+            )
         else:
-            get_console().print(f"[error]❌ Failed to add task[/error]")
+            get_console().print("[red]❌ Failed to save todo[/red]")
             sys.exit(1)
-        
+            
     except Exception as e:
-        get_console().print(f"[red]Error: {e}[/red]")
+        get_console().print(f"[red]❌ Error creating todo: {e}[/red]")
         sys.exit(1)
 
 
@@ -1770,6 +1811,7 @@ def sync_history(limit):
 
 # Add all commands to the main group
 main.add_command(add)
+main.add_command(quick)
 main.add_command(dashboard)
 main.add_command(list_todos, name="list")
 main.add_command(search)
@@ -1800,6 +1842,18 @@ main.add_command(doctor)
 # Add theme command group
 from .theme_cmds import get_theme_commands
 main.add_command(get_theme_commands())
+
+# Add dependencies command group
+from .dependencies import get_dependencies_commands
+main.add_command(get_dependencies_commands())
+
+# Add context command group
+from .context import get_context_commands
+main.add_command(get_context_commands())
+
+# Add tags command group
+from .tags import get_tags_commands
+main.add_command(get_tags_commands())
 
 
 if __name__ == "__main__":
