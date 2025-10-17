@@ -205,21 +205,22 @@ def add(input_text, project, dry_run, suggest):
         else:
             next_id = 1
         
-        # Set the ID and project
-        parsed.id = next_id
-        parsed.project = target_project
+        # Convert ParsedTask to Todo using TaskBuilder
+        builder = TaskBuilder(config)
+        todo = builder.build(parsed, next_id)
+        todo.project = target_project
         
         if dry_run:
             get_console().print("[bold yellow]🔍 DRY RUN - Would create:[/bold yellow]")
-            get_console().print(f"  {format_todo_for_display(parsed)}")
+            get_console().print(f"  {format_todo_for_display(todo)}")
             return
         
         # Add the todo
-        existing_todos.append(parsed)
+        existing_todos.append(todo)
         
         # Save the project
         if storage.save_project(proj, existing_todos):
-            get_console().print(f"[green]✅ Added:[/green] {format_todo_for_display(parsed)}")
+            get_console().print(f"[green]✅ Added:[/green] {format_todo_for_display(todo)}")
         else:
             get_console().print("[red]❌ Failed to save todo[/red]")
             sys.exit(1)

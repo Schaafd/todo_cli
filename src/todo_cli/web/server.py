@@ -113,8 +113,8 @@ def get_todo_storage():
 
 def get_query_engine():
     """Get the query engine instance."""
-    storage = get_todo_storage()
-    return QueryEngine(storage)
+    config = get_config()
+    return QueryEngine(config.data_dir)
 
 
 def todo_to_response(todo: Todo) -> TaskResponse:
@@ -175,38 +175,62 @@ async def get_tasks(
         # Load all todos from all projects
         all_todos = []
         projects = storage.list_projects()
+        print(f"DEBUG: Found projects: {projects}")
         
         for project_name in projects:
-            project, todos = storage.load_project(project_name)
-            if project and todos:
-                all_todos.extend(todos)
+            project_obj, todos = storage.load_project(project_name)
+            print(f"DEBUG: Project '{project_name}' loaded: project={project_obj is not None}, todos_count={len(todos) if todos else 0}")
+            if project_obj:  # Process projects even if todos list is empty
+                if todos:  # Only extend if todos is not None and not empty
+                    print(f"DEBUG: Adding {len(todos)} todos from project '{project_name}'")
+                    all_todos.extend(todos)
         
         # Apply filters
         filtered_todos = all_todos
+        print(f"DEBUG: Filter params - context: {context}, project: {project}, status: {status}, search: {search}")
+        print(f"DEBUG: Before filtering - todos count: {len(filtered_todos)}")
+        if filtered_todos:
+            first_todo = filtered_todos[0]
+            print(f"DEBUG: Sample todo - id: {getattr(first_todo, 'id', 'missing')}, text: {getattr(first_todo, 'text', 'missing')}, status: {getattr(first_todo, 'status', 'missing')}, context: {getattr(first_todo, 'context', 'missing')}")
         
         if context:
+            print(f"DEBUG: Filtering by context: {context}")
             filtered_todos = [todo for todo in filtered_todos if todo.context == context]
         
         if project:
             filtered_todos = [todo for todo in filtered_todos if todo.project == project]
         
         if status:
+            from todo_cli.domain.todo import TodoStatus
             if status == "completed":
-                filtered_todos = [todo for todo in filtered_todos if todo.completed]
+                filtered_todos = [todo for todo in filtered_todos if todo.status == TodoStatus.COMPLETED]
             elif status == "blocked":
-                filtered_todos = [todo for todo in filtered_todos if todo.blocked]
+                filtered_todos = [todo for todo in filtered_todos if todo.status == TodoStatus.BLOCKED]
             elif status == "pending":
-                filtered_todos = [todo for todo in filtered_todos if not todo.completed and not todo.blocked]
+                filtered_todos = [todo for todo in filtered_todos if todo.status == TodoStatus.PENDING]
         
         if search:
             search_lower = search.lower()
             filtered_todos = [
                 todo for todo in filtered_todos
-                if (search_lower in todo.title.lower() or 
+                if (search_lower in todo.text.lower() or 
                     (todo.description and search_lower in todo.description.lower()))
             ]
         
-        return [todo_to_response(todo) for todo in filtered_todos]
+        print(f"DEBUG: Total todos loaded: {len(all_todos)}, after filtering: {len(filtered_todos)}")
+        
+        # Convert todos to response format with error handling
+        response_todos = []
+        for todo in filtered_todos:
+            try:
+                response_todo = todo_to_response(todo)
+                response_todos.append(response_todo)
+            except Exception as e:
+                print(f"DEBUG: Error converting todo {getattr(todo, 'id', '?')}: {e}")
+                continue
+        
+        print(f"DEBUG: Successfully converted {len(response_todos)} todos")
+        return response_todos
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving tasks: {str(e)}")
@@ -222,8 +246,20 @@ async def create_task(
         # Get project name
         project_name = task_data.project or "default"
         
+        # Load or create project to get next ID
+        project, existing_todos = storage.load_project(project_name)
+        if not project:
+            project = Project(name=project_name)
+            existing_todos = []
+        
+        # Get next ID
+        next_id = 1
+        if existing_todos:
+            next_id = max(todo.id for todo in existing_todos) + 1
+        
         # Create new todo
         todo = Todo(
+            id=next_id,
             text=task_data.title,  # Use 'text' instead of 'title'
             project=project_name
         )
@@ -246,12 +282,6 @@ async def create_task(
                 todo.due_date = datetime.fromisoformat(task_data.due_date.replace('Z', '+00:00'))
             except ValueError:
                 pass  # Invalid date format, ignore
-        
-        # Load or create project
-        project, existing_todos = storage.load_project(project_name)
-        if not project:
-            project = Project(name=project_name)
-            existing_todos = []
         
         # Add todo to existing todos
         existing_todos.append(todo)
