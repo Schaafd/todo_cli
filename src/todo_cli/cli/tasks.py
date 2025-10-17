@@ -293,6 +293,214 @@ def quick(text, project, priority, tag, context):
 
 
 @cli.command()
+@click.option("--project", "-p", help="Filter by project")
+@click.option("--group-by", type=click.Choice(['status', 'priority', 'tag', 'context']), default='status', 
+              help="Group todos by field")
+@click.option("--tag", "-t", multiple=True, help="Filter by tags")
+@click.option("--context", "-c", multiple=True, help="Filter by contexts")
+def board(project: str, group_by: str, tag: tuple, context: tuple):
+    """Display todos in a kanban-style board view.
+    
+    Examples:
+      todo board                    # Group by status
+      todo board --group-by priority # Group by priority
+      todo board --tag work --context office  # Filter and group
+      todo board -p work_project    # Show specific project
+    """
+    try:
+        storage = get_storage()
+        config = get_config()
+        
+        # Get all todos
+        all_todos = []
+        
+        if project:
+            projects = [project]
+        else:
+            projects = storage.list_projects()
+            if not projects:
+                projects = [config.default_project]
+        
+        for proj_name in projects:
+            proj, todos = storage.load_project(proj_name)
+            if todos:
+                all_todos.extend([(todo, proj_name) for todo in todos])
+        
+        if not all_todos:
+            get_console().print("[yellow]No todos found.[/yellow]")
+            return
+        
+        # Apply filters
+        filtered_todos = all_todos
+        
+        # Filter by tags
+        if tag:
+            filtered_todos = [(todo, proj) for todo, proj in filtered_todos 
+                            if any(t in todo.tags for t in tag)]
+        
+        # Filter by contexts
+        if context:
+            filtered_todos = [(todo, proj) for todo, proj in filtered_todos 
+                            if any(c in todo.context for c in context)]
+        
+        if not filtered_todos:
+            get_console().print("[yellow]No todos match the specified filters.[/yellow]")
+            return
+        
+        # Group todos by the specified field
+        groups = {}
+        
+        for todo, proj_name in filtered_todos:
+            if group_by == 'status':
+                key = todo.status.value.title()
+            elif group_by == 'priority':
+                key = todo.priority.value.title()
+            elif group_by == 'tag':
+                # Group by primary tag (first tag) or 'No Tag'
+                key = todo.tags[0] if todo.tags else 'No Tag'
+            elif group_by == 'context':
+                # Group by primary context (first context) or 'No Context'
+                key = todo.context[0] if todo.context else 'No Context'
+            
+            if key not in groups:
+                groups[key] = []
+            groups[key].append((todo, proj_name))
+        
+        # Display the board
+        get_console().print(f"\n[bold blue]📋 Kanban Board - Grouped by {group_by.title()}[/bold blue]")
+        
+        if project:
+            get_console().print(f"[muted]Project: {project}[/muted]")
+        
+        if tag or context:
+            filters = []
+            if tag:
+                filters.append(f"Tags: {', '.join(tag)}")
+            if context:
+                filters.append(f"Contexts: {', '.join(context)}")
+            get_console().print(f"[muted]Filters: {' | '.join(filters)}[/muted]")
+        
+        get_console().print()
+        
+        # Sort groups for consistent display
+        if group_by == 'status':
+            # Logical order for status
+            status_order = ['Pending', 'In Progress', 'Blocked', 'Completed', 'Cancelled']
+            sorted_groups = [(key, groups[key]) for key in status_order if key in groups]
+            # Add any other groups not in the predefined order
+            for key in groups:
+                if key not in status_order:
+                    sorted_groups.append((key, groups[key]))
+        elif group_by == 'priority':
+            # High to low priority order
+            priority_order = ['Critical', 'High', 'Medium', 'Low']
+            sorted_groups = [(key, groups[key]) for key in priority_order if key in groups]
+            for key in groups:
+                if key not in priority_order:
+                    sorted_groups.append((key, groups[key]))
+        else:
+            # Alphabetical order for tags/contexts
+            sorted_groups = sorted(groups.items())
+        
+        # Calculate column width for display
+        max_width = 40
+        num_groups = len(sorted_groups)
+        
+        # Display groups as columns
+        for i, (group_name, group_todos) in enumerate(sorted_groups):
+            # Group header with count
+            count = len(group_todos)
+            
+            # Choose colors/emojis based on group type
+            if group_by == 'status':
+                status_colors = {
+                    'Pending': ('🗓️', 'yellow'),
+                    'In Progress': ('🔄', 'blue'),
+                    'Blocked': ('🚫', 'red'),
+                    'Completed': ('✅', 'green'),
+                    'Cancelled': ('❌', 'red')
+                }
+                emoji, color = status_colors.get(group_name, ('📋', 'white'))
+            elif group_by == 'priority':
+                priority_colors = {
+                    'Critical': ('🔴', 'red'),
+                    'High': ('🟠', 'red'),
+                    'Medium': ('🟡', 'yellow'),
+                    'Low': ('🔵', 'blue')
+                }
+                emoji, color = priority_colors.get(group_name, ('📋', 'white'))
+            else:
+                emoji, color = '🏷️', 'cyan'
+            
+            # Header
+            get_console().print(f"[bold {color}]{emoji} {group_name} ({count})[/bold {color}]")
+            get_console().print(f"[{color}]{'─' * min(len(f'{group_name} ({count})') + 3, max_width)}[/{color}]")
+            
+            # Sort todos within group by priority and due date
+            priority_order = {Priority.CRITICAL: 0, Priority.HIGH: 1, Priority.MEDIUM: 2, Priority.LOW: 3}
+            
+            def sort_key(todo_proj_tuple):
+                todo, _ = todo_proj_tuple
+                from ..utils.datetime import ensure_aware, max_utc
+                return (
+                    not todo.pinned,  # Pinned first
+                    priority_order.get(todo.priority, 2),
+                    ensure_aware(todo.due_date) if todo.due_date else max_utc(),
+                    todo.id
+                )
+            
+            group_todos.sort(key=sort_key)
+            
+            # Display todos in the group
+            if group_todos:
+                for todo, proj_name in group_todos[:10]:  # Limit to 10 per column
+                    # Compact todo display for board view
+                    status_icon = get_status_emoji(todo.status.value, todo.pinned)
+                    
+                    # Priority indicator
+                    priority_indicator = {
+                        Priority.CRITICAL: "[red]⚠[/red]",
+                        Priority.HIGH: "[yellow]⬆[/yellow]", 
+                        Priority.MEDIUM: "",
+                        Priority.LOW: "[blue]⬇[/blue]"
+                    }.get(todo.priority, "")
+                    
+                    # Truncate long text
+                    text = todo.text[:35] + "..." if len(todo.text) > 35 else todo.text
+                    
+                    # Show due date if present
+                    due_str = ""
+                    if todo.due_date:
+                        if todo.is_overdue():
+                            due_str = f" [red]![/red]{todo.due_date.strftime('%m/%d')}"
+                        else:
+                            due_str = f" [muted]!{todo.due_date.strftime('%m/%d')}[/muted]"
+                    
+                    # Project info if showing multiple projects
+                    proj_str = f" [dim]({proj_name})[/dim]" if not project else ""
+                    
+                    get_console().print(
+                        f"  {status_icon} [muted]{todo.id:2d}[/muted] {priority_indicator}{text}{due_str}{proj_str}"
+                    )
+                
+                if len(group_todos) > 10:
+                    remaining = len(group_todos) - 10
+                    get_console().print(f"  [dim]... and {remaining} more[/dim]")
+            else:
+                get_console().print("  [dim]No items[/dim]")
+            
+            get_console().print()  # Space between columns
+        
+        # Summary
+        total_todos = len(filtered_todos)
+        get_console().print(f"[bold]Summary:[/bold] {total_todos} todos in {len(sorted_groups)} groups")
+        
+    except Exception as e:
+        get_console().print(f"[red]❌ Error displaying board: {e}[/red]")
+        sys.exit(1)
+
+
+@cli.command()
 def dashboard():
     """Show dashboard with overview of tasks."""
     storage = get_storage()
@@ -1812,6 +2020,7 @@ def sync_history(limit):
 # Add all commands to the main group
 main.add_command(add)
 main.add_command(quick)
+main.add_command(board)
 main.add_command(dashboard)
 main.add_command(list_todos, name="list")
 main.add_command(search)
@@ -1854,6 +2063,10 @@ main.add_command(get_context_commands())
 # Add tags command group
 from .tags import get_tags_commands
 main.add_command(get_tags_commands())
+
+# Add backup command group
+from .backup import get_backup_commands
+main.add_command(get_backup_commands())
 
 
 if __name__ == "__main__":
