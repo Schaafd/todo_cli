@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo CLI Web</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#007acc">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TodoCLI">
+    
+    <!-- PWA Links -->
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="logo">Todo CLI</h1>
+            <div class="header-actions">
+                <select id="context-select" class="context-select">
+                    <option value="">All Contexts</option>
+                </select>
+                <button id="quick-capture" class="btn btn-primary">+ Quick Add</button>
+                <button id="menu-toggle" class="menu-toggle">☰</button>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="nav" id="nav">
+            <ul class="nav-list">
+                <li><a href="#" data-view="list" class="nav-link active">Tasks</a></li>
+                <li><a href="#" data-view="board" class="nav-link">Board</a></li>
+                <li><a href="#" data-view="contexts" class="nav-link">Contexts</a></li>
+                <li><a href="#" data-view="tags" class="nav-link">Tags</a></li>
+                <li><a href="#" data-view="backup" class="nav-link">Backup</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main" id="main-content">
+            <!-- Task List View -->
+            <div id="list-view" class="view active">
+                <div class="view-header">
+                    <h2>Tasks</h2>
+                    <div class="filters">
+                        <input type="search" id="search-input" placeholder="Search tasks..." class="search-input">
+                        <select id="filter-status" class="filter-select">
+                            <option value="">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="completed">Completed</option>
+                            <option value="blocked">Blocked</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="task-list" class="task-list">
+                    <!-- Tasks will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Board View -->
+            <div id="board-view" class="view">
+                <div class="view-header">
+                    <h2>Board</h2>
+                </div>
+                <div class="board">
+                    <div class="board-column" data-status="pending">
+                        <h3>To Do</h3>
+                        <div class="board-tasks" id="pending-tasks"></div>
+                    </div>
+                    <div class="board-column" data-status="in-progress">
+                        <h3>In Progress</h3>
+                        <div class="board-tasks" id="in-progress-tasks"></div>
+                    </div>
+                    <div class="board-column" data-status="completed">
+                        <h3>Completed</h3>
+                        <div class="board-tasks" id="completed-tasks"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Other views will be added here -->
+            <div id="contexts-view" class="view">
+                <div class="view-header">
+                    <h2>Contexts</h2>
+                </div>
+                <div id="contexts-list" class="contexts-list">
+                    <!-- Contexts will be loaded here -->
+                </div>
+            </div>
+
+            <div id="tags-view" class="view">
+                <div class="view-header">
+                    <h2>Tags</h2>
+                </div>
+                <div id="tags-list" class="tags-list">
+                    <!-- Tags will be loaded here -->
+                </div>
+            </div>
+
+            <div id="backup-view" class="view">
+                <div class="view-header">
+                    <h2>Backup & Restore</h2>
+                </div>
+                <div class="backup-actions">
+                    <button id="backup-btn" class="btn btn-primary">Create Backup</button>
+                    <button id="restore-btn" class="btn btn-secondary">Restore from Backup</button>
+                </div>
+                <div id="backup-list" class="backup-list">
+                    <!-- Backup files will be loaded here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="quick-capture-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Quick Capture</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <textarea id="quick-capture-input" placeholder="Add a task..." class="quick-capture-input"></textarea>
+                <div class="quick-capture-actions">
+                    <button id="quick-capture-save" class="btn btn-primary">Add Task</button>
+                    <button id="quick-capture-cancel" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="task-edit-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="task-edit-title">Edit Task</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="task-edit-form">
+                    <input type="hidden" id="task-id">
+                    <div class="form-group">
+                        <label for="task-title">Title</label>
+                        <input type="text" id="task-title" required class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="task-description">Description</label>
+                        <textarea id="task-description" class="form-textarea"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="task-priority">Priority</label>
+                        <select id="task-priority" class="form-select">
+                            <option value="">No Priority</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="task-tags">Tags</label>
+                        <input type="text" id="task-tags" placeholder="work, urgent, project-x" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="task-context">Context</label>
+                        <select id="task-context" class="form-select">
+                            <option value="">No Context</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <button type="button" id="task-edit-cancel" class="btn btn-secondary">Cancel</button>
+                        <button type="button" id="task-delete" class="btn btn-danger">Delete</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/ui.js"></script>
+    <script src="/static/js/app.js"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/static/sw.js')
+                    .then(function(registration) {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch(function(registrationError) {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>

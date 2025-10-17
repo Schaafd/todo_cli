@@ -2068,6 +2068,10 @@ main.add_command(get_tags_commands())
 from .backup import get_backup_commands
 main.add_command(get_backup_commands())
 
+# Add web command group
+from .web import web
+main.add_command(web)
+
 
 if __name__ == "__main__":
     main()
