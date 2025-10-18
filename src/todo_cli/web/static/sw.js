@@ -4,26 +4,41 @@
  * Provides offline functionality and caching for the Todo CLI web application.
  */
 
-const CACHE_NAME = 'todo-cli-pwa-v1.0.0';
-const API_CACHE_NAME = 'todo-cli-api-v1.0.0';
+// Version the cache based on deployment/build
+const CACHE_VERSION = '1.1.0';
+const CACHE_NAME = `todo-cli-static-v${CACHE_VERSION}`;
+const API_CACHE_NAME = `todo-cli-api-v${CACHE_VERSION}`;
+const OFFLINE_CACHE_NAME = `todo-cli-offline-v${CACHE_VERSION}`;
 
-// Resources to cache for offline use
+// Resources to precache for offline use
 const STATIC_RESOURCES = [
     '/',
     '/static/css/main.css',
+    '/static/css/enhancements.css',
+    '/static/js/config.js',
     '/static/js/api.js',
+    '/static/js/data-loader.js',
     '/static/js/ui.js',
     '/static/js/app.js',
     '/static/manifest.json'
 ];
 
-// API endpoints to cache
+// API endpoints that can be cached for offline fallback
 const CACHEABLE_API_PATTERNS = [
     '/api/tasks',
     '/api/contexts',
-    '/api/tags',
-    '/api/health'
+    '/api/tags'
 ];
+
+// API endpoints that should NEVER be cached (always fresh)
+const NON_CACHEABLE_API_PATTERNS = [
+    '/api/tasks/',  // Individual task operations
+    '/api/backups', // Backup operations
+    '/health'       // Health checks
+];
+
+// Maximum age for API cache (in milliseconds)
+const API_CACHE_MAX_AGE = 5 * 60 * 1000; // 5 minutes
 
 // Install event - cache static resources
 self.addEventListener('install', (event) => {
@@ -50,7 +65,9 @@ self.addEventListener('activate', (event) => {
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
-                    if (cacheName !== CACHE_NAME && cacheName !== API_CACHE_NAME) {
+                    // Keep only current version caches
+                    const currentCaches = [CACHE_NAME, API_CACHE_NAME, OFFLINE_CACHE_NAME];
+                    if (!currentCaches.includes(cacheName)) {
                         console.log('[Service Worker] Deleting old cache:', cacheName);
                         return caches.delete(cacheName);
                     }
@@ -78,75 +95,127 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(handleStaticRequest(request));
 });
 
-// Handle API requests with network-first strategy
+// Handle API requests with enhanced network-first strategy
 async function handleApiRequest(request) {
     const url = new URL(request.url);
+    const pathname = url.pathname;
     
-    // For GET requests that are cacheable, use network-first strategy
-    if (request.method === 'GET' && isCacheableApiRequest(url.pathname)) {
-        try {
-            // Try network first
-            const networkResponse = await fetch(request);
+    // Always try network first for API requests to prevent stale data
+    try {
+        console.log('[Service Worker] Trying network for API:', pathname);
+        const networkResponse = await fetch(request);
+        
+        // Only cache successful GET responses for cacheable endpoints
+        if (request.method === 'GET' && 
+            networkResponse.ok && 
+            networkResponse.status >= 200 && 
+            networkResponse.status < 300 &&
+            isCacheableApiRequest(pathname) &&
+            !isNonCacheableApiRequest(pathname)) {
             
-            if (networkResponse.ok) {
-                // Cache successful responses
-                const cache = await caches.open(API_CACHE_NAME);
-                cache.put(request, networkResponse.clone());
-                return networkResponse;
-            }
+            console.log('[Service Worker] Caching successful API response:', pathname);
+            const cache = await caches.open(API_CACHE_NAME);
             
-            // If network fails, try cache
-            const cachedResponse = await caches.match(request);
+            // Add timestamp to cached response for expiration
+            const responseToCache = networkResponse.clone();
+            const headers = new Headers(responseToCache.headers);
+            headers.set('sw-cached-at', Date.now().toString());
+            
+            const cachedResponse = new Response(responseToCache.body, {
+                status: responseToCache.status,
+                statusText: responseToCache.statusText,
+                headers: headers
+            });
+            
+            await cache.put(request, cachedResponse);
+        }
+        
+        return networkResponse;
+        
+    } catch (networkError) {
+        console.log('[Service Worker] Network failed for API:', pathname, networkError.message);
+        
+        // Only fallback to cache for GET requests on cacheable endpoints
+        if (request.method === 'GET' && isCacheableApiRequest(pathname)) {
+            const cachedResponse = await getCachedApiResponse(request);
+            
             if (cachedResponse) {
-                console.log('[Service Worker] Serving API from cache:', url.pathname);
-                return cachedResponse;
-            }
-            
-            return networkResponse;
-            
-        } catch (error) {
-            console.log('[Service Worker] Network failed, trying cache:', url.pathname);
-            
-            // Network failed, try cache
-            const cachedResponse = await caches.match(request);
-            if (cachedResponse) {
-                return cachedResponse;
-            }
-            
-            // Return offline response for tasks
-            if (url.pathname === '/api/tasks') {
-                return new Response(JSON.stringify([]), {
-                    status: 200,
-                    headers: { 'Content-Type': 'application/json' }
+                console.log('[Service Worker] Serving stale API data from cache:', pathname);
+                
+                // Add header to indicate this is cached data
+                const headers = new Headers(cachedResponse.headers);
+                headers.set('sw-served-from-cache', 'true');
+                headers.set('sw-network-error', networkError.message);
+                
+                return new Response(cachedResponse.body, {
+                    status: cachedResponse.status,
+                    statusText: cachedResponse.statusText,
+                    headers: headers
                 });
             }
             
-            // Return empty arrays for other list endpoints
-            if (url.pathname === '/api/contexts' || url.pathname === '/api/tags') {
-                return new Response(JSON.stringify([]), {
-                    status: 200,
-                    headers: { 'Content-Type': 'application/json' }
-                });
+            // Return structured offline response for specific endpoints
+            return getOfflineApiResponse(pathname);
+        }
+        
+        // For non-GET requests or non-cacheable endpoints, return error
+        return new Response(JSON.stringify({
+            detail: `Network error: ${networkError.message}. Operation not available offline.`,
+            type: 'network_error',
+            offline: true
+        }), {
+            status: 503,
+            headers: { 
+                'Content-Type': 'application/json',
+                'sw-network-error': 'true'
             }
-            
-            // For other API requests, throw the error
-            throw error;
+        });
+    }
+}
+
+// Get cached API response with expiration check
+async function getCachedApiResponse(request) {
+    const cache = await caches.open(API_CACHE_NAME);
+    const cachedResponse = await cache.match(request);
+    
+    if (!cachedResponse) {
+        return null;
+    }
+    
+    // Check if cached response has expired
+    const cachedAt = cachedResponse.headers.get('sw-cached-at');
+    if (cachedAt) {
+        const age = Date.now() - parseInt(cachedAt);
+        if (age > API_CACHE_MAX_AGE) {
+            console.log('[Service Worker] Cached API response expired, removing:', request.url);
+            await cache.delete(request);
+            return null;
         }
     }
     
-    // For non-GET requests or non-cacheable requests, always go to network
-    try {
-        return await fetch(request);
-    } catch (error) {
-        // For write operations when offline, we could implement a queue
-        // For now, just return an error response
-        return new Response(JSON.stringify({
-            detail: 'Operation not available offline'
-        }), {
-            status: 503,
-            headers: { 'Content-Type': 'application/json' }
-        });
-    }
+    return cachedResponse;
+}
+
+// Generate appropriate offline responses for different API endpoints
+function getOfflineApiResponse(pathname) {
+    const offlineResponse = {
+        '/api/tasks': [],
+        '/api/contexts': [],
+        '/api/tags': [],
+    };
+    
+    const responseData = offlineResponse[pathname] || {
+        detail: 'This endpoint is not available offline',
+        type: 'offline_error'
+    };
+    
+    return new Response(JSON.stringify(responseData), {
+        status: pathname in offlineResponse ? 200 : 503,
+        headers: { 
+            'Content-Type': 'application/json',
+            'sw-offline-fallback': 'true'
+        }
+    });
 }
 
 // Handle static requests with cache-first strategy
@@ -223,7 +292,15 @@ async function handleStaticRequest(request) {
 
 // Helper functions
 function isCacheableApiRequest(pathname) {
-    return CACHEABLE_API_PATTERNS.some(pattern => pathname.startsWith(pattern));
+    return CACHEABLE_API_PATTERNS.some(pattern => 
+        pathname === pattern || pathname.startsWith(pattern + '?')
+    );
+}
+
+function isNonCacheableApiRequest(pathname) {
+    return NON_CACHEABLE_API_PATTERNS.some(pattern => 
+        pathname.startsWith(pattern)
+    );
 }
 
 function shouldCacheRequest(request) {
@@ -252,20 +329,54 @@ self.addEventListener('sync', (event) => {
 });
 
 async function doBackgroundSync() {
-    // Here you could implement queued operations that failed while offline
-    // For example, sync pending task changes
     console.log('[Service Worker] Performing background sync...');
     
     try {
-        // Clear old API cache to ensure fresh data
+        // Test network connectivity
+        const healthCheck = await fetch('/health');
+        if (!healthCheck.ok) {
+            throw new Error('Server not available');
+        }
+        
+        // Clear expired API cache entries to ensure fresh data
         const apiCache = await caches.open(API_CACHE_NAME);
-        await apiCache.delete('/api/tasks');
-        await apiCache.delete('/api/contexts');
-        await apiCache.delete('/api/tags');
+        const keys = await apiCache.keys();
+        
+        for (const request of keys) {
+            const response = await apiCache.match(request);
+            if (response) {
+                const cachedAt = response.headers.get('sw-cached-at');
+                if (cachedAt) {
+                    const age = Date.now() - parseInt(cachedAt);
+                    if (age > API_CACHE_MAX_AGE) {
+                        console.log('[Service Worker] Removing expired cache entry:', request.url);
+                        await apiCache.delete(request);
+                    }
+                }
+            }
+        }
+        
+        // Notify all clients that we're back online
+        const clients = await self.clients.matchAll();
+        clients.forEach(client => {
+            client.postMessage({
+                type: 'ONLINE',
+                message: 'Connection restored'
+            });
+        });
         
         console.log('[Service Worker] Background sync completed');
     } catch (error) {
         console.error('[Service Worker] Background sync failed:', error);
+        
+        // Notify clients about sync failure
+        const clients = await self.clients.matchAll();
+        clients.forEach(client => {
+            client.postMessage({
+                type: 'SYNC_FAILED',
+                error: error.message
+            });
+        });
     }
 }
 
@@ -305,19 +416,75 @@ self.addEventListener('notificationclick', (event) => {
 self.addEventListener('message', (event) => {
     console.log('[Service Worker] Message received:', event.data);
     
-    if (event.data.type === 'SKIP_WAITING') {
-        self.skipWaiting();
-    }
+    const { type, data } = event.data;
     
-    if (event.data.type === 'CACHE_CLEAR') {
-        event.waitUntil(
-            caches.keys().then((cacheNames) => {
-                return Promise.all(
-                    cacheNames.map((cacheName) => {
-                        return caches.delete(cacheName);
-                    })
-                );
-            })
-        );
+    switch (type) {
+        case 'SKIP_WAITING':
+            self.skipWaiting();
+            break;
+            
+        case 'CACHE_CLEAR':
+            event.waitUntil(clearAllCaches());
+            break;
+            
+        case 'CACHE_API_CLEAR':
+            event.waitUntil(clearApiCache());
+            break;
+            
+        case 'CACHE_STATIC_REFRESH':
+            event.waitUntil(refreshStaticCache());
+            break;
+            
+        case 'GET_CACHE_STATUS':
+            event.waitUntil(getCacheStatus().then(status => {
+                event.ports[0].postMessage(status);
+            }));
+            break;
     }
 });
+
+// Cache management functions
+async function clearAllCaches() {
+    const cacheNames = await caches.keys();
+    await Promise.all(cacheNames.map(name => caches.delete(name)));
+    console.log('[Service Worker] All caches cleared');
+}
+
+async function clearApiCache() {
+    await caches.delete(API_CACHE_NAME);
+    console.log('[Service Worker] API cache cleared');
+}
+
+async function refreshStaticCache() {
+    const cache = await caches.open(CACHE_NAME);
+    await Promise.all(STATIC_RESOURCES.map(url => 
+        fetch(url).then(response => {
+            if (response.ok) {
+                return cache.put(url, response);
+            }
+        }).catch(error => {
+            console.warn(`[Service Worker] Failed to refresh ${url}:`, error);
+        })
+    ));
+    console.log('[Service Worker] Static cache refreshed');
+}
+
+async function getCacheStatus() {
+    const cacheNames = await caches.keys();
+    const status = {
+        version: CACHE_VERSION,
+        caches: {},
+        total_size: 0
+    };
+    
+    for (const cacheName of cacheNames) {
+        const cache = await caches.open(cacheName);
+        const keys = await cache.keys();
+        status.caches[cacheName] = {
+            entries: keys.length,
+            keys: keys.map(req => req.url)
+        };
+    }
+    
+    return status;
+}

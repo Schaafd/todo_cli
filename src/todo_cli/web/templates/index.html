@@ -198,21 +198,7 @@
     <script src="/static/js/api.js"></script>
     <script src="/static/js/data-loader.js"></script>
     <script src="/static/js/ui.js"></script>
+    <script src="/static/js/sw-manager.js"></script>
     <script src="/static/js/app.js"></script>
-    
-    <!-- Service Worker Registration -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/static/sw.js')
-                    .then(function(registration) {
-                        console.log('SW registered: ', registration);
-                    })
-                    .catch(function(registrationError) {
-                        console.log('SW registration failed: ', registrationError);
-                    });
-            });
-        }
-    </script>
 </body>
 </html>

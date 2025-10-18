@@ -352,6 +352,57 @@
     }
 }
 
+/* Offline Indicator */
+.offline-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
+    background-color: var(--warning-background, #fff3cd);
+    border-bottom: 2px solid var(--warning-border, #ffc107);
+    padding: 0.75rem;
+    text-align: center;
+    font-size: 0.875rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.offline-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.offline-indicator .retry-btn {
+    background-color: var(--primary-color, #007bff);
+    color: white;
+    border: none;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.offline-indicator .retry-btn:hover {
+    background-color: var(--primary-hover-color, #0056b3);
+}
+
+/* Adjust main content when offline indicator is shown */
+body:has(.offline-indicator) .header {
+    margin-top: 3rem;
+}
+
+@supports not selector(:has(*)) {
+    /* Fallback for browsers without :has() support */
+    .offline-indicator + * {
+        margin-top: 3rem;
+    }
+}
+
 /* High contrast mode support */
 @media (prefers-contrast: high) {
     .empty-state {
@@ -368,5 +419,10 @@
     .context-item,
     .tag-item {
         border-width: 2px;
+    }
+    
+    .offline-indicator {
+        border-width: 3px;
+        border-color: currentColor;
     }
 }
