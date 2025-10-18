@@ -6,10 +6,11 @@ This module provides a REST API and serves the PWA interface for the Todo CLI ap
 
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 
-from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi import FastAPI, HTTPException, Request, Depends, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -70,11 +71,43 @@ class ContextResponse(BaseModel):
     task_count: int
 
 
+class ProjectResponse(BaseModel):
+    """Response model for project data."""
+    name: str
+    display_name: str
+    description: str
+    task_count: int
+    completed_tasks: int
+    active: bool
+    created_at: str
+    color: Optional[str] = None
+
+
 class BackupResponse(BaseModel):
     """Response model for backup data."""
     filename: str
     created_at: str
     size: int
+
+
+class HealthResponse(BaseModel):
+    """Response model for health check."""
+    status: str = "healthy"
+    timestamp: str
+    version: str
+    api_version: str = "v1"
+    database_status: str
+    total_tasks: int
+    total_projects: int
+
+
+class ErrorResponse(BaseModel):
+    """Standard error response model."""
+    detail: str
+    type: str = "about:blank"
+    title: str
+    status: int
+    instance: str
 
 
 # Initialize FastAPI app
@@ -84,12 +117,18 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware
+# Add CORS middleware for development and PWA
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "*",  # Allow all origins for development
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000"
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -160,6 +199,47 @@ async def root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/health", response_model=HealthResponse)
+async def health_check(storage=Depends(get_todo_storage)):
+    """Health check endpoint with system status."""
+    try:
+        # Check database connectivity by listing projects
+        projects = storage.list_projects()
+        database_status = "healthy"
+        
+        # Count total tasks across all projects
+        total_tasks = 0
+        total_projects = len(projects)
+        
+        for project_name in projects:
+            try:
+                project_obj, todos = storage.load_project(project_name)
+                if todos:
+                    total_tasks += len(todos)
+            except Exception:
+                # Don't fail health check if one project has issues
+                pass
+        
+        return HealthResponse(
+            timestamp=datetime.utcnow().isoformat() + "Z",
+            version="1.0.0",
+            database_status=database_status,
+            total_tasks=total_tasks,
+            total_projects=total_projects
+        )
+        
+    except Exception as e:
+        # Return unhealthy status but still 200 OK
+        return HealthResponse(
+            status="unhealthy",
+            timestamp=datetime.utcnow().isoformat() + "Z", 
+            version="1.0.0",
+            database_status=f"error: {str(e)}",
+            total_tasks=0,
+            total_projects=0
+        )
+
+
 # Task endpoints
 @app.get("/api/tasks", response_model=List[TaskResponse])
 async def get_tasks(
@@ -175,40 +255,47 @@ async def get_tasks(
         # Load all todos from all projects
         all_todos = []
         projects = storage.list_projects()
-        print(f"DEBUG: Found projects: {projects}")
         
         for project_name in projects:
-            project_obj, todos = storage.load_project(project_name)
-            print(f"DEBUG: Project '{project_name}' loaded: project={project_obj is not None}, todos_count={len(todos) if todos else 0}")
-            if project_obj:  # Process projects even if todos list is empty
-                if todos:  # Only extend if todos is not None and not empty
-                    print(f"DEBUG: Adding {len(todos)} todos from project '{project_name}'")
+            try:
+                project_obj, todos = storage.load_project(project_name)
+                if project_obj and todos:  # Only add if both exist
                     all_todos.extend(todos)
+            except Exception as e:
+                # Log error but continue with other projects
+                print(f"Warning: Failed to load project '{project_name}': {e}")
+                continue
         
         # Apply filters
         filtered_todos = all_todos
-        print(f"DEBUG: Filter params - context: {context}, project: {project}, status: {status}, search: {search}")
-        print(f"DEBUG: Before filtering - todos count: {len(filtered_todos)}")
-        if filtered_todos:
-            first_todo = filtered_todos[0]
-            print(f"DEBUG: Sample todo - id: {getattr(first_todo, 'id', 'missing')}, text: {getattr(first_todo, 'text', 'missing')}, status: {getattr(first_todo, 'status', 'missing')}, context: {getattr(first_todo, 'context', 'missing')}")
         
+        # Context filter - handle both string and list contexts
         if context:
-            print(f"DEBUG: Filtering by context: {context}")
-            filtered_todos = [todo for todo in filtered_todos if todo.context == context]
+            filtered_todos = [
+                todo for todo in filtered_todos 
+                if (
+                    (isinstance(todo.context, list) and context in todo.context) or
+                    (isinstance(todo.context, str) and todo.context == context) or
+                    (todo.context == context)
+                )
+            ]
         
+        # Project filter
         if project:
             filtered_todos = [todo for todo in filtered_todos if todo.project == project]
         
+        # Status filter
         if status:
             from todo_cli.domain.todo import TodoStatus
-            if status == "completed":
-                filtered_todos = [todo for todo in filtered_todos if todo.status == TodoStatus.COMPLETED]
-            elif status == "blocked":
-                filtered_todos = [todo for todo in filtered_todos if todo.status == TodoStatus.BLOCKED]
-            elif status == "pending":
-                filtered_todos = [todo for todo in filtered_todos if todo.status == TodoStatus.PENDING]
+            status_map = {
+                "completed": TodoStatus.COMPLETED,
+                "blocked": TodoStatus.BLOCKED, 
+                "pending": TodoStatus.PENDING
+            }
+            if status in status_map:
+                filtered_todos = [todo for todo in filtered_todos if todo.status == status_map[status]]
         
+        # Search filter
         if search:
             search_lower = search.lower()
             filtered_todos = [
@@ -217,23 +304,35 @@ async def get_tasks(
                     (todo.description and search_lower in todo.description.lower()))
             ]
         
-        print(f"DEBUG: Total todos loaded: {len(all_todos)}, after filtering: {len(filtered_todos)}")
-        
         # Convert todos to response format with error handling
         response_todos = []
+        conversion_errors = 0
+        
         for todo in filtered_todos:
             try:
                 response_todo = todo_to_response(todo)
                 response_todos.append(response_todo)
             except Exception as e:
-                print(f"DEBUG: Error converting todo {getattr(todo, 'id', '?')}: {e}")
+                conversion_errors += 1
+                print(f"Warning: Failed to convert todo {getattr(todo, 'id', 'unknown')}: {e}")
                 continue
         
-        print(f"DEBUG: Successfully converted {len(response_todos)} todos")
+        if conversion_errors > 0:
+            print(f"Warning: {conversion_errors} todos failed conversion")
+            
         return response_todos
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error retrieving tasks: {str(e)}")
+        # Return structured error response
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "Internal server error",
+                "message": "Failed to retrieve tasks",
+                "details": str(e),
+                "type": "server_error"
+            }
+        )
 
 
 @app.post("/api/tasks", response_model=TaskResponse)
@@ -306,7 +405,7 @@ async def get_task(task_id: str, storage=Depends(get_todo_storage)):
             project, todos = storage.load_project(project_name)
             if project and todos:
                 for todo in todos:
-                    if todo.id == task_id:
+                    if str(todo.id) == task_id:
                         return todo_to_response(todo)
         
         raise HTTPException(status_code=404, detail="Task not found")
@@ -332,7 +431,7 @@ async def update_task(
             project, todos = storage.load_project(project_name)
             if project and todos:
                 for todo in todos:
-                    if todo.id == task_id:
+                    if str(todo.id) == task_id:
                         # Update fields
                         if task_data.title is not None:
                             todo.text = task_data.title  # Use 'text' instead of 'title'
@@ -391,7 +490,7 @@ async def delete_task(task_id: str, storage=Depends(get_todo_storage)):
             project, todos = storage.load_project(project_name)
             if project and todos:
                 for i, todo in enumerate(todos):
-                    if todo.id == task_id:
+                    if str(todo.id) == task_id:
                         todos.pop(i)
                         storage.save_project(project, todos)
                         return {"message": "Task deleted successfully"}
@@ -402,6 +501,54 @@ async def delete_task(task_id: str, storage=Depends(get_todo_storage)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting task: {str(e)}")
+
+
+# Project endpoints
+@app.get("/api/projects", response_model=List[ProjectResponse])
+async def get_projects(storage=Depends(get_todo_storage)):
+    """Get all projects with task counts."""
+    try:
+        projects_data = []
+        projects = storage.list_projects()
+        
+        for project_name in projects:
+            try:
+                project_obj, todos = storage.load_project(project_name)
+                if project_obj:
+                    # Count tasks by status
+                    task_count = len(todos) if todos else 0
+                    completed_tasks = 0
+                    
+                    if todos:
+                        from todo_cli.domain.todo import TodoStatus
+                        completed_tasks = sum(1 for todo in todos if todo.status == TodoStatus.COMPLETED)
+                    
+                    projects_data.append(ProjectResponse(
+                        name=project_obj.name,
+                        display_name=project_obj.display_name or project_obj.name,
+                        description=project_obj.description or "",
+                        task_count=task_count,
+                        completed_tasks=completed_tasks,
+                        active=project_obj.active,
+                        created_at=project_obj.created.isoformat() if hasattr(project_obj, 'created') and project_obj.created else "",
+                        color=getattr(project_obj, 'color', None)
+                    ))
+            except Exception as e:
+                print(f"Warning: Failed to load project '{project_name}': {e}")
+                continue
+        
+        return projects_data
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "Internal server error",
+                "message": "Failed to retrieve projects",
+                "details": str(e),
+                "type": "server_error"
+            }
+        )
 
 
 # Context endpoints
@@ -488,11 +635,7 @@ async def restore_backup_api(filename: str):
         raise HTTPException(status_code=500, detail=f"Error restoring backup: {str(e)}")
 
 
-# Health check endpoint
-@app.get("/api/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy", "service": "Todo CLI Web API"}
+# Note: Main health endpoint is at /health (not /api/health)
 
 
 def start_server(host: str = "127.0.0.1", port: int = 8000, debug: bool = False):

@@ -147,30 +147,50 @@ class UIUtils {
 
     // Task rendering utilities
     renderTask(task) {
+        // Validate task data
+        if (!task || !task.id || !task.title) {
+            console.warn('Invalid task data for rendering:', task);
+            return null;
+        }
+        
         const taskElement = document.createElement('div');
-        taskElement.className = `task-item ${task.status}`;
-        taskElement.dataset.taskId = task.id;
+        taskElement.className = `task-item ${task.status || 'pending'}`;
+        taskElement.dataset.taskId = String(task.id);
 
         const priorityClass = task.priority ? `task-priority ${task.priority}` : '';
-        const tagsHtml = task.tags.map(tag => `<span class="task-tag">${tag}</span>`).join('');
+        const tags = Array.isArray(task.tags) ? task.tags : [];
+        const tagsHtml = tags.map(tag => `<span class="task-tag">${this.escapeHtml(String(tag))}</span>`).join('');
+
+        // Safely format due date
+        let dueDateHtml = '';
+        if (task.due_date) {
+            try {
+                const dueDate = new Date(task.due_date);
+                if (!isNaN(dueDate.getTime())) {
+                    dueDateHtml = `<span class="task-due-date">Due: ${dueDate.toLocaleDateString()}</span>`;
+                }
+            } catch (error) {
+                console.warn('Invalid due date for task:', task.id, task.due_date);
+            }
+        }
 
         taskElement.innerHTML = `
             <div class="task-header">
-                <h3 class="task-title ${task.status}">${task.title}</h3>
+                <h3 class="task-title ${task.status || 'pending'}">${this.escapeHtml(task.title)}</h3>
                 <div class="task-actions">
-                    <button class="btn btn-sm toggle-task" data-task-id="${task.id}">
+                    <button class="btn btn-sm toggle-task" data-task-id="${task.id}" title="Toggle completion">
                         ${task.status === 'completed' ? '↶' : '✓'}
                     </button>
-                    <button class="btn btn-sm edit-task" data-task-id="${task.id}">✎</button>
-                    <button class="btn btn-sm btn-danger delete-task" data-task-id="${task.id}">✕</button>
+                    <button class="btn btn-sm edit-task" data-task-id="${task.id}" title="Edit task">✎</button>
+                    <button class="btn btn-sm btn-danger delete-task" data-task-id="${task.id}" title="Delete task">✕</button>
                 </div>
             </div>
-            ${task.description ? `<p class="task-description">${task.description}</p>` : ''}
+            ${task.description ? `<p class="task-description">${this.escapeHtml(task.description)}</p>` : ''}
             <div class="task-meta">
                 ${task.priority ? `<span class="${priorityClass}">${task.priority.toUpperCase()}</span>` : ''}
-                ${task.context ? `<span class="task-context">@${task.context}</span>` : ''}
-                ${task.project ? `<span class="task-project">#${task.project}</span>` : ''}
-                ${task.due_date ? `<span class="task-due-date">Due: ${new Date(task.due_date).toLocaleDateString()}</span>` : ''}
+                ${task.context ? `<span class="task-context">@${this.escapeHtml(task.context)}</span>` : ''}
+                ${task.project ? `<span class="task-project">#${this.escapeHtml(task.project)}</span>` : ''}
+                ${dueDateHtml}
                 <div class="task-tags">${tagsHtml}</div>
             </div>
         `;
@@ -179,28 +199,43 @@ class UIUtils {
     }
 
     renderBoardTask(task) {
+        // Validate task data
+        if (!task || !task.id || !task.title) {
+            console.warn('Invalid task data for board rendering:', task);
+            return null;
+        }
+        
         const taskElement = document.createElement('div');
         taskElement.className = 'board-task';
-        taskElement.dataset.taskId = task.id;
+        taskElement.dataset.taskId = String(task.id);
 
         const priorityClass = task.priority ? `task-priority ${task.priority}` : '';
-        const tagsHtml = task.tags.map(tag => `<span class="task-tag">${tag}</span>`).join('');
+        const tags = Array.isArray(task.tags) ? task.tags : [];
+        const tagsHtml = tags.map(tag => `<span class="task-tag">${this.escapeHtml(String(tag))}</span>`).join('');
 
         taskElement.innerHTML = `
             <div class="board-task-header">
-                <h4 class="board-task-title">${task.title}</h4>
-                ${task.priority ? `<span class="${priorityClass}">${task.priority.charAt(0).toUpperCase()}</span>` : ''}
+                <h4 class="board-task-title">${this.escapeHtml(task.title)}</h4>
+                ${task.priority ? `<span class="${priorityClass}">${this.escapeHtml(task.priority.charAt(0).toUpperCase())}</span>` : ''}
             </div>
-            ${task.description ? `<p class="board-task-description">${task.description}</p>` : ''}
+            ${task.description ? `<p class="board-task-description">${this.escapeHtml(task.description)}</p>` : ''}
             <div class="board-task-meta">
-                ${task.context ? `<span class="task-context">@${task.context}</span>` : ''}
+                ${task.context ? `<span class="task-context">@${this.escapeHtml(task.context)}</span>` : ''}
                 <div class="task-tags">${tagsHtml}</div>
             </div>
         `;
 
-        // Add click handler to edit task
+        // Add click handler to edit task with error protection
         taskElement.addEventListener('click', () => {
-            app.editTask(task.id);
+            try {
+                if (window.app && typeof window.app.editTask === 'function') {
+                    window.app.editTask(task.id);
+                } else {
+                    console.warn('App editTask method not available');
+                }
+            } catch (error) {
+                console.error('Error handling board task click:', error);
+            }
         });
 
         return taskElement;
@@ -279,6 +314,14 @@ class UIUtils {
                 }
             }
         });
+    }
+    
+    // HTML escaping for security
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
     }
 }
 

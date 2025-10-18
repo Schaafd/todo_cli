@@ -6,38 +6,96 @@
 
 class TodoAPI {
     constructor(baseURL = '') {
-        this.baseURL = baseURL;
-        this.headers = {
-            'Content-Type': 'application/json'
+        // Use configuration if available, otherwise default to current origin
+        this.baseURL = baseURL || (typeof ENV !== 'undefined' ? ENV.API_BASE_URL : window.location.origin);
+        this.config = typeof ENV !== 'undefined' ? ENV.API : {
+            TIMEOUT: 10000,
+            RETRY_ATTEMPTS: 3,
+            RETRY_DELAY: 1000
         };
+        this.headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
+        
+        if (typeof ENV !== 'undefined' && ENV.DEBUG) {
+            console.log('TodoAPI initialized with base URL:', this.baseURL);
+        }
     }
 
-    async request(endpoint, options = {}) {
+    async request(endpoint, options = {}, retryCount = 0) {
         const url = `${this.baseURL}${endpoint}`;
         const config = {
             headers: this.headers,
+            timeout: this.config.TIMEOUT,
             ...options
         };
 
+        if (typeof ENV !== 'undefined' && ENV.DEBUG) {
+            console.log(`API Request: ${options.method || 'GET'} ${url}`, config);
+        }
+
         try {
-            const response = await fetch(url, config);
+            // Create abort controller for timeout
+            const abortController = new AbortController();
+            const timeoutId = setTimeout(() => abortController.abort(), this.config.TIMEOUT);
+            
+            const response = await fetch(url, {
+                ...config,
+                signal: abortController.signal
+            });
+            
+            clearTimeout(timeoutId);
             
             if (!response.ok) {
                 const errorData = await response.json().catch(() => null);
-                throw new Error(errorData?.detail || `HTTP ${response.status}: ${response.statusText}`);
+                const error = new Error(errorData?.detail || `HTTP ${response.status}: ${response.statusText}`);
+                error.status = response.status;
+                error.response = errorData;
+                throw error;
             }
 
             // Handle empty responses (like DELETE)
             const contentType = response.headers.get('content-type');
             if (contentType && contentType.includes('application/json')) {
-                return await response.json();
+                const data = await response.json();
+                if (typeof ENV !== 'undefined' && ENV.DEBUG) {
+                    console.log(`API Response: ${url}`, data);
+                }
+                return data;
             }
             
             return null;
         } catch (error) {
-            console.error('API Request failed:', error);
+            if (typeof ENV !== 'undefined' && ENV.DEBUG) {
+                console.error('API Request failed:', { url, error, retryCount });
+            }
+            
+            // Retry logic for network errors
+            if (retryCount < this.config.RETRY_ATTEMPTS && this.shouldRetry(error)) {
+                await this.delay(this.config.RETRY_DELAY * (retryCount + 1));
+                return this.request(endpoint, options, retryCount + 1);
+            }
+            
+            // Enhance error with additional context
+            if (!error.status) {
+                error.isNetworkError = true;
+                error.message = 'Network error - please check your connection';
+            }
+            
             throw error;
         }
+    }
+    
+    shouldRetry(error) {
+        // Retry on network errors or 5xx server errors
+        return error.name === 'AbortError' || 
+               error.name === 'TypeError' || 
+               (error.status >= 500 && error.status < 600);
+    }
+    
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     // Task endpoints
@@ -113,9 +171,14 @@ class TodoAPI {
         });
     }
 
+    // Project endpoints
+    async getProjects() {
+        return this.request('/api/projects');
+    }
+
     // Health check
     async healthCheck() {
-        return this.request('/api/health');
+        return this.request('/health');
     }
 }
 
