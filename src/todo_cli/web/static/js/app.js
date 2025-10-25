@@ -260,7 +260,11 @@ class TodoApp {
     async handleQuickCapture() {
         const input = document.getElementById('quick-capture-input');
         if (!input || !input.value.trim()) {
-            ui.showWarning('Please enter a task title');
+            if (typeof notifications !== 'undefined') {
+                notifications.showValidationError('Please enter a task title');
+            } else {
+                ui.showWarning('Please enter a task title');
+            }
             return;
         }
 
@@ -276,14 +280,27 @@ class TodoApp {
             
             ui.hideModal('quick-capture-modal');
             this.clearQuickCapture();
-            ui.showSuccess('Task created successfully');
+            
+            if (typeof notifications !== 'undefined') {
+                notifications.showOperationSuccess('Created task', taskData.title);
+            } else {
+                ui.showSuccess('Task created successfully');
+            }
             
             // Refresh task list
             await this.loadTasks();
             
         } catch (error) {
             console.error('Failed to create task:', error);
-            ui.showError('Failed to create task: ' + error.message);
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.handleQuickCapture());
+                } else {
+                    notifications.showOperationFailure('create task', error);
+                }
+            } else {
+                ui.showError('Failed to create task: ' + error.message);
+            }
         } finally {
             ui.hideLoading();
         }
@@ -317,7 +334,15 @@ class TodoApp {
             
         } catch (error) {
             console.error('Failed to load task:', error);
-            ui.showError('Failed to load task details');
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.editTask(taskId));
+                } else {
+                    notifications.showApiError('/api/tasks/' + taskId, error);
+                }
+            } else {
+                ui.showError('Failed to load task details');
+            }
         }
     }
 
@@ -339,14 +364,27 @@ class TodoApp {
             await api.updateTask(taskId, taskData);
             
             ui.hideModal('task-edit-modal');
-            ui.showSuccess('Task updated successfully');
+            
+            if (typeof notifications !== 'undefined') {
+                notifications.showOperationSuccess('Updated task', taskData.title);
+            } else {
+                ui.showSuccess('Task updated successfully');
+            }
             
             // Refresh task list
             await this.loadTasks();
             
         } catch (error) {
             console.error('Failed to update task:', error);
-            ui.showError('Failed to update task: ' + error.message);
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.handleTaskEdit());
+                } else {
+                    notifications.showOperationFailure('update task', error);
+                }
+            } else {
+                ui.showError('Failed to update task: ' + error.message);
+            }
         } finally {
             ui.hideLoading();
         }
@@ -365,14 +403,27 @@ class TodoApp {
             await api.deleteTask(taskId);
             
             ui.hideModal('task-edit-modal');
-            ui.showSuccess('Task deleted successfully');
+            
+            if (typeof notifications !== 'undefined') {
+                notifications.showOperationSuccess('Deleted task');
+            } else {
+                ui.showSuccess('Task deleted successfully');
+            }
             
             // Refresh task list
             await this.loadTasks();
             
         } catch (error) {
             console.error('Failed to delete task:', error);
-            ui.showError('Failed to delete task: ' + error.message);
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.handleTaskDelete());
+                } else {
+                    notifications.showOperationFailure('delete task', error);
+                }
+            } else {
+                ui.showError('Failed to delete task: ' + error.message);
+            }
         } finally {
             ui.hideLoading();
         }
@@ -381,14 +432,27 @@ class TodoApp {
     async toggleTask(taskId) {
         try {
             await api.toggleTask(taskId);
-            ui.showSuccess('Task status updated');
+            
+            if (typeof notifications !== 'undefined') {
+                notifications.success('Task status updated', 2000);
+            } else {
+                ui.showSuccess('Task status updated');
+            }
             
             // Refresh task list
             await this.loadTasks();
             
         } catch (error) {
             console.error('Failed to toggle task:', error);
-            ui.showError('Failed to update task: ' + error.message);
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.toggleTask(taskId));
+                } else {
+                    notifications.showOperationFailure('update task status', error);
+                }
+            } else {
+                ui.showError('Failed to update task: ' + error.message);
+            }
         }
     }
 
@@ -397,14 +461,27 @@ class TodoApp {
             ui.showLoading();
             
             await api.deleteTask(taskId);
-            ui.showSuccess('Task deleted successfully');
+            
+            if (typeof notifications !== 'undefined') {
+                notifications.showOperationSuccess('Deleted task');
+            } else {
+                ui.showSuccess('Task deleted successfully');
+            }
             
             // Refresh task list
             await this.loadTasks();
             
         } catch (error) {
             console.error('Failed to delete task:', error);
-            ui.showError('Failed to delete task: ' + error.message);
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.deleteTask(taskId));
+                } else {
+                    notifications.showOperationFailure('delete task', error);
+                }
+            } else {
+                ui.showError('Failed to delete task: ' + error.message);
+            }
         } finally {
             ui.hideLoading();
         }
@@ -430,10 +507,21 @@ class TodoApp {
             
         } catch (error) {
             console.error('Failed to load tasks:', error);
-            const errorMsg = error.isNetworkError ? 
-                'Unable to connect to server. Please check your connection.' :
-                'Failed to load tasks. Please try again.';
-            ui.showError(errorMsg);
+            
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.loadTasks());
+                } else if (error.name === 'SyntaxError') {
+                    notifications.showJsonParseError(() => this.loadTasks());
+                } else {
+                    notifications.showApiError('/api/tasks', error, () => this.loadTasks());
+                }
+            } else {
+                const errorMsg = error.isNetworkError ? 
+                    'Unable to connect to server. Please check your connection.' :
+                    'Failed to load tasks. Please try again.';
+                ui.showError(errorMsg);
+            }
         }
     }
 
@@ -489,7 +577,16 @@ class TodoApp {
             this.renderBoard(tasks);
         } catch (error) {
             console.error('Failed to load board data:', error);
-            ui.showError('Failed to load board view');
+            
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.loadBoardData());
+                } else {
+                    notifications.showApiError('/api/tasks', error, () => this.loadBoardData());
+                }
+            } else {
+                ui.showError('Failed to load board view');
+            }
         }
     }
 
@@ -606,10 +703,19 @@ class TodoApp {
             this.renderContexts();
         } catch (error) {
             console.error('Failed to load contexts:', error);
-            const errorMsg = error.isNetworkError ? 
-                'Unable to connect to server. Please check your connection.' :
-                'Failed to load contexts. Please try again.';
-            ui.showError(errorMsg);
+            
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.loadContextData());
+                } else {
+                    notifications.showApiError('/api/contexts', error, () => this.loadContextData());
+                }
+            } else {
+                const errorMsg = error.isNetworkError ? 
+                    'Unable to connect to server. Please check your connection.' :
+                    'Failed to load contexts. Please try again.';
+                ui.showError(errorMsg);
+            }
         }
     }
 
@@ -656,10 +762,19 @@ class TodoApp {
             this.renderTags();
         } catch (error) {
             console.error('Failed to load tags:', error);
-            const errorMsg = error.isNetworkError ? 
-                'Unable to connect to server. Please check your connection.' :
-                'Failed to load tags. Please try again.';
-            ui.showError(errorMsg);
+            
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.loadTagData());
+                } else {
+                    notifications.showApiError('/api/tags', error, () => this.loadTagData());
+                }
+            } else {
+                const errorMsg = error.isNetworkError ? 
+                    'Unable to connect to server. Please check your connection.' :
+                    'Failed to load tags. Please try again.';
+                ui.showError(errorMsg);
+            }
         }
     }
 
@@ -702,7 +817,16 @@ class TodoApp {
             this.renderBackups(backups);
         } catch (error) {
             console.error('Failed to load backups:', error);
-            ui.showError('Failed to load backup list');
+            
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.loadBackupData());
+                } else {
+                    notifications.showApiError('/api/backups', error, () => this.loadBackupData());
+                }
+            } else {
+                ui.showError('Failed to load backup list');
+            }
         }
     }
 
@@ -747,7 +871,12 @@ class TodoApp {
             ui.showLoading();
             
             const result = await api.createBackup();
-            ui.showSuccess(`Backup created: ${result.filename}`);
+            
+            if (typeof notifications !== 'undefined') {
+                notifications.success(`Backup created: ${result.filename}`, 5000);
+            } else {
+                ui.showSuccess(`Backup created: ${result.filename}`);
+            }
             
             // Refresh backup list if we're on backup view
             const backupView = document.getElementById('backup-view');
@@ -757,7 +886,16 @@ class TodoApp {
             
         } catch (error) {
             console.error('Failed to create backup:', error);
-            ui.showError('Failed to create backup: ' + error.message);
+            
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.createBackup());
+                } else {
+                    notifications.showOperationFailure('create backup', error);
+                }
+            } else {
+                ui.showError('Failed to create backup: ' + error.message);
+            }
         } finally {
             ui.hideLoading();
         }
@@ -768,14 +906,28 @@ class TodoApp {
             ui.showLoading();
             
             await api.restoreBackup(filename);
-            ui.showSuccess('Data restored successfully');
+            
+            if (typeof notifications !== 'undefined') {
+                notifications.success('Data restored successfully', 5000);
+            } else {
+                ui.showSuccess('Data restored successfully');
+            }
             
             // Refresh all data
             await this.loadInitialData();
             
         } catch (error) {
             console.error('Failed to restore backup:', error);
-            ui.showError('Failed to restore backup: ' + error.message);
+            
+            if (typeof notifications !== 'undefined') {
+                if (error.isNetworkError) {
+                    notifications.showNetworkError(() => this.restoreFromBackup(filename));
+                } else {
+                    notifications.showOperationFailure('restore backup', error);
+                }
+            } else {
+                ui.showError('Failed to restore backup: ' + error.message);
+            }
         } finally {
             ui.hideLoading();
         }
@@ -850,26 +1002,57 @@ class TodoApp {
     handleGlobalError(error, context = 'Unknown Error') {
         const errorMessage = error?.message || String(error) || 'An unexpected error occurred';
         
-        // Show user-friendly error message
-        ui.showError(`${context}: ${errorMessage}`, 10000);
-        
-        // Attempt to recover by reloading data if it seems like a data-related issue
-        if (errorMessage.includes('fetch') || errorMessage.includes('network') || errorMessage.includes('API')) {
-            setTimeout(() => {
-                if (confirm('Would you like to retry loading data?')) {
-                    this.handleRetry();
-                }
-            }, 2000);
+        // Show user-friendly error message with notification system if available
+        if (typeof notifications !== 'undefined') {
+            // Determine error type and show appropriate notification
+            if (errorMessage.includes('fetch') || errorMessage.includes('network') || error.isNetworkError) {
+                notifications.showNetworkError(() => this.handleRetry());
+            } else if (errorMessage.includes('JSON') || error.name === 'SyntaxError') {
+                notifications.showJsonParseError(() => this.handleRetry());
+            } else {
+                notifications.error(`${context}: ${errorMessage}`, 10000, {
+                    text: 'Retry',
+                    callback: () => this.handleRetry()
+                });
+            }
+            
+            // Log error for debugging
+            notifications.logError(context, error);
+        } else {
+            // Fallback to old UI system
+            ui.showError(`${context}: ${errorMessage}`, 10000);
+            
+            // Attempt to recover by reloading data if it seems like a data-related issue
+            if (errorMessage.includes('fetch') || errorMessage.includes('network') || errorMessage.includes('API')) {
+                setTimeout(() => {
+                    if (confirm('Would you like to retry loading data?')) {
+                        this.handleRetry();
+                    }
+                }, 2000);
+            }
         }
     }
 
     async handleRetry() {
         try {
             await this.loadInitialData();
-            ui.showSuccess('Data reloaded successfully');
+            
+            if (typeof notifications !== 'undefined') {
+                notifications.success('Data reloaded successfully', 3000);
+            } else {
+                ui.showSuccess('Data reloaded successfully');
+            }
         } catch (error) {
             console.error('Retry failed:', error);
-            ui.showError('Retry failed. Please refresh the page.');
+            
+            if (typeof notifications !== 'undefined') {
+                notifications.error('Retry failed. Please refresh the page.', 0, {
+                    text: 'Refresh',
+                    callback: () => window.location.reload()
+                });
+            } else {
+                ui.showError('Retry failed. Please refresh the page.');
+            }
         }
     }
 
