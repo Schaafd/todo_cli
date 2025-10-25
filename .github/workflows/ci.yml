@@ -1,0 +1,309 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint-and-format:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Check code formatting with Black
+        run: |
+          uv run black --check .
+        continue-on-error: false
+
+      - name: Check import sorting with isort
+        run: |
+          uv run isort --check-only .
+        continue-on-error: false
+
+      - name: Lint with flake8
+        run: |
+          uv run flake8 src/ tests/
+        continue-on-error: false
+
+  type-check:
+    name: Type Check with MyPy
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Type check with mypy
+        run: |
+          uv run mypy --config-file pyproject.toml src/
+        continue-on-error: false
+
+  test:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.11', '3.12']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Run tests with coverage
+        run: |
+          uv run python -m pytest --cov=src/todo_cli --cov-report=xml --cov-report=term-missing -v
+        env:
+          PYTEST_CURRENT_TEST: "1"
+
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}-${{ matrix.python-version }}
+          path: |
+            coverage.xml
+            .coverage
+
+  pwa-check:
+    name: PWA JavaScript Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check JavaScript syntax
+        run: |
+          # Check all JS files for syntax errors using Node.js
+          find src/todo_cli/web/static/js -name "*.js" -type f | while read file; do
+            echo "Checking $file..."
+            node -c "$file" || exit 1
+          done
+
+      - name: Verify PWA manifest exists
+        run: |
+          if [ ! -f "src/todo_cli/web/static/manifest.json" ]; then
+            echo "Error: PWA manifest.json not found"
+            exit 1
+          fi
+          echo "PWA manifest.json found"
+
+      - name: Verify service worker exists
+        run: |
+          if [ ! -f "src/todo_cli/web/static/sw.js" ]; then
+            echo "Error: Service worker sw.js not found"
+            exit 1
+          fi
+          echo "Service worker sw.js found"
+
+      - name: Check for console.log statements (warning only)
+        run: |
+          echo "Checking for console.log statements in production code..."
+          if grep -r "console\.log" src/todo_cli/web/static/js --exclude-dir=node_modules || true; then
+            echo "⚠️ Warning: Found console.log statements. Consider using conditional logging."
+          fi
+        continue-on-error: true
+
+  api-integration-test:
+    name: API Integration Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Start API server in background
+        run: |
+          uv run uvicorn src.todo_cli.web.server:app --host 127.0.0.1 --port 8000 &
+          sleep 5
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+
+      - name: Test API health endpoint
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/health)
+          if [ "$response" != "200" ]; then
+            echo "Health check failed with status $response"
+            exit 1
+          fi
+          echo "✓ Health check passed"
+
+      - name: Test API tasks endpoint
+        run: |
+          response=$(curl -s -w "\n%{http_code}" http://127.0.0.1:8000/api/tasks)
+          status_code=$(echo "$response" | tail -n1)
+          if [ "$status_code" != "200" ]; then
+            echo "Tasks endpoint failed with status $status_code"
+            exit 1
+          fi
+          echo "✓ Tasks endpoint passed"
+
+      - name: Test API contexts endpoint
+        run: |
+          response=$(curl -s -w "\n%{http_code}" http://127.0.0.1:8000/api/contexts)
+          status_code=$(echo "$response" | tail -n1)
+          if [ "$status_code" != "200" ]; then
+            echo "Contexts endpoint failed with status $status_code"
+            exit 1
+          fi
+          echo "✓ Contexts endpoint passed"
+
+  build-verification:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    needs: [lint-and-format, type-check, test, pwa-check]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Verify package can be built
+        run: |
+          uv build
+          echo "✓ Package built successfully"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+      - name: Verify CLI installation and basic functionality
+        run: |
+          uv run todo --version
+          uv run todo --help
+          echo "✓ CLI verification passed"
+
+  security-scan:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Run pip-audit for security vulnerabilities
+        run: |
+          uv pip install pip-audit
+          uv run pip-audit
+        continue-on-error: true
+
+  all-checks-passed:
+    name: All Checks Passed
+    runs-on: ubuntu-latest
+    needs: [lint-and-format, type-check, test, pwa-check, api-integration-test, build-verification]
+    if: always()
+    
+    steps:
+      - name: Check all jobs status
+        run: |
+          if [ "${{ needs.lint-and-format.result }}" != "success" ] || \
+             [ "${{ needs.type-check.result }}" != "success" ] || \
+             [ "${{ needs.test.result }}" != "success" ] || \
+             [ "${{ needs.pwa-check.result }}" != "success" ] || \
+             [ "${{ needs.api-integration-test.result }}" != "success" ] || \
+             [ "${{ needs.build-verification.result }}" != "success" ]; then
+            echo "❌ One or more checks failed"
+            exit 1
+          fi
+          echo "✅ All checks passed!"
