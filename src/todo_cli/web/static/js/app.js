@@ -317,13 +317,18 @@ class TodoApp {
         try {
             const task = await api.getTask(taskId);
             
-            // Populate form
+            // Debug: Log the full task title
+            if (typeof ENV !== 'undefined' && ENV.DEBUG) {
+                console.log('Editing task:', task.id, 'Title length:', task.title?.length, 'Title:', task.title);
+            }
+            
+            // Populate form - ensure we're setting the full title
             ui.setFormData('task-edit-form', {
                 'task-id': task.id,
-                'task-title': task.title,
+                'task-title': task.title || '',
                 'task-description': task.description || '',
                 'task-priority': task.priority || '',
-                'task-tags': task.tags.join(', '),
+                'task-tags': Array.isArray(task.tags) ? task.tags.join(', ') : '',
                 'task-context': task.context || ''
             });
 

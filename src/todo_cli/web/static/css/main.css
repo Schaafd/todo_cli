@@ -183,9 +183,16 @@ body, html {
     box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
 }
 
+.form-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
 .form-textarea {
     resize: vertical;
     min-height: 80px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .quick-capture-input {
@@ -480,6 +487,7 @@ body, html {
 
 .form-group {
     margin-bottom: var(--spacing-md);
+    width: 100%;
 }
 
 .form-group label {
@@ -487,6 +495,14 @@ body, html {
     margin-bottom: var(--spacing-xs);
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
+}
+
+.form-group .form-input,
+.form-group .form-textarea,
+.form-group .form-select {
+    width: 100%;
+    box-sizing: border-box;
+    max-width: 100%;
 }
 
 .form-actions {

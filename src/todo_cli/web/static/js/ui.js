@@ -124,7 +124,10 @@ class UIUtils {
 
     setFormData(formId, data) {
         const form = document.getElementById(formId);
-        if (!form) return;
+        if (!form) {
+            console.warn('Form not found:', formId);
+            return;
+        }
 
         Object.keys(data).forEach(key => {
             const element = form.querySelector(`[name="${key}"], #${key}`);
@@ -132,8 +135,22 @@ class UIUtils {
                 if (element.type === 'checkbox') {
                     element.checked = !!data[key];
                 } else {
-                    element.value = data[key] || '';
+                    const value = data[key] || '';
+                    element.value = value;
+                    
+                    // Debug: Log when setting long values
+                    if (typeof ENV !== 'undefined' && ENV.DEBUG && value.length > 50) {
+                        console.log(`Setting ${key} with length ${value.length}:`, value.substring(0, 50) + '...');
+                    }
+                    
+                    // Ensure the input properly displays long text
+                    if (element.tagName === 'INPUT' && element.type === 'text') {
+                        // Scroll to the beginning of the input to show the start of long text
+                        element.scrollLeft = 0;
+                    }
                 }
+            } else {
+                console.warn(`Form element not found for key: ${key}`);
             }
         });
     }
