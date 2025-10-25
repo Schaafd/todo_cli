@@ -176,8 +176,12 @@ def todo_to_response(todo: Todo) -> TaskResponse:
         elif isinstance(todo.context, str):
             context = todo.context
     
+    # Use composite key: project:id to ensure uniqueness across projects
+    project_name = todo.project if hasattr(todo, 'project') and todo.project else "inbox"
+    composite_id = f"{project_name}:{todo.id}"
+    
     return TaskResponse(
-        id=str(todo.id),
+        id=composite_id,
         title=todo.text,  # Use 'text' attribute
         description=todo.description or "",
         priority=todo.priority.value if hasattr(todo.priority, 'value') else todo.priority,
@@ -187,7 +191,7 @@ def todo_to_response(todo: Todo) -> TaskResponse:
         created_at=todo.created.isoformat() if hasattr(todo, 'created') and todo.created else None,
         updated_at=todo.modified.isoformat() if hasattr(todo, 'modified') and todo.modified else None,
         due_date=todo.due_date.isoformat() if todo.due_date else None,
-        project=todo.project if hasattr(todo, 'project') else None,
+        project=project_name,
         is_blocked=todo.status == TodoStatus.BLOCKED,
         dependencies=getattr(todo, 'dependencies', []) or []
     )
@@ -396,17 +400,26 @@ async def create_task(
 
 @app.get("/api/tasks/{task_id}", response_model=TaskResponse)
 async def get_task(task_id: str, storage=Depends(get_todo_storage)):
-    """Get a specific task by ID."""
+    """Get a specific task by ID (format: project:id or just id for backward compatibility)."""
     try:
-        # Search for the todo across all projects
-        projects = storage.list_projects()
-        
-        for project_name in projects:
+        # Parse composite ID (project:id) or plain ID
+        if ':' in task_id:
+            project_name, todo_id_str = task_id.split(':', 1)
+            # Search in specific project
             project, todos = storage.load_project(project_name)
             if project and todos:
                 for todo in todos:
-                    if str(todo.id) == task_id:
+                    if str(todo.id) == todo_id_str:
                         return todo_to_response(todo)
+        else:
+            # Backward compatibility: search all projects (returns first match)
+            projects = storage.list_projects()
+            for project_name in projects:
+                project, todos = storage.load_project(project_name)
+                if project and todos:
+                    for todo in todos:
+                        if str(todo.id) == task_id:
+                            return todo_to_response(todo)
         
         raise HTTPException(status_code=404, detail="Task not found")
         
@@ -422,16 +435,16 @@ async def update_task(
     task_data: TaskUpdateRequest,
     storage=Depends(get_todo_storage)
 ):
-    """Update an existing task."""
+    """Update an existing task (ID format: project:id or just id)."""
     try:
-        # Find and update the todo
-        projects = storage.list_projects()
-        
-        for project_name in projects:
+        # Parse composite ID (project:id) or plain ID
+        if ':' in task_id:
+            project_name, todo_id_str = task_id.split(':', 1)
+            # Update in specific project
             project, todos = storage.load_project(project_name)
             if project and todos:
                 for todo in todos:
-                    if str(todo.id) == task_id:
+                    if str(todo.id) == todo_id_str:
                         # Update fields
                         if task_data.title is not None:
                             todo.text = task_data.title  # Use 'text' instead of 'title'
@@ -481,19 +494,30 @@ async def update_task(
 
 @app.delete("/api/tasks/{task_id}")
 async def delete_task(task_id: str, storage=Depends(get_todo_storage)):
-    """Delete a task."""
+    """Delete a task (ID format: project:id or just id)."""
     try:
-        # Find and delete the todo
-        projects = storage.list_projects()
-        
-        for project_name in projects:
+        # Parse composite ID (project:id) or plain ID
+        if ':' in task_id:
+            project_name, todo_id_str = task_id.split(':', 1)
+            # Delete from specific project
             project, todos = storage.load_project(project_name)
             if project and todos:
                 for i, todo in enumerate(todos):
-                    if str(todo.id) == task_id:
+                    if str(todo.id) == todo_id_str:
                         todos.pop(i)
                         storage.save_project(project, todos)
                         return {"message": "Task deleted successfully"}
+        else:
+            # Backward compatibility: search all projects
+            projects = storage.list_projects()
+            for project_name in projects:
+                project, todos = storage.load_project(project_name)
+                if project and todos:
+                    for i, todo in enumerate(todos):
+                        if str(todo.id) == task_id:
+                            todos.pop(i)
+                            storage.save_project(project, todos)
+                            return {"message": "Task deleted successfully"}
         
         raise HTTPException(status_code=404, detail="Task not found")
         
