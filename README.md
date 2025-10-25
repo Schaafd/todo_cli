@@ -367,6 +367,69 @@ ls -la ~/.todo/
 uv run todo app-sync status
 ```
 
+## 🌐 Progressive Web App (PWA)
+
+Todo CLI includes a modern Progressive Web App for managing your tasks through a web interface!
+
+### Quick Start
+
+```bash
+# Start the API server
+uv run uvicorn src.todo_cli.web.server:app --reload --port 8000
+
+# Open PWA in browser
+open http://127.0.0.1:8000
+```
+
+### PWA Features
+
+- **📋 Task Management**: Full CRUD operations for tasks
+- **🎯 Board View**: Kanban-style board (Pending → In Progress → Completed)
+- **🏷️ Context & Tag Views**: Browse and filter by contexts and tags
+- **💾 Backup/Restore**: Create and restore backups directly from the web
+- **📴 Offline Support**: Service worker enables offline functionality
+- **🔔 Smart Notifications**: Actionable error messages with retry capabilities
+- **📱 Mobile-Friendly**: Responsive design works on all devices
+- **🎨 Modern UI**: Clean, intuitive interface with toast notifications
+
+### Key Capabilities
+
+- **Real-time Sync**: Changes made in CLI appear in PWA after refresh
+- **Network-First**: Always fetches fresh data when online
+- **Error Handling**: Comprehensive error messages with retry options
+- **Validation**: Client-side validation prevents invalid data
+- **Accessibility**: ARIA labels, keyboard navigation, reduced motion support
+
+### API Endpoints
+
+The PWA communicates with a REST API providing:
+
+- `GET /health` - Health check
+- `GET /api/tasks` - List all tasks (with filtering)
+- `GET /api/tasks/{id}` - Get single task
+- `POST /api/tasks` - Create task
+- `PUT /api/tasks/{id}` - Update task
+- `DELETE /api/tasks/{id}` - Delete task
+- `GET /api/contexts` - List contexts
+- `GET /api/tags` - List tags
+- `GET /api/projects` - List projects
+- `GET /api/backups` - List backups
+- `POST /api/backups` - Create backup
+- `POST /api/backups/{filename}/restore` - Restore backup
+
+### Documentation
+
+For complete setup instructions, troubleshooting, and API documentation:
+
+📖 **[PWA Setup Guide](docs/PWA_SETUP.md)**
+
+The guide includes:
+- Step-by-step installation and configuration
+- Environment variable setup
+- Common issues and solutions (CORS, caching, sync)
+- Complete API documentation with examples
+- Development tips and debugging techniques
+
 ## 📊 Dashboard View
 
 The dashboard provides an at-a-glance view of your tasks with rich themed formatting:
