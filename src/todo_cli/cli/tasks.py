@@ -2,6 +2,7 @@
 
 import os
 import sys
+import subprocess
 from typing import Optional
 from datetime import datetime, timedelta
 import click
@@ -1589,19 +1590,18 @@ def export(format_type, output, project, include_completed, exclude_completed, i
                 validated_path = validate_file_path(output, must_exist=True)
                 validated_path_str = str(validated_path)
                 
-                import subprocess
                 if sys.platform == "darwin":  # macOS
                     # check=False allows graceful failure if 'open' command fails
-                    result = subprocess.run(["open", validated_path_str], check=False, capture_output=True)
+                    result = subprocess.run(["open", validated_path_str], check=False, capture_output=True, text=True)
                     if result.returncode != 0:
-                        raise RuntimeError(f"Failed to open file: {result.stderr.decode() if result.stderr else 'Unknown error'}")
+                        raise RuntimeError(f"Failed to open file: {result.stderr if result.stderr else 'Unknown error'}")
                 elif sys.platform == "win32":  # Windows
                     os.startfile(validated_path_str)
                 else:  # Linux and others
                     # check=False allows graceful failure if 'xdg-open' command fails
-                    result = subprocess.run(["xdg-open", validated_path_str], check=False, capture_output=True)
+                    result = subprocess.run(["xdg-open", validated_path_str], check=False, capture_output=True, text=True)
                     if result.returncode != 0:
-                        raise RuntimeError(f"Failed to open file: {result.stderr.decode() if result.stderr else 'Unknown error'}")
+                        raise RuntimeError(f"Failed to open file: {result.stderr if result.stderr else 'Unknown error'}")
                 get_console().print(f"[success]🚀 Opened {validated_path_str}[/success]")
             except PathValidationError as e:
                 get_console().print(f"[error]❌ Security validation failed: {e}[/error]")

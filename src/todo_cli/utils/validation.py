@@ -339,7 +339,7 @@ class PathValidationError(Exception):
     pass
 
 
-def validate_file_path(file_path: str, must_exist: bool = False, allow_absolute_only: bool = False) -> Path:
+def validate_file_path(file_path: "str | Path", must_exist: bool = False, allow_absolute_only: bool = False) -> Path:
     """Validate and sanitize a file path for security.
     
     This function ensures that file paths are safe to use with operations like
@@ -374,7 +374,10 @@ def validate_file_path(file_path: str, must_exist: bool = False, allow_absolute_
         
         # Resolve to absolute path (this also resolves '..' and symlinks)
         try:
-            resolved_path = path.resolve(strict=must_exist)
+            resolved_path = path.resolve()
+            # Check existence separately if required (strict parameter removed in Python 3.12)
+            if must_exist and not resolved_path.exists():
+                raise FileNotFoundError(f"File not found: {resolved_path}")
         except FileNotFoundError:
             # Re-raise FileNotFoundError as-is for must_exist checks
             raise
