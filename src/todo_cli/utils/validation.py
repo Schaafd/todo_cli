@@ -1,11 +1,13 @@
-"""Timezone validation utilities for Todo CLI.
+"""Validation utilities for Todo CLI.
 
-This module provides comprehensive validation for datetime fields to ensure
-all datetime objects are timezone-aware and consistent throughout the application.
+This module provides comprehensive validation for:
+- DateTime fields: Ensures all datetime objects are timezone-aware and consistent
+- File paths: Validates and sanitizes file paths for secure file operations
 """
 
 import logging
 import os
+import stat as stat_module
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Tuple, Any, Dict
@@ -385,19 +387,14 @@ def validate_file_path(file_path: str, must_exist: bool = False, allow_absolute_
                 f"Only absolute paths are allowed. '{file_path}' is a relative path."
             )
         
-        # Check if file exists when required
-        if must_exist and not resolved_path.exists():
-            raise FileNotFoundError(f"File not found: {resolved_path}")
-        
         # Additional security checks:
         # 1. Ensure it's not a device file (on Unix-like systems)
         if resolved_path.exists():
             if hasattr(os, 'major'):  # Unix-like systems
                 try:
-                    stat = resolved_path.stat()
+                    stat_result = resolved_path.stat()
                     # Check if it's a character or block device
-                    import stat as stat_module
-                    if stat_module.S_ISCHR(stat.st_mode) or stat_module.S_ISBLK(stat.st_mode):
+                    if stat_module.S_ISCHR(stat_result.st_mode) or stat_module.S_ISBLK(stat_result.st_mode):
                         raise PathValidationError(
                             f"Cannot operate on device files: {resolved_path}"
                         )
