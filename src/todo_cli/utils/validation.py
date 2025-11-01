@@ -339,7 +339,7 @@ class PathValidationError(Exception):
     pass
 
 
-def validate_file_path(file_path: "str | Path", must_exist: bool = False, allow_absolute_only: bool = False) -> Path:
+def validate_file_path(file_path: str | Path, must_exist: bool = False) -> Path:
     """Validate and sanitize a file path for security.
     
     This function ensures that file paths are safe to use with operations like
@@ -350,9 +350,8 @@ def validate_file_path(file_path: "str | Path", must_exist: bool = False, allow_
     - Ensuring the path doesn't contain malicious patterns
     
     Args:
-        file_path: The file path to validate
+        file_path: The file path to validate (can be str or Path)
         must_exist: If True, raises error if file doesn't exist
-        allow_absolute_only: If True, only allows paths that are already absolute
         
     Returns:
         Path: A validated, absolute Path object
@@ -383,12 +382,6 @@ def validate_file_path(file_path: "str | Path", must_exist: bool = False, allow_
             raise
         except (OSError, RuntimeError) as e:
             raise PathValidationError(f"Unable to resolve path '{file_path}': {e}")
-        
-        # If allow_absolute_only is set, verify the original path was absolute
-        if allow_absolute_only and not path.is_absolute():
-            raise PathValidationError(
-                f"Only absolute paths are allowed. '{file_path}' is a relative path."
-            )
         
         # Additional security checks:
         # 1. Ensure it's not a device file (on Unix-like systems)

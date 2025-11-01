@@ -1591,17 +1591,20 @@ def export(format_type, output, project, include_completed, exclude_completed, i
                 validated_path_str = str(validated_path)
                 
                 if sys.platform == "darwin":  # macOS
-                    # check=False allows graceful failure if 'open' command fails
-                    result = subprocess.run(["open", validated_path_str], check=False, capture_output=True, text=True)
-                    if result.returncode != 0:
-                        raise RuntimeError(f"Failed to open file: {result.stderr if result.stderr else 'Unknown error'}")
+                    cmd = ["open", validated_path_str]
                 elif sys.platform == "win32":  # Windows
                     os.startfile(validated_path_str)
+                    cmd = None
                 else:  # Linux and others
-                    # check=False allows graceful failure if 'xdg-open' command fails
-                    result = subprocess.run(["xdg-open", validated_path_str], check=False, capture_output=True, text=True)
+                    cmd = ["xdg-open", validated_path_str]
+                
+                # Run command for non-Windows platforms
+                if cmd:
+                    result = subprocess.run(cmd, check=False, capture_output=True, text=True)
                     if result.returncode != 0:
-                        raise RuntimeError(f"Failed to open file: {result.stderr if result.stderr else 'Unknown error'}")
+                        error_msg = result.stderr.strip() if result.stderr else result.stdout.strip() or 'Unknown error'
+                        raise RuntimeError(f"Failed to open file: {error_msg}")
+                
                 get_console().print(f"[success]🚀 Opened {validated_path_str}[/success]")
             except PathValidationError as e:
                 get_console().print(f"[error]❌ Security validation failed: {e}[/error]")
