@@ -17,10 +17,35 @@ import click
 import json
 import csv
 import sys
+import importlib
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from pathlib import Path
-import tabulate
+
+_tabulate_spec = importlib.util.find_spec("tabulate")
+if _tabulate_spec is not None:
+    tabulate = importlib.import_module("tabulate")
+else:
+    class _SimpleTabulate:
+        """Minimal fallback implementation of tabulate."""
+
+        @staticmethod
+        def tabulate(data, headers="keys", tablefmt: str | None = None):
+            if not data:
+                return ""
+
+            if headers == "keys":
+                keys = list({key for row in data for key in row.keys()})
+            else:
+                keys = headers
+
+            lines = [" | ".join(str(key) for key in keys)]
+            lines.append("-+-".join("-" * len(str(key)) for key in keys))
+            for row in data:
+                lines.append(" | ".join(str(row.get(key, "")) for key in keys))
+            return "\n".join(lines)
+
+    tabulate = _SimpleTabulate()
 
 from ..services.analytics import (
     ProductivityAnalyzer, AnalyticsTimeframe, AnalyticsReport,

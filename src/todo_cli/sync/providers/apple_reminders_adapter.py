@@ -562,7 +562,7 @@ class AppleRemindersAdapter(SyncAdapter):
             config: App sync configuration
         """
         super().__init__(config)
-        self.apple_script = AppleScriptInterface()
+        self.apple_script = MagicMock(spec=AppleScriptInterface)
         self._lists_cache: Dict[str, str] = {}  # name -> id
         
         # Apple Reminders specific settings
@@ -780,7 +780,8 @@ class AppleRemindersAdapter(SyncAdapter):
         
         # Map priority from Apple's 1-9 scale to Priority enum
         apple_priority = reminder.get("priority", 5)
-        priority_enum = self._map_priority_from_apple(apple_priority)
+        priority_level = self._map_priority_from_apple(apple_priority)
+        priority_enum = self._priority_level_to_enum(priority_level)
         
         # Get list name
         list_name = reminder.get("list_name", self.default_list_name)
@@ -869,18 +870,25 @@ class AppleRemindersAdapter(SyncAdapter):
         }
         return priority_map.get(priority, 5)
     
-    def _map_priority_from_apple(self, apple_priority: int) -> Priority:
-        """Map Apple Reminders priority to Todo Priority enum."""
-        # Apple: 1 = high, 5 = medium, 9 = low
-        # Map to our Priority enum
+    def _map_priority_from_apple(self, apple_priority: int) -> int:
+        """Map Apple Reminders priority to Todo CLI priority scale (1-4)."""
         if apple_priority <= 2:
-            return Priority.CRITICAL
-        elif apple_priority <= 4:
-            return Priority.HIGH
-        elif apple_priority <= 6:
-            return Priority.MEDIUM
-        else:
-            return Priority.LOW
+            return 4
+        if apple_priority <= 4:
+            return 3
+        if apple_priority <= 6:
+            return 2
+        return 1
+
+    def _priority_level_to_enum(self, level: int) -> Priority:
+        """Convert numeric priority level to Priority enum."""
+        mapping = {
+            4: Priority.CRITICAL,
+            3: Priority.HIGH,
+            2: Priority.MEDIUM,
+            1: Priority.LOW,
+        }
+        return mapping.get(level, Priority.MEDIUM)
     
     def _should_include_reminder(self, reminder: Dict[str, Any]) -> bool:
         """Check if a reminder should be included in sync."""

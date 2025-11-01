@@ -178,7 +178,7 @@ def todo_to_response(todo: Todo) -> TaskResponse:
     
     # Use composite key: project:id to ensure uniqueness across projects
     project_name = todo.project if hasattr(todo, 'project') and todo.project else "inbox"
-    composite_id = f"{project_name}:{todo.id}"
+    composite_id = str(todo.id)
     
     return TaskResponse(
         id=composite_id,
@@ -346,6 +346,10 @@ async def create_task(
 ):
     """Create a new task."""
     try:
+        if not getattr(task_data, "title", "").strip():
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="Title is required")
+
         # Get project name
         project_name = task_data.project or "default"
         
@@ -395,6 +399,8 @@ async def create_task(
         return todo_to_response(todo)
         
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
         raise HTTPException(status_code=500, detail=f"Error creating task: {str(e)}")
 
 

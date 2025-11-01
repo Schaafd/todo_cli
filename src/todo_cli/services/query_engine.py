@@ -7,7 +7,8 @@ query syntax supporting complex filtering, logical operators, and field-specific
 
 import os
 import re
-import yaml
+import json
+import importlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, date
@@ -17,6 +18,37 @@ from fnmatch import fnmatch
 
 from ..domain import Todo, Priority, TodoStatus
 
+
+_yaml_spec = importlib.util.find_spec("yaml")
+yaml = importlib.import_module("yaml") if _yaml_spec is not None else None
+
+
+def _load_saved_queries(stream) -> Optional[Dict[str, Any]]:
+    """Load saved queries from YAML or JSON."""
+    content = stream.read()
+    if not content or not content.strip():
+        return None
+
+    if yaml is not None:
+        try:
+            return yaml.safe_load(content)
+        except Exception:
+            pass
+
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        return None
+
+
+def _dump_saved_queries(data: Dict[str, Any], stream) -> None:
+    """Persist saved queries data in YAML when available, otherwise JSON."""
+    if yaml is not None:
+        yaml.dump(data, stream, default_flow_style=False)
+        return
+
+    json.dump(data, stream, indent=2)
+    stream.write("\n")
 
 class TokenType(Enum):
     """Token types for query lexical analysis"""
@@ -562,8 +594,8 @@ class QueryEngine:
         """Load saved queries from file"""
         try:
             if os.path.exists(self.queries_file):
-                with open(self.queries_file, 'r') as f:
-                    data = yaml.safe_load(f)
+                with open(self.queries_file, 'r', encoding='utf-8') as f:
+                    data = _load_saved_queries(f)
                     if data and isinstance(data, dict):
                         self.saved_queries = data
         except Exception:
@@ -574,8 +606,8 @@ class QueryEngine:
         """Save queries to file"""
         try:
             os.makedirs(self.config_dir, exist_ok=True)
-            with open(self.queries_file, 'w') as f:
-                yaml.dump(self.saved_queries, f, default_flow_style=False)
+            with open(self.queries_file, 'w', encoding='utf-8') as f:
+                _dump_saved_queries(self.saved_queries, f)
         except Exception:
             # Silently fail - we don't want to crash on save issues
             pass

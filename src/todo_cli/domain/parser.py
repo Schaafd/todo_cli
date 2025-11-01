@@ -1,11 +1,55 @@
 """Enhanced natural language parser for Todo CLI."""
 
 import re
+import importlib
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
-import parsedatetime
-from fuzzywuzzy import fuzz, process
+
+_fuzzywuzzy_spec = importlib.util.find_spec("fuzzywuzzy")
+if _fuzzywuzzy_spec is not None:
+    fuzzywuzzy = importlib.import_module("fuzzywuzzy")
+    fuzz = fuzzywuzzy.fuzz
+    process = fuzzywuzzy.process
+else:
+    from difflib import SequenceMatcher
+
+    class _FuzzModule:
+        """Lightweight replacement for fuzzywuzzy.fuzz."""
+
+        @staticmethod
+        def ratio(a: str, b: str) -> int:
+            return int(SequenceMatcher(None, a, b).ratio() * 100)
+
+    class _ProcessModule:
+        """Simplified replacement for fuzzywuzzy.process."""
+
+        @staticmethod
+        def extractBests(query: str, choices, scorer=None, score_cutoff: int = 0, limit: int = 5):
+            scorer = scorer or _FuzzModule.ratio
+            scored = []
+            for choice in choices:
+                score = scorer(query, choice)
+                if score >= score_cutoff:
+                    scored.append((choice, score))
+            scored.sort(key=lambda item: item[1], reverse=True)
+            return scored[:limit]
+
+    fuzz = _FuzzModule()
+    process = _ProcessModule()
+
+_parsedatetime_spec = importlib.util.find_spec("parsedatetime")
+if _parsedatetime_spec is not None:
+    parsedatetime = importlib.import_module("parsedatetime")
+else:
+    class _FallbackParsedatetime:  # pragma: no cover - simple fallback
+        class Calendar:
+            """Minimal fallback calendar when parsedatetime isn't available."""
+
+            def parse(self, *_args, **_kwargs):
+                return datetime.now().timetuple(), 0
+
+    parsedatetime = _FallbackParsedatetime()
 
 from .todo import Todo, Priority, TodoStatus
 from ..config import ConfigModel
@@ -78,18 +122,30 @@ class SmartDateParser:
         now = now_utc()
         next_month = self._add_months(now, 1)
         return next_month.replace(day=1) - timedelta(days=1)
-    
+
+    def _next_weekday(self, target_day: int) -> datetime:
+        """Get the next occurrence of the specified weekday."""
+        now = now_utc()
+        days_ahead = (target_day - now.weekday()) % 7
+        if days_ahead == 0:
+            days_ahead = 7
+        return now + timedelta(days=days_ahead)
+
     def parse(self, date_str: str) -> Optional[datetime]:
         """Parse natural language date string."""
         if not date_str:
             return None
-        
+
         date_str = date_str.lower().strip()
-        
+
+        for prefix in ("due ", "on ", "by ", "at "):
+            if date_str.startswith(prefix):
+                date_str = date_str[len(prefix):].strip()
+
         # Check common patterns first
         if date_str in self.patterns:
             return self.patterns[date_str]()
-        
+
         # Try parsedatetime
         time_struct, parse_status = self.cal.parse(date_str)
         if parse_status > 0:
@@ -116,7 +172,25 @@ class SmartDateParser:
                     return ensure_aware(parsed_dt)
                 except ValueError:
                     continue
-        
+
+        weekdays = {
+            'monday': 0,
+            'tuesday': 1,
+            'wednesday': 2,
+            'thursday': 3,
+            'friday': 4,
+            'saturday': 5,
+            'sunday': 6,
+        }
+
+        if date_str in weekdays:
+            return ensure_aware(self._next_weekday(weekdays[date_str]))
+
+        if date_str.startswith('next '):
+            day_name = date_str.split('next ', 1)[1]
+            if day_name in weekdays:
+                return ensure_aware(self._next_weekday(weekdays[day_name]))
+
         return None
 
 

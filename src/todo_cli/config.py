@@ -1,10 +1,14 @@
 """Configuration management for the Todo CLI application."""
 
 import os
+import json
+import importlib
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
-import yaml
+
+_yaml_spec = importlib.util.find_spec("yaml")
+yaml = importlib.import_module("yaml") if _yaml_spec is not None else None
 
 from .domain import Priority
 
@@ -102,12 +106,19 @@ class ConfigModel:
             "theme_high_contrast": self.theme_high_contrast,
             "theme_colorblind_safe": self.theme_colorblind_safe,
         }
-        return yaml.dump(data, default_flow_style=False)
+        if yaml is not None:
+            return yaml.dump(data, default_flow_style=False)
+        return json.dumps(data, indent=2)
     
     @classmethod
     def from_yaml(cls, yaml_str: str) -> "ConfigModel":
         """Deserialize config from YAML."""
-        data = yaml.safe_load(yaml_str)
+        if not yaml_str.strip():
+            data = {}
+        elif yaml is not None:
+            data = yaml.safe_load(yaml_str)
+        else:
+            data = json.loads(yaml_str)
         
         # Convert priority string back to enum if needed
         if "default_priority" in data and isinstance(data["default_priority"], str):
@@ -151,7 +162,7 @@ class Config:
         
         if config_path.exists():
             try:
-                with open(config_path, 'r') as f:
+                with open(config_path, 'r', encoding='utf-8') as f:
                     yaml_content = f.read()
                 config = ConfigModel.from_yaml(yaml_content)
                 print(f"Loaded configuration from {config_path}")
@@ -175,7 +186,7 @@ class Config:
         config_path.parent.mkdir(parents=True, exist_ok=True)
         
         try:
-            with open(config_path, 'w') as f:
+            with open(config_path, 'w', encoding='utf-8') as f:
                 f.write(config.to_yaml())
             print(f"Configuration saved to {config_path}")
         except Exception as e:

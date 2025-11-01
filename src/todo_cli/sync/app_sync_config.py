@@ -7,13 +7,48 @@ configurations, provider settings, and sync preferences.
 import os
 import json
 import logging
+import importlib
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 
-import yaml
+_yaml_spec = importlib.util.find_spec("yaml")
+yaml = importlib.import_module("yaml") if _yaml_spec is not None else None
+
 from pydantic import BaseModel, Field, validator
 from pydantic_settings import BaseSettings
+
+
+def _load_sync_config(stream) -> Dict[str, Any]:
+    content = stream.read()
+    if not content or not content.strip():
+        return {}
+
+    if yaml is not None:
+        try:
+            data = yaml.safe_load(content)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+
+    try:
+        data = json.loads(content)
+        if isinstance(data, dict):
+            return data
+    except json.JSONDecodeError:
+        pass
+
+    return {}
+
+
+def _dump_sync_config(data: Dict[str, Any], stream) -> None:
+    if yaml is not None:
+        yaml.safe_dump(data, stream, default_flow_style=False, indent=2, sort_keys=True)
+        return
+
+    json.dump(data, stream, indent=2)
+    stream.write("\n")
 
 from .app_sync_models import (
     AppSyncProvider, 
@@ -131,9 +166,9 @@ class AppSyncConfigManager:
             return
         
         try:
-            with open(self.config_file, 'r') as f:
-                data = yaml.safe_load(f)
-            
+            with open(self.config_file, 'r', encoding='utf-8') as f:
+                data = _load_sync_config(f)
+
             if not data:
                 return
             
@@ -221,8 +256,8 @@ class AppSyncConfigManager:
             
             # Write with atomic operation using safe_dump
             temp_file = self.config_file.with_suffix('.tmp')
-            with open(temp_file, 'w') as f:
-                yaml.safe_dump(data, f, default_flow_style=False, indent=2, sort_keys=True)
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                _dump_sync_config(data, f)
             
             temp_file.rename(self.config_file)
             
