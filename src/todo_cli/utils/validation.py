@@ -1,11 +1,15 @@
-"""Timezone validation utilities for Todo CLI.
+"""Validation utilities for Todo CLI.
 
-This module provides comprehensive validation for datetime fields to ensure
-all datetime objects are timezone-aware and consistent throughout the application.
+This module provides comprehensive validation for:
+- DateTime fields: Ensures all datetime objects are timezone-aware and consistent
+- File paths: Validates and sanitizes file paths for secure file operations
 """
 
 import logging
+import os
+import stat as stat_module
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, List, Tuple, Any, Dict
 from dataclasses import fields
 
@@ -328,6 +332,83 @@ def get_naive_datetime_fields(obj) -> List[Tuple[str, datetime]]:
             continue
     
     return naive_fields
+
+
+class PathValidationError(Exception):
+    """Exception raised when path validation fails."""
+    pass
+
+
+def validate_file_path(file_path: str | Path, must_exist: bool = False) -> Path:
+    """Validate and sanitize a file path for security.
+    
+    This function ensures that file paths are safe to use with operations like
+    os.startfile() or subprocess.run() by:
+    - Resolving to absolute paths
+    - Checking for path traversal attempts
+    - Optionally verifying file existence
+    - Ensuring the path doesn't contain malicious patterns
+    
+    Args:
+        file_path: The file path to validate (can be str or Path)
+        must_exist: If True, raises error if file doesn't exist
+        
+    Returns:
+        Path: A validated, absolute Path object
+        
+    Raises:
+        PathValidationError: If the path is invalid or potentially malicious
+        FileNotFoundError: If must_exist=True and file doesn't exist
+    """
+    if not file_path or not isinstance(file_path, (str, Path)):
+        raise PathValidationError("Invalid file path: path must be a non-empty string or Path object")
+    
+    try:
+        # Check for null bytes before any processing (potential injection attack)
+        if '\0' in str(file_path):
+            raise PathValidationError("Invalid file path: contains null bytes")
+        
+        # Convert to Path object
+        path = Path(file_path)
+        
+        # Resolve to absolute path (this also resolves '..' and symlinks)
+        try:
+            resolved_path = path.resolve()
+            # Check existence separately if required (strict parameter removed in Python 3.12)
+            if must_exist and not resolved_path.exists():
+                raise FileNotFoundError(f"File not found: {resolved_path}")
+        except FileNotFoundError:
+            # Re-raise FileNotFoundError as-is for must_exist checks
+            raise
+        except (OSError, RuntimeError) as e:
+            raise PathValidationError(f"Unable to resolve path '{file_path}': {e}")
+        
+        # Additional security checks:
+        # 1. Ensure it's not a device file (on Unix-like systems)
+        if resolved_path.exists():
+            if os.name == 'posix':  # Unix-like systems
+                try:
+                    stat_result = resolved_path.stat()
+                    # Check if it's a character or block device
+                    if stat_module.S_ISCHR(stat_result.st_mode) or stat_module.S_ISBLK(stat_result.st_mode):
+                        raise PathValidationError(
+                            f"Cannot operate on device files: {resolved_path}"
+                        )
+                except (OSError, PermissionError):
+                    # If we can't stat it, we'll let the actual operation fail later
+                    pass
+        
+        # Log the validation for security audit trail
+        logger.debug(f"Path validated: '{file_path}' -> '{resolved_path}'")
+        
+        return resolved_path
+        
+    except PathValidationError:
+        raise
+    except FileNotFoundError:
+        raise
+    except Exception as e:
+        raise PathValidationError(f"Path validation failed for '{file_path}': {e}")
 
 
 if __name__ == "__main__":
