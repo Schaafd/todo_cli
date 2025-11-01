@@ -365,12 +365,12 @@ def validate_file_path(file_path: str, must_exist: bool = False, allow_absolute_
         raise PathValidationError("Invalid file path: path must be a non-empty string or Path object")
     
     try:
-        # Convert to Path object
-        path = Path(file_path)
-        
-        # Check for null bytes (potential injection attack)
+        # Check for null bytes before any processing (potential injection attack)
         if '\0' in str(file_path):
             raise PathValidationError("Invalid file path: contains null bytes")
+        
+        # Convert to Path object
+        path = Path(file_path)
         
         # Resolve to absolute path (this also resolves '..' and symlinks)
         try:
@@ -390,7 +390,7 @@ def validate_file_path(file_path: str, must_exist: bool = False, allow_absolute_
         # Additional security checks:
         # 1. Ensure it's not a device file (on Unix-like systems)
         if resolved_path.exists():
-            if hasattr(os, 'major'):  # Unix-like systems
+            if os.name == 'posix':  # Unix-like systems
                 try:
                     stat_result = resolved_path.stat()
                     # Check if it's a character or block device
