@@ -1,5 +1,6 @@
 """New clean command-line interface for Todo CLI."""
 
+import os
 import sys
 from typing import Optional
 from datetime import datetime, timedelta
@@ -1587,7 +1588,7 @@ def export(format_type, output, project, include_completed, exclude_completed, i
                 if sys.platform == "darwin":  # macOS
                     subprocess.run(["open", output])
                 elif sys.platform == "win32":  # Windows
-                    subprocess.run(["start", output], shell=True)
+                    os.startfile(output)
                 else:  # Linux and others
                     subprocess.run(["xdg-open", output])
                 get_console().print(f"[success]🚀 Opened {output}[/success]")

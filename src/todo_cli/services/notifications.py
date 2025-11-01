@@ -208,10 +208,19 @@ class DesktopNotificationDelivery(NotificationDelivery):
         """Send macOS notification using osascript"""
         try:
             # Use subprocess arguments directly to avoid shell escaping issues
+            title = notification.title or ""
+            message = notification.message or ""
             cmd = [
-                "osascript", 
-                "-e", 
-                f'display notification "{notification.message}" with title "{notification.title}" sound name "Glass"'
+                "osascript",
+                "-e",
+                "on run argv",
+                "-e",
+                "display notification (item 2 of argv) with title (item 1 of argv) with sound name (item 3 of argv)",
+                "-e",
+                "end run",
+                str(title),
+                str(message),
+                "Glass",
             ]
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
