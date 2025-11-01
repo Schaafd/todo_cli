@@ -2,11 +2,75 @@
 
 import os
 import re
+import json
+import importlib
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
-import frontmatter
-import yaml
+
+_yaml_spec = importlib.util.find_spec("yaml")
+yaml = importlib.import_module("yaml") if _yaml_spec is not None else None
+
+_frontmatter_spec = importlib.util.find_spec("frontmatter")
+if _frontmatter_spec is not None:
+    frontmatter = importlib.import_module("frontmatter")
+else:
+    class _FallbackPost:
+        def __init__(self, content: str, **metadata: Any):
+            self.content = content
+            self.metadata = metadata
+
+    def _parse_metadata(text: str) -> Tuple[Dict[str, Any], str]:
+        lines = text.splitlines()
+        if not lines or lines[0].strip() != "---":
+            return {}, text
+
+        metadata_lines = []
+        i = 1
+        while i < len(lines) and lines[i].strip() != "---":
+            metadata_lines.append(lines[i])
+            i += 1
+
+        if i >= len(lines):
+            return {}, text
+
+        metadata_str = "\n".join(metadata_lines)
+        content = "\n".join(lines[i + 1 :])
+
+        if yaml is not None:
+            try:
+                metadata = yaml.safe_load(metadata_str) or {}
+            except Exception:
+                metadata = {}
+        else:
+            try:
+                metadata = json.loads(metadata_str) if metadata_str.strip() else {}
+            except json.JSONDecodeError:
+                metadata = {}
+                for line in metadata_lines:
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        metadata[key.strip()] = value.strip().strip('"')
+
+        return metadata, content
+
+    class _FallbackFrontmatterModule:
+        Post = _FallbackPost
+
+        @staticmethod
+        def dumps(post: _FallbackPost) -> str:
+            if yaml is not None:
+                meta_str = yaml.dump(post.metadata, default_flow_style=False).strip()
+            else:
+                meta_str = json.dumps(post.metadata, indent=2)
+            return f"---\n{meta_str}\n---\n{post.content}"
+
+        @staticmethod
+        def loads(text: str) -> _FallbackPost:
+            metadata, content = _parse_metadata(text)
+            return _FallbackPost(content, **metadata)
+
+    frontmatter = _FallbackFrontmatterModule()
 
 from .domain import Todo, TodoStatus, Priority, Project
 from .config import ConfigModel

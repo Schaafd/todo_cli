@@ -7,13 +7,45 @@ automatic task generation, and flexible recurrence patterns.
 
 import os
 import re
-import yaml
+import json
+import importlib
 from dataclasses import dataclass, field
 from datetime import datetime, date, timedelta
 from enum import Enum
 from typing import List, Optional, Dict, Any, Tuple, Union
 from calendar import monthrange
 import math
+
+_yaml_spec = importlib.util.find_spec("yaml")
+yaml = importlib.import_module("yaml") if _yaml_spec is not None else None
+
+
+def _load_recurring_data(stream) -> Optional[Dict[str, Any]]:
+    """Load recurring task data from YAML or JSON."""
+    content = stream.read()
+    if not content or not content.strip():
+        return None
+
+    if yaml is not None:
+        try:
+            return yaml.safe_load(content)
+        except Exception:
+            pass
+
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        return None
+
+
+def _dump_recurring_data(data: Dict[str, Any], stream) -> None:
+    """Persist recurring task data as YAML when available, otherwise JSON."""
+    if yaml is not None:
+        yaml.dump(data, stream, default_flow_style=False)
+        return
+
+    json.dump(data, stream, indent=2)
+    stream.write("\n")
 
 from .todo import Todo, Priority, TodoStatus
 
@@ -408,8 +440,8 @@ class RecurringTaskManager:
         """Load recurring tasks from file"""
         try:
             if os.path.exists(self.recurring_file):
-                with open(self.recurring_file, 'r') as f:
-                    data = yaml.safe_load(f)
+                with open(self.recurring_file, 'r', encoding='utf-8') as f:
+                    data = _load_recurring_data(f)
                     if data and 'recurring_tasks' in data:
                         for task_data in data['recurring_tasks']:
                             task = self._deserialize_recurring_task(task_data)
@@ -431,8 +463,8 @@ class RecurringTaskManager:
                 ]
             }
             
-            with open(self.recurring_file, 'w') as f:
-                yaml.dump(data, f, default_flow_style=False)
+            with open(self.recurring_file, 'w', encoding='utf-8') as f:
+                _dump_recurring_data(data, f)
         except Exception:
             # Silently fail - we don't want to crash on save issues
             pass
