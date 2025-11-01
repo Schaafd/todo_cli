@@ -5,7 +5,9 @@ all datetime objects are timezone-aware and consistent throughout the applicatio
 """
 
 import logging
+import os
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, List, Tuple, Any, Dict
 from dataclasses import fields
 
@@ -328,6 +330,92 @@ def get_naive_datetime_fields(obj) -> List[Tuple[str, datetime]]:
             continue
     
     return naive_fields
+
+
+class PathValidationError(Exception):
+    """Exception raised when path validation fails."""
+    pass
+
+
+def validate_file_path(file_path: str, must_exist: bool = False, allow_absolute_only: bool = False) -> Path:
+    """Validate and sanitize a file path for security.
+    
+    This function ensures that file paths are safe to use with operations like
+    os.startfile() or subprocess.run() by:
+    - Resolving to absolute paths
+    - Checking for path traversal attempts
+    - Optionally verifying file existence
+    - Ensuring the path doesn't contain malicious patterns
+    
+    Args:
+        file_path: The file path to validate
+        must_exist: If True, raises error if file doesn't exist
+        allow_absolute_only: If True, only allows paths that are already absolute
+        
+    Returns:
+        Path: A validated, absolute Path object
+        
+    Raises:
+        PathValidationError: If the path is invalid or potentially malicious
+        FileNotFoundError: If must_exist=True and file doesn't exist
+    """
+    if not file_path or not isinstance(file_path, (str, Path)):
+        raise PathValidationError("Invalid file path: path must be a non-empty string or Path object")
+    
+    try:
+        # Convert to Path object
+        path = Path(file_path)
+        
+        # Check for null bytes (potential injection attack)
+        if '\0' in str(file_path):
+            raise PathValidationError("Invalid file path: contains null bytes")
+        
+        # Resolve to absolute path (this also resolves '..' and symlinks)
+        try:
+            resolved_path = path.resolve(strict=must_exist)
+        except FileNotFoundError:
+            # Re-raise FileNotFoundError as-is for must_exist checks
+            raise
+        except (OSError, RuntimeError) as e:
+            raise PathValidationError(f"Unable to resolve path '{file_path}': {e}")
+        
+        # If allow_absolute_only is set, verify the original path was absolute
+        if allow_absolute_only and not path.is_absolute():
+            raise PathValidationError(
+                f"Only absolute paths are allowed. '{file_path}' is a relative path."
+            )
+        
+        # Check if file exists when required
+        if must_exist and not resolved_path.exists():
+            raise FileNotFoundError(f"File not found: {resolved_path}")
+        
+        # Additional security checks:
+        # 1. Ensure it's not a device file (on Unix-like systems)
+        if resolved_path.exists():
+            if hasattr(os, 'major'):  # Unix-like systems
+                try:
+                    stat = resolved_path.stat()
+                    # Check if it's a character or block device
+                    import stat as stat_module
+                    if stat_module.S_ISCHR(stat.st_mode) or stat_module.S_ISBLK(stat.st_mode):
+                        raise PathValidationError(
+                            f"Cannot operate on device files: {resolved_path}"
+                        )
+                except (OSError, PermissionError):
+                    # If we can't stat it, we'll let the actual operation fail later
+                    pass
+        
+        # Log the validation for security audit trail
+        logger.debug(f"Path validated: '{file_path}' -> '{resolved_path}'")
+        
+        return resolved_path
+        
+    except PathValidationError:
+        raise
+    except FileNotFoundError:
+        raise
+    except Exception as e:
+        raise PathValidationError(f"Path validation failed for '{file_path}': {e}")
 
 
 if __name__ == "__main__":

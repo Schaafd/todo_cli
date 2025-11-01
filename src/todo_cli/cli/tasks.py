@@ -10,6 +10,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.panel import Panel
 from ..utils.datetime import ensure_aware, max_utc
+from ..utils.validation import validate_file_path, PathValidationError
 
 from ..config import get_config, load_config
 from ..storage import Storage
@@ -1584,14 +1585,22 @@ def export(format_type, output, project, include_completed, exclude_completed, i
         # Open file if requested
         if open_after:
             try:
+                # Validate the file path for security before opening
+                validated_path = validate_file_path(output, must_exist=True)
+                validated_path_str = str(validated_path)
+                
                 import subprocess
                 if sys.platform == "darwin":  # macOS
-                    subprocess.run(["open", output])
+                    subprocess.run(["open", validated_path_str], check=False)
                 elif sys.platform == "win32":  # Windows
-                    os.startfile(output)
+                    os.startfile(validated_path_str)
                 else:  # Linux and others
-                    subprocess.run(["xdg-open", output])
-                get_console().print(f"[success]🚀 Opened {output}[/success]")
+                    subprocess.run(["xdg-open", validated_path_str], check=False)
+                get_console().print(f"[success]🚀 Opened {validated_path_str}[/success]")
+            except PathValidationError as e:
+                get_console().print(f"[error]❌ Security validation failed: {e}[/error]")
+            except FileNotFoundError as e:
+                get_console().print(f"[error]❌ File not found: {e}[/error]")
             except Exception as e:
                 get_console().print(f"[warning]⚠️  Could not open file: {e}[/warning]")
         
