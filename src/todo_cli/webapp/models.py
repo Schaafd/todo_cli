@@ -46,7 +46,7 @@ class TaskBase(BaseModel):
     """Base task model"""
     title: str = Field(..., min_length=1, max_length=500)
     description: Optional[str] = None
-    priority: Optional[str] = Field(None, regex="^(low|medium|high)$")
+    priority: Optional[str] = Field(None, pattern="^(low|medium|high)$")
     due_date: Optional[datetime] = None
     project_id: Optional[str] = None
     tags: Optional[List[str]] = []
@@ -68,7 +68,7 @@ class TaskUpdate(BaseModel):
     """Task update model - all fields optional"""
     title: Optional[str] = Field(None, min_length=1, max_length=500)
     description: Optional[str] = None
-    priority: Optional[str] = Field(None, regex="^(low|medium|high)$")
+    priority: Optional[str] = Field(None, pattern="^(low|medium|high)$")
     due_date: Optional[datetime] = None
     project_id: Optional[str] = None
     tags: Optional[List[str]] = None
@@ -109,7 +109,7 @@ class ProjectBase(BaseModel):
     """Base project model"""
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
-    color: Optional[str] = Field(None, regex="^#[0-9A-Fa-f]{6}$")
+    color: Optional[str] = Field(None, pattern="^#[0-9A-Fa-f]{6}$")
 
 
 class ProjectCreate(ProjectBase):
@@ -121,7 +121,7 @@ class ProjectUpdate(BaseModel):
     """Project update model - all fields optional"""
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
-    color: Optional[str] = Field(None, regex="^#[0-9A-Fa-f]{6}$")
+    color: Optional[str] = Field(None, pattern="^#[0-9A-Fa-f]{6}$")
 
 
 class ProjectResponse(ProjectBase):
@@ -176,8 +176,8 @@ class AnalyticsResponse(BaseModel):
 class TaskFilter(BaseModel):
     """Task filter model"""
     search: Optional[str] = None
-    status: Optional[str] = Field(None, regex="^(all|active|completed)$")
-    priority: Optional[str] = Field(None, regex="^(all|low|medium|high)$")
+    status: Optional[str] = Field(None, pattern="^(all|active|completed)$")
+    priority: Optional[str] = Field(None, pattern="^(all|low|medium|high)$")
     project_id: Optional[str] = None
     due_date_from: Optional[datetime] = None
     due_date_to: Optional[datetime] = None

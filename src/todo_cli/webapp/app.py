@@ -17,15 +17,17 @@ from todo_cli.webapp.auth import (
     authenticate_user,
     create_access_token,
     get_current_user,
-    get_password_hash,
 )
-from todo_cli.webapp.database import (
-    get_db,
-    create_user,
-    get_user_by_username,
-    get_user_by_email,
+from todo_cli.webapp.database import get_db, hash_password
+from todo_cli.webapp.storage_bridge import get_storage_bridge
+from todo_cli.webapp.models import (
+    UserCreate,
+    TaskCreate,
+    TaskUpdate,
+    ProjectCreate,
+    ProjectUpdate,
 )
-from todo_cli.webapp.models import UserCreate, TaskCreate, TaskUpdate
+from todo_cli.domain import TodoStatus, Priority
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -43,13 +45,11 @@ app.mount("/static", StaticFiles(directory="src/todo_cli/webapp/static"), name="
 # Templates
 templates = Jinja2Templates(directory="src/todo_cli/webapp/templates")
 
-# Custom template filters
 @app.on_event("startup")
 async def startup_event():
     """Initialize application on startup"""
-    # Initialize database tables
-    from todo_cli.webapp.database import init_db
-    init_db()
+    # Database and storage bridge are initialized on first access
+    pass
 
 
 # ============================================================================
@@ -58,12 +58,22 @@ async def startup_event():
 
 def get_template_context(request: Request, current_user=None):
     """Get common template context"""
-    return {
+    context = {
         "request": request,
         "current_user": current_user,
-        "projects": [],  # Will be populated from database
-        "task_count": 0,  # Will be populated from database
     }
+    
+    if current_user:
+        bridge = get_storage_bridge()
+        projects = bridge.get_user_projects(current_user.id)
+        tasks = bridge.get_user_tasks(current_user.id)
+        context["projects"] = projects
+        context["task_count"] = len(tasks)
+    else:
+        context["projects"] = []
+        context["task_count"] = 0
+    
+    return context
 
 
 # ============================================================================
@@ -95,8 +105,7 @@ async def login(
     remember: Optional[bool] = Form(False),
 ):
     """Process login form"""
-    db = next(get_db())
-    user = authenticate_user(db, username, password)
+    user = authenticate_user(username, password)
     
     if not user:
         return templates.TemplateResponse(
@@ -142,7 +151,7 @@ async def register(
     password_confirm: str = Form(...),
 ):
     """Process registration form"""
-    db = next(get_db())
+    db = get_db()
     
     # Validation
     if password != password_confirm:
@@ -153,14 +162,14 @@ async def register(
         )
     
     # Check if user exists
-    if get_user_by_username(db, username):
+    if db.get_user_by_username(username):
         return templates.TemplateResponse(
             "register.html",
             {"request": request, "error": "Username already taken"},
             status_code=status.HTTP_400_BAD_REQUEST
         )
     
-    if get_user_by_email(db, email):
+    if db.get_user_by_email(email):
         return templates.TemplateResponse(
             "register.html",
             {"request": request, "error": "Email already registered"},
@@ -168,8 +177,14 @@ async def register(
         )
     
     # Create user
-    hashed_password = get_password_hash(password)
-    user = create_user(db, username, email, hashed_password)
+    try:
+        user = db.create_user(username, email, password)
+    except ValueError as e:
+        return templates.TemplateResponse(
+            "register.html",
+            {"request": request, "error": str(e)},
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
     
     # Auto-login after registration
     access_token = create_access_token(data={"sub": user.username})
@@ -199,18 +214,28 @@ async def logout():
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, current_user=Depends(get_current_user)):
     """Dashboard page"""
-    # Mock data - will be replaced with database queries
+    bridge = get_storage_bridge()
     context = get_template_context(request, current_user)
+    
+    # Get all user tasks
+    all_tasks = bridge.get_user_tasks(current_user.id)
+    
+    # Calculate stats
+    completed_tasks = [t for t in all_tasks if t.completed]
+    today = datetime.now().date()
+    today_tasks = [t for t in all_tasks if t.due_date and t.due_date.date() == today]
+    overdue_tasks = [t for t in all_tasks if t.due_date and t.due_date.date() < today and not t.completed]
+    
     context.update({
         "stats": {
-            "total_tasks": 24,
-            "completed_tasks": 12,
-            "due_today": 3,
-            "overdue": 1,
+            "total_tasks": len(all_tasks),
+            "completed_tasks": len(completed_tasks),
+            "due_today": len(today_tasks),
+            "overdue": len(overdue_tasks),
         },
-        "today_tasks": [],
-        "upcoming_tasks": [],
-        "recent_projects": [],
+        "today_tasks": today_tasks[:5],
+        "upcoming_tasks": [t for t in all_tasks if t.due_date and t.due_date.date() > today][:5],
+        "recent_projects": bridge.get_user_projects(current_user.id)[:5],
     })
     
     return templates.TemplateResponse("dashboard.html", context)
@@ -219,9 +244,12 @@ async def dashboard(request: Request, current_user=Depends(get_current_user)):
 @app.get("/tasks", response_class=HTMLResponse)
 async def tasks_page(request: Request, current_user=Depends(get_current_user)):
     """Tasks list page"""
+    bridge = get_storage_bridge()
     context = get_template_context(request, current_user)
+    
+    tasks = bridge.get_user_tasks(current_user.id)
     context.update({
-        "tasks": [],  # Will be populated from database
+        "tasks": tasks,
     })
     
     return templates.TemplateResponse("tasks.html", context)
@@ -294,17 +322,67 @@ async def analytics_page(request: Request, current_user=Depends(get_current_user
 # ============================================================================
 
 @app.get("/api/tasks")
-async def api_get_tasks(current_user=Depends(get_current_user)):
-    """Get all tasks for current user"""
-    # TODO: Implement database query
-    return {"tasks": []}
+async def api_get_tasks(
+    current_user=Depends(get_current_user),
+    project: Optional[str] = None,
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+):
+    """Get all tasks for current user with optional filtering"""
+    bridge = get_storage_bridge()
+    
+    # Parse filters
+    status_filter = TodoStatus(status) if status else None
+    priority_filter = Priority(priority) if priority else None
+    
+    tasks = bridge.get_user_tasks(
+        current_user.id,
+        project_name=project,
+        status=status_filter,
+        priority=priority_filter
+    )
+    
+    return {
+        "tasks": [
+            {
+                "id": t.id,
+                "text": t.text,
+                "project": t.project,
+                "status": t.status.value,
+                "completed": t.completed,
+                "priority": t.priority.value,
+                "due_date": t.due_date.isoformat() if t.due_date else None,
+                "tags": t.tags,
+                "created_at": t.created.isoformat() if hasattr(t, 'created') and t.created else None,
+            }
+            for t in tasks
+        ]
+    }
 
 
 @app.get("/api/tasks/{task_id}")
-async def api_get_task(task_id: str, current_user=Depends(get_current_user)):
+async def api_get_task(task_id: int, current_user=Depends(get_current_user)):
     """Get single task"""
-    # TODO: Implement database query
-    return {"task": {}}
+    bridge = get_storage_bridge()
+    task = bridge.get_task(current_user.id, task_id)
+    
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    return {
+        "task": {
+            "id": task.id,
+            "text": task.text,
+            "project": task.project,
+            "status": task.status.value,
+            "completed": task.completed,
+            "priority": task.priority.value,
+            "due_date": task.due_date.isoformat() if task.due_date else None,
+            "tags": task.tags,
+            "description": task.description if hasattr(task, 'description') else None,
+            "created_at": task.created.isoformat() if hasattr(task, 'created') and task.created else None,
+        }
+    }
 
 
 @app.post("/api/tasks")
@@ -313,33 +391,163 @@ async def api_create_task(
     current_user=Depends(get_current_user)
 ):
     """Create new task"""
-    # TODO: Implement database insert
-    return {"success": True, "task_id": "new-task-id"}
+    bridge = get_storage_bridge()
+    
+    # Check if user has access to project
+    project_name = task.project_id or "inbox"
+    
+    try:
+        # Create task
+        new_task = bridge.create_task(
+            current_user.id,
+            project_name,
+            task.title,
+            description=task.description,
+            priority=Priority(task.priority) if task.priority else Priority.MEDIUM,
+            due_date=task.due_date,
+            tags=task.tags or [],
+        )
+        
+        return {
+            "success": True,
+            "task_id": new_task.id,
+            "task": {
+                "id": new_task.id,
+                "text": new_task.text,
+                "project": new_task.project,
+                "priority": new_task.priority.value,
+            }
+        }
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create task: {str(e)}")
 
 
 @app.put("/api/tasks/{task_id}")
 async def api_update_task(
-    task_id: str,
+    task_id: int,
     task: TaskUpdate,
     current_user=Depends(get_current_user)
 ):
     """Update task"""
-    # TODO: Implement database update
-    return {"success": True}
+    bridge = get_storage_bridge()
+    
+    # Build updates dict
+    updates = {}
+    if task.title is not None:
+        updates["text"] = task.title
+    if task.description is not None:
+        updates["description"] = task.description
+    if task.priority is not None:
+        updates["priority"] = Priority(task.priority)
+    if task.due_date is not None:
+        updates["due_date"] = task.due_date
+    if task.tags is not None:
+        updates["tags"] = task.tags
+    if task.completed is not None:
+        updates["completed"] = task.completed
+        updates["status"] = TodoStatus.COMPLETED if task.completed else TodoStatus.PENDING
+    
+    try:
+        updated_task = bridge.update_task(current_user.id, task_id, **updates)
+        
+        if not updated_task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        return {"success": True}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 
 @app.post("/api/tasks/{task_id}/toggle")
-async def api_toggle_task(task_id: str, current_user=Depends(get_current_user)):
+async def api_toggle_task(task_id: int, current_user=Depends(get_current_user)):
     """Toggle task completion status"""
-    # TODO: Implement database update
-    return {"success": True}
+    bridge = get_storage_bridge()
+    
+    try:
+        updated_task = bridge.toggle_task_completion(current_user.id, task_id)
+        
+        if not updated_task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        return {
+            "success": True,
+            "completed": updated_task.completed
+        }
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 
 @app.delete("/api/tasks/{task_id}")
-async def api_delete_task(task_id: str, current_user=Depends(get_current_user)):
+async def api_delete_task(task_id: int, current_user=Depends(get_current_user)):
     """Delete task"""
-    # TODO: Implement database delete
-    return {"success": True}
+    bridge = get_storage_bridge()
+    
+    try:
+        success = bridge.delete_task(current_user.id, task_id)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        return {"success": True}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+# ============================================================================
+# Project API Routes
+# ============================================================================
+
+@app.get("/api/projects")
+async def api_get_projects(current_user=Depends(get_current_user)):
+    """Get all projects for current user"""
+    bridge = get_storage_bridge()
+    projects = bridge.get_user_projects(current_user.id)
+    
+    return {
+        "projects": [
+            {
+                "id": p.name,
+                "name": p.display_name or p.name,
+                "description": p.description,
+                "color": p.color,
+                "task_count": p.task_count if hasattr(p, 'task_count') else 0,
+                "completed_count": p.completed_count if hasattr(p, 'completed_count') else 0,
+            }
+            for p in projects
+        ]
+    }
+
+
+@app.post("/api/projects")
+async def api_create_project(
+    project: ProjectCreate,
+    current_user=Depends(get_current_user)
+):
+    """Create new project"""
+    bridge = get_storage_bridge()
+    
+    try:
+        new_project = bridge.create_project_for_user(
+            current_user.id,
+            project.name,
+            description=project.description,
+            color=project.color
+        )
+        
+        return {
+            "success": True,
+            "project_id": new_project.name,
+            "project": {
+                "id": new_project.name,
+                "name": new_project.display_name or new_project.name,
+                "description": new_project.description,
+                "color": new_project.color,
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create project: {str(e)}")
 
 
 # ============================================================================
