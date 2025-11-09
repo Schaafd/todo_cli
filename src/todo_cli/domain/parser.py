@@ -6,12 +6,9 @@ from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 
-_fuzzywuzzy_spec = importlib.util.find_spec("fuzzywuzzy")
-if _fuzzywuzzy_spec is not None:
-    fuzzywuzzy = importlib.import_module("fuzzywuzzy")
-    fuzz = fuzzywuzzy.fuzz
-    process = fuzzywuzzy.process
-else:
+try:
+    from fuzzywuzzy import fuzz, process
+except ImportError:
     from difflib import SequenceMatcher
 
     class _FuzzModule:

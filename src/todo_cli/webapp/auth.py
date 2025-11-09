@@ -11,8 +11,6 @@ import bcrypt
 import jwt
 from fastapi import HTTPException, Request, status
 
-from todo_cli.webapp.database import get_db, get_user_by_username
-
 # ============================================================================
 # Settings
 # ============================================================================
@@ -80,18 +78,25 @@ def _extract_bearer_from_cookie(request: Request) -> Optional[str]:
 # Authentication helpers
 # ============================================================================
 
-def authenticate_user(db, username: str, password: str):
+def authenticate_user(username: str, password: str):
     """Validate user credentials and return the user or None."""
-    user = get_user_by_username(db, username)
+    # Import here to avoid circular import
+    from .database import get_db
+    
+    db = get_db()
+    user = db.get_user_by_username(username)
     if not user:
         return None
-    if not verify_password(password, user.password_hash):  # type: ignore[attr-defined]
+    if not verify_password(password, user.password_hash):
         return None
     return user
 
 
 async def get_current_user(request: Request):
     """FastAPI dependency that returns the current user from JWT cookie or raises 401."""
+    # Import here to avoid circular import
+    from .database import get_db
+    
     token = _extract_bearer_from_cookie(request)
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -101,8 +106,8 @@ async def get_current_user(request: Request):
     if username is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
 
-    db = next(get_db())
-    user = get_user_by_username(db, username)
+    db = get_db()
+    user = db.get_user_by_username(username)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
