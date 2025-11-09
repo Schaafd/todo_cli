@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error {{ error_code }} - Todo CLI</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/variables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/components.css') }}">
+    
+    <style>
+        .error-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-4);
+            background: linear-gradient(135deg, var(--color-background) 0%, var(--color-surface) 100%);
+        }
+        
+        .error-card {
+            width: 100%;
+            max-width: 600px;
+            background-color: var(--color-surface);
+            border: var(--border-width) solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: var(--space-12);
+            box-shadow: var(--shadow-xl);
+            text-align: center;
+            animation: slideInUp var(--transition-base);
+        }
+        
+        .error-code {
+            font-size: 6rem;
+            font-weight: var(--font-weight-bold);
+            color: var(--color-primary);
+            line-height: 1;
+            margin-bottom: var(--space-4);
+            text-shadow: 0 0 20px rgba(104, 213, 243, 0.3);
+        }
+        
+        .error-title {
+            font-size: var(--font-size-2xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-text-bright);
+            margin-bottom: var(--space-3);
+        }
+        
+        .error-message {
+            font-size: var(--font-size-base);
+            color: var(--color-text-secondary);
+            margin-bottom: var(--space-8);
+            line-height: var(--line-height-relaxed);
+        }
+        
+        .error-terminal {
+            background-color: var(--color-background);
+            border: var(--border-width) solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: var(--space-4);
+            margin-bottom: var(--space-6);
+            text-align: left;
+            font-size: var(--font-size-sm);
+        }
+        
+        .terminal-line {
+            color: var(--color-text-secondary);
+            margin-bottom: var(--space-2);
+        }
+        
+        .terminal-line.error {
+            color: var(--color-error);
+        }
+        
+        .terminal-prompt {
+            color: var(--color-primary);
+        }
+        
+        .error-actions {
+            display: flex;
+            gap: var(--space-3);
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .error-icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto var(--space-6);
+            color: var(--color-primary);
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-card">
+            <!-- Error Icon -->
+            {% if error_code == 404 %}
+            <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            {% elif error_code == 500 %}
+            <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            {% else %}
+            <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+            </svg>
+            {% endif %}
+            
+            <!-- Error Code -->
+            <div class="error-code">{{ error_code }}</div>
+            
+            <!-- Error Title -->
+            <h1 class="error-title">
+                {% if error_code == 404 %}
+                    Page Not Found
+                {% elif error_code == 500 %}
+                    Internal Server Error
+                {% else %}
+                    Something Went Wrong
+                {% endif %}
+            </h1>
+            
+            <!-- Error Message -->
+            <p class="error-message">
+                {{ error_message }}
+            </p>
+            
+            <!-- Terminal Output -->
+            <div class="error-terminal">
+                <div class="terminal-line">
+                    <span class="terminal-prompt">></span> todo status --check
+                </div>
+                {% if error_code == 404 %}
+                <div class="terminal-line error">
+                    Error: Route not found
+                </div>
+                <div class="terminal-line">
+                    The requested page does not exist. Please check the URL and try again.
+                </div>
+                {% elif error_code == 500 %}
+                <div class="terminal-line error">
+                    Error: Internal server error
+                </div>
+                <div class="terminal-line">
+                    An unexpected error occurred. Our team has been notified.
+                </div>
+                {% else %}
+                <div class="terminal-line error">
+                    Error: {{ error_code }}
+                </div>
+                <div class="terminal-line">
+                    {{ error_message }}
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="error-actions">
+                <button class="btn btn-primary" onclick="history.back()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                    Go Back
+                </button>
+                
+                <a href="/" class="btn btn-secondary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                    Home
+                </a>
+                
+                {% if error_code == 500 %}
+                <button class="btn btn-ghost" onclick="location.reload()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"></path>
+                    </svg>
+                    Retry
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
