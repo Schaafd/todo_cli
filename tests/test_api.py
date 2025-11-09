@@ -29,12 +29,17 @@ def temp_dirs():
 @pytest.fixture
 def test_db(temp_dirs):
     """Create test database"""
+    import sys
     db_path = temp_dirs['db'] / "test.db"
     db = DatabaseManager(db_path)
     
-    # Set global instance
-    import src.todo_cli.webapp.database as db_module
-    db_module._db_manager = db
+    # Directly patch the module in sys.modules to ensure we're using the exact same module object
+    import src.todo_cli.webapp.database
+    src.todo_cli.webapp.database._db_manager = db
+    
+    # Also check sys.modules for any alternate import paths
+    if 'todo_cli.webapp.database' in sys.modules:
+        sys.modules['todo_cli.webapp.database']._db_manager = db
     
     yield db
     
@@ -64,7 +69,12 @@ def test_config(temp_dirs):
 
 @pytest.fixture
 def client(test_db, test_config):
-    """Create test client"""
+    """Create test client
+    
+    The test_db fixture sets up the database singleton, and test_config sets up
+    the config singleton. We don't reset storage_bridge here because we want it
+    to use the existing test_db singleton that was already configured.
+    """
     return TestClient(app)
 
 
