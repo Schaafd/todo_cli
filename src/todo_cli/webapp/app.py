@@ -369,9 +369,114 @@ async def project_detail(
 @app.get("/analytics", response_class=HTMLResponse, name="analytics")
 async def analytics_page(request: Request, current_user=Depends(get_current_user)):
     """Analytics page"""
+    from collections import Counter
+    bridge = get_storage_bridge()
     context = get_template_context(request, current_user)
+    
+    # Get all user tasks
+    all_tasks = bridge.get_user_tasks(current_user.id)
+    
+    # Calculate basic stats
+    completed_tasks = [t for t in all_tasks if t.completed]
+    active_tasks = [t for t in all_tasks if not t.completed]
+    today = datetime.now().date()
+    due_today = [t for t in all_tasks if t.due_date and t.due_date.date() == today and not t.completed]
+    overdue = [t for t in all_tasks if t.due_date and t.due_date.date() < today and not t.completed]
+    
+    # Calculate completion rate
+    completion_rate = round((len(completed_tasks) / len(all_tasks) * 100) if all_tasks else 0)
+    
+    # This week's completions
+    from datetime import timedelta
+    week_start = today - timedelta(days=today.weekday())
+    completed_this_week = sum(1 for t in completed_tasks 
+                            if t.completed_date and t.completed_date.date() >= week_start)
+    
+    # Priority breakdown
+    priority_counts = Counter(t.priority.value for t in all_tasks)
+    priority_breakdown = dict(sorted(priority_counts.items(), 
+                                    key=lambda x: ['critical', 'high', 'medium', 'low'].index(x[0]) 
+                                    if x[0] in ['critical', 'high', 'medium', 'low'] else 999))
+    
+    # Project breakdown (top 5)
+    project_counts = Counter(t.project for t in all_tasks)
+    project_breakdown = dict(project_counts.most_common(5))
+    
+    # 7-day completion trend
+    completion_trend = []
+    max_completions = 0
+    daily_counts = []
+    
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        count = sum(1 for t in completed_tasks 
+                   if t.completed_date and t.completed_date.date() == day)
+        daily_counts.append(count)
+        if count > max_completions:
+            max_completions = count
+    
+    for i, count in enumerate(daily_counts):
+        day = today - timedelta(days=6-i)
+        percentage = (count / max_completions * 100) if max_completions > 0 else 0
+        completion_trend.append({
+            "label": day.strftime("%a"),
+            "count": count,
+            "percentage": percentage
+        })
+    
+    # Top tags
+    all_tags = []
+    for task in all_tasks:
+        all_tags.extend(task.tags)
+    tag_counts = Counter(all_tags)
+    top_tags = tag_counts.most_common(10)
+    
+    # Generate insights
+    insights = []
+    
+    if completion_rate >= 80:
+        insights.append({
+            "icon": "🎯",
+            "title": "High Completion Rate",
+            "message": f"You're completing {completion_rate}% of your tasks! Keep up the excellent work."
+        })
+    
+    if len(overdue) > 0:
+        insights.append({
+            "icon": "⚠️",
+            "title": "Overdue Tasks",
+            "message": f"You have {len(overdue)} overdue task{'s' if len(overdue) != 1 else ''}. Consider reviewing your priorities."
+        })
+    
+    if completed_this_week >= 10:
+        insights.append({
+            "icon": "🔥",
+            "title": "Productive Week",
+            "message": f"You've completed {completed_this_week} tasks this week. You're on fire!"
+        })
+    
+    if len(active_tasks) > 20:
+        insights.append({
+            "icon": "📋",
+            "title": "Many Active Tasks",
+            "message": f"You have {len(active_tasks)} active tasks. Consider breaking them into smaller chunks."
+        })
+    
     context.update({
-        "analytics": {},  # Will be populated from analytics service
+        "stats": {
+            "total_tasks": len(all_tasks),
+            "active_tasks": len(active_tasks),
+            "completed_tasks": len(completed_tasks),
+            "completion_rate": completion_rate,
+            "due_today": len(due_today),
+            "overdue": len(overdue),
+            "completed_this_week": completed_this_week,
+        },
+        "priority_breakdown": priority_breakdown,
+        "project_breakdown": project_breakdown,
+        "completion_trend": completion_trend,
+        "top_tags": top_tags,
+        "insights": insights,
     })
     
     return templates.TemplateResponse("analytics.html", context)
