@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - Todo CLI{% endblock %}
+
+{% block content %}
+<div class="main-content-header">
+    <div>
+        <h1 class="main-content-title">Analytics</h1>
+        <p class="main-content-subtitle">Track your productivity and task completion</p>
+    </div>
+</div>
+
+<!-- Overview Stats -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6);">
+    <div class="card card-compact">
+        <div class="text-muted" style="font-size: var(--font-size-xs); margin-bottom: var(--space-2);">Total Tasks</div>
+        <div style="font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); color: var(--color-text-bright);">
+            {{ stats.total_tasks }}
+        </div>
+        <div class="text-muted" style="font-size: var(--font-size-sm); margin-top: var(--space-1);">
+            {{ stats.active_tasks }} active, {{ stats.completed_tasks }} completed
+        </div>
+    </div>
+    
+    <div class="card card-compact">
+        <div class="text-muted" style="font-size: var(--font-size-xs); margin-bottom: var(--space-2);">Completion Rate</div>
+        <div style="font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); color: var(--color-success);">
+            {{ stats.completion_rate }}%
+        </div>
+        <div class="progress-bar" style="margin-top: var(--space-2);">
+            <div class="progress-bar-fill" style="width: {{ stats.completion_rate }}%; background-color: var(--color-success);"></div>
+        </div>
+    </div>
+    
+    <div class="card card-compact">
+        <div class="text-muted" style="font-size: var(--font-size-xs); margin-bottom: var(--space-2);">Due Today</div>
+        <div style="font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); color: var(--color-warning);">
+            {{ stats.due_today }}
+        </div>
+        <div class="text-muted" style="font-size: var(--font-size-sm); margin-top: var(--space-1);">
+            {{ stats.overdue }} overdue
+        </div>
+    </div>
+    
+    <div class="card card-compact">
+        <div class="text-muted" style="font-size: var(--font-size-xs); margin-bottom: var(--space-2);">This Week</div>
+        <div style="font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); color: var(--color-primary);">
+            {{ stats.completed_this_week }}
+        </div>
+        <div class="text-muted" style="font-size: var(--font-size-sm); margin-top: var(--space-1);">
+            tasks completed
+        </div>
+    </div>
+</div>
+
+<!-- Charts Grid -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: var(--space-6); margin-bottom: var(--space-6);">
+    <!-- Priority Distribution -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Tasks by Priority</h2>
+        </div>
+        <div class="card-body">
+            {% if priority_breakdown %}
+            <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                {% for priority, count in priority_breakdown.items() %}
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2);">
+                        <span class="task-priority {{ priority }}">{{ priority|upper }}</span>
+                        <span class="text-muted">{{ count }} tasks</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" 
+                             style="width: {{ (count / stats.total_tasks * 100)|round }}%; 
+                                    background-color: {% if priority == 'critical' %}var(--color-error){% elif priority == 'high' %}var(--color-warning){% elif priority == 'medium' %}var(--color-primary){% else %}var(--color-success){% endif %};"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: var(--space-6);">
+                <div class="text-muted">No priority data available</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Project Distribution -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Tasks by Project</h2>
+        </div>
+        <div class="card-body">
+            {% if project_breakdown %}
+            <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                {% for project_name, count in project_breakdown.items() %}
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2);">
+                        <span class="task-project">{{ project_name }}</span>
+                        <span class="text-muted">{{ count }} tasks</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" 
+                             style="width: {{ (count / stats.total_tasks * 100)|round }}%;"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: var(--space-6);">
+                <div class="text-muted">No project data available</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Completion Trend -->
+<div class="card" style="margin-bottom: var(--space-6);">
+    <div class="card-header">
+        <h2 class="card-title">7-Day Completion Trend</h2>
+    </div>
+    <div class="card-body">
+        {% if completion_trend %}
+        <div style="display: flex; align-items: flex-end; gap: var(--space-2); height: 200px; padding: var(--space-4);">
+            {% for day in completion_trend %}
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: var(--space-2);">
+                <span class="text-muted" style="font-size: var(--font-size-xs); font-weight: var(--font-weight-bold);">{{ day.count }}</span>
+                <div style="width: 100%; background: var(--color-primary); border-radius: var(--radius-sm); transition: all var(--transition-fast);"
+                     :style="`height: ${Math.max({{ day.percentage }}, 5)}%`"
+                     @mouseenter="$el.style.background = 'var(--color-secondary)'"
+                     @mouseleave="$el.style.background = 'var(--color-primary)'"
+                     x-data></div>
+                <span class="text-muted" style="font-size: var(--font-size-xs);">{{ day.label }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: var(--space-8);">
+            <div class="text-muted">No completion data for the past 7 days</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Top Tags -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Most Used Tags</h2>
+    </div>
+    <div class="card-body">
+        {% if top_tags %}
+        <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
+            {% for tag, count in top_tags %}
+            <span class="task-tag" style="font-size: var(--font-size-base); padding: var(--space-2) var(--space-3);">
+                {{ tag }} ({{ count }})
+            </span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: var(--space-6);">
+            <div class="text-muted">No tags used yet</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Productivity Insights -->
+<div class="card" style="margin-top: var(--space-6);">
+    <div class="card-header">
+        <h2 class="card-title">Productivity Insights</h2>
+    </div>
+    <div class="card-body">
+        <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+            {% if insights %}
+                {% for insight in insights %}
+                <div style="display: flex; gap: var(--space-3); padding: var(--space-3); background: var(--color-surface-light); border-radius: var(--radius-md);">
+                    <div style="font-size: var(--font-size-2xl);">{{ insight.icon }}</div>
+                    <div>
+                        <div style="font-weight: var(--font-weight-bold); color: var(--color-text-bright); margin-bottom: var(--space-1);">
+                            {{ insight.title }}
+                        </div>
+                        <div class="text-muted">{{ insight.message }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="text-muted text-center" style="padding: var(--space-6);">
+                Complete more tasks to see productivity insights
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .progress-bar {
+        height: 8px;
+        background: var(--color-surface-light);
+        border-radius: var(--radius-full);
+        overflow: hidden;
+    }
+    
+    .progress-bar-fill {
+        height: 100%;
+        background: var(--color-primary);
+        transition: width var(--transition-normal);
+    }
+</style>
+{% endblock %}

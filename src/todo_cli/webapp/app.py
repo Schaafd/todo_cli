@@ -295,9 +295,28 @@ async def tasks_upcoming(request: Request, current_user=Depends(get_current_user
 @app.get("/projects", response_class=HTMLResponse, name="projects")
 async def projects_page(request: Request, current_user=Depends(get_current_user)):
     """Projects list page"""
+    bridge = get_storage_bridge()
     context = get_template_context(request, current_user)
+    
+    # Get all projects with task counts
+    projects = bridge.get_user_projects(current_user.id)
+    
+    # Enrich projects with task statistics
+    enriched_projects = []
+    for project in projects:
+        project_tasks = bridge.get_user_tasks(current_user.id, project_name=project.name)
+        completed = sum(1 for t in project_tasks if t.completed)
+        enriched_projects.append({
+            "id": project.name,
+            "name": project.display_name or project.name,
+            "description": project.description,
+            "color": project.color,
+            "task_count": len(project_tasks),
+            "completed_count": completed,
+        })
+    
     context.update({
-        "projects": [],  # Will be populated from database
+        "projects": enriched_projects,
     })
     
     return templates.TemplateResponse("projects.html", context)
@@ -310,10 +329,38 @@ async def project_detail(
     current_user=Depends(get_current_user)
 ):
     """Project detail page"""
+    bridge = get_storage_bridge()
     context = get_template_context(request, current_user)
+    
+    # Get project
+    projects = bridge.get_user_projects(current_user.id)
+    project = next((p for p in projects if p.name == project_id), None)
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get all tasks for this project
+    tasks = bridge.get_user_tasks(current_user.id, project_name=project.name)
+    
+    # Calculate statistics
+    completed_tasks = [t for t in tasks if t.completed]
+    active_tasks = [t for t in tasks if not t.completed]
+    completion_rate = round((len(completed_tasks) / len(tasks) * 100) if tasks else 0)
+    
     context.update({
-        "project": None,  # Will be fetched from database
-        "tasks": [],
+        "project": {
+            "id": project.name,
+            "name": project.display_name or project.name,
+            "description": project.description,
+            "color": project.color,
+        },
+        "tasks": tasks,
+        "stats": {
+            "total_tasks": len(tasks),
+            "completed_tasks": len(completed_tasks),
+            "active_tasks": len(active_tasks),
+            "completion_rate": completion_rate,
+        }
     })
     
     return templates.TemplateResponse("project_detail.html", context)
@@ -322,9 +369,114 @@ async def project_detail(
 @app.get("/analytics", response_class=HTMLResponse, name="analytics")
 async def analytics_page(request: Request, current_user=Depends(get_current_user)):
     """Analytics page"""
+    from collections import Counter
+    bridge = get_storage_bridge()
     context = get_template_context(request, current_user)
+    
+    # Get all user tasks
+    all_tasks = bridge.get_user_tasks(current_user.id)
+    
+    # Calculate basic stats
+    completed_tasks = [t for t in all_tasks if t.completed]
+    active_tasks = [t for t in all_tasks if not t.completed]
+    today = datetime.now().date()
+    due_today = [t for t in all_tasks if t.due_date and t.due_date.date() == today and not t.completed]
+    overdue = [t for t in all_tasks if t.due_date and t.due_date.date() < today and not t.completed]
+    
+    # Calculate completion rate
+    completion_rate = round((len(completed_tasks) / len(all_tasks) * 100) if all_tasks else 0)
+    
+    # This week's completions
+    from datetime import timedelta
+    week_start = today - timedelta(days=today.weekday())
+    completed_this_week = sum(1 for t in completed_tasks 
+                            if t.completed_date and t.completed_date.date() >= week_start)
+    
+    # Priority breakdown
+    priority_counts = Counter(t.priority.value for t in all_tasks)
+    priority_breakdown = dict(sorted(priority_counts.items(), 
+                                    key=lambda x: ['critical', 'high', 'medium', 'low'].index(x[0]) 
+                                    if x[0] in ['critical', 'high', 'medium', 'low'] else 999))
+    
+    # Project breakdown (top 5)
+    project_counts = Counter(t.project for t in all_tasks)
+    project_breakdown = dict(project_counts.most_common(5))
+    
+    # 7-day completion trend
+    completion_trend = []
+    max_completions = 0
+    daily_counts = []
+    
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        count = sum(1 for t in completed_tasks 
+                   if t.completed_date and t.completed_date.date() == day)
+        daily_counts.append(count)
+        if count > max_completions:
+            max_completions = count
+    
+    for i, count in enumerate(daily_counts):
+        day = today - timedelta(days=6-i)
+        percentage = (count / max_completions * 100) if max_completions > 0 else 0
+        completion_trend.append({
+            "label": day.strftime("%a"),
+            "count": count,
+            "percentage": percentage
+        })
+    
+    # Top tags
+    all_tags = []
+    for task in all_tasks:
+        all_tags.extend(task.tags)
+    tag_counts = Counter(all_tags)
+    top_tags = tag_counts.most_common(10)
+    
+    # Generate insights
+    insights = []
+    
+    if completion_rate >= 80:
+        insights.append({
+            "icon": "🎯",
+            "title": "High Completion Rate",
+            "message": f"You're completing {completion_rate}% of your tasks! Keep up the excellent work."
+        })
+    
+    if len(overdue) > 0:
+        insights.append({
+            "icon": "⚠️",
+            "title": "Overdue Tasks",
+            "message": f"You have {len(overdue)} overdue task{'s' if len(overdue) != 1 else ''}. Consider reviewing your priorities."
+        })
+    
+    if completed_this_week >= 10:
+        insights.append({
+            "icon": "🔥",
+            "title": "Productive Week",
+            "message": f"You've completed {completed_this_week} tasks this week. You're on fire!"
+        })
+    
+    if len(active_tasks) > 20:
+        insights.append({
+            "icon": "📋",
+            "title": "Many Active Tasks",
+            "message": f"You have {len(active_tasks)} active tasks. Consider breaking them into smaller chunks."
+        })
+    
     context.update({
-        "analytics": {},  # Will be populated from analytics service
+        "stats": {
+            "total_tasks": len(all_tasks),
+            "active_tasks": len(active_tasks),
+            "completed_tasks": len(completed_tasks),
+            "completion_rate": completion_rate,
+            "due_today": len(due_today),
+            "overdue": len(overdue),
+            "completed_this_week": completed_this_week,
+        },
+        "priority_breakdown": priority_breakdown,
+        "project_breakdown": project_breakdown,
+        "completion_trend": completion_trend,
+        "top_tags": top_tags,
+        "insights": insights,
     })
     
     return templates.TemplateResponse("analytics.html", context)
@@ -557,6 +709,32 @@ async def api_get_projects(current_user=Depends(get_current_user)):
     }
 
 
+@app.get("/api/projects/{project_id}")
+async def api_get_project(project_id: str, current_user=Depends(get_current_user)):
+    """Get single project"""
+    bridge = get_storage_bridge()
+    projects = bridge.get_user_projects(current_user.id)
+    project = next((p for p in projects if p.name == project_id), None)
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get task counts
+    project_tasks = bridge.get_user_tasks(current_user.id, project_name=project.name)
+    completed = sum(1 for t in project_tasks if t.completed)
+    
+    return {
+        "project": {
+            "id": project.name,
+            "name": project.display_name or project.name,
+            "description": project.description,
+            "color": project.color,
+            "task_count": len(project_tasks),
+            "completed_count": completed,
+        }
+    }
+
+
 @app.post("/api/projects")
 async def api_create_project(
     project: ProjectCreate,
@@ -585,6 +763,92 @@ async def api_create_project(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create project: {str(e)}")
+
+
+@app.put("/api/projects/{project_id}")
+async def api_update_project(
+    project_id: str,
+    project: ProjectUpdate,
+    current_user=Depends(get_current_user)
+):
+    """Update project"""
+    bridge = get_storage_bridge()
+    
+    # Check if project exists and user has access
+    projects = bridge.get_user_projects(current_user.id)
+    existing_project = next((p for p in projects if p.name == project_id), None)
+    
+    if not existing_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    try:
+        # Update project fields
+        if project.name is not None:
+            existing_project.display_name = project.name
+        if project.description is not None:
+            existing_project.description = project.description
+        if project.color is not None:
+            existing_project.color = project.color
+        
+        # Save project (this will update the markdown file)
+        # Note: The storage bridge doesn't have an update_project method yet,
+        # so we'll need to reload and save the project
+        from src.todo_cli.config import get_storage
+        storage = get_storage()
+        project_obj, tasks = storage.load_project(project_id)
+        
+        # Update project object
+        if project.name is not None:
+            project_obj.display_name = project.name
+        if project.description is not None:
+            project_obj.description = project.description
+        if project.color is not None:
+            project_obj.color = project.color
+        
+        storage.save_project(project_obj, tasks)
+        
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update project: {str(e)}")
+
+
+@app.delete("/api/projects/{project_id}")
+async def api_delete_project(
+    project_id: str,
+    current_user=Depends(get_current_user)
+):
+    """Delete project (moves tasks to inbox)"""
+    bridge = get_storage_bridge()
+    
+    # Check if project exists and user has access
+    projects = bridge.get_user_projects(current_user.id)
+    existing_project = next((p for p in projects if p.name == project_id), None)
+    
+    if not existing_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Don't allow deleting inbox
+    if project_id.lower() == "inbox":
+        raise HTTPException(status_code=400, detail="Cannot delete inbox project")
+    
+    try:
+        # Get all tasks in project
+        project_tasks = bridge.get_user_tasks(current_user.id, project_name=project_id)
+        
+        # Move tasks to inbox
+        for task in project_tasks:
+            bridge.update_task(current_user.id, task.id, project="inbox")
+        
+        # Delete project file
+        from src.todo_cli.config import get_storage
+        storage = get_storage()
+        project_file = storage.projects_dir / f"{project_id}.md"
+        if project_file.exists():
+            project_file.unlink()
+        
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete project: {str(e)}")
 
 
 # ============================================================================
