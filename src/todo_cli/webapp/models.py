@@ -46,7 +46,7 @@ class TaskBase(BaseModel):
     """Base task model"""
     title: str = Field(..., min_length=1, max_length=500)
     description: Optional[str] = None
-    priority: Optional[str] = Field(None, pattern="^(low|medium|high)$")
+    priority: Optional[str] = Field(None, pattern="^(low|medium|high|critical)$")
     due_date: Optional[datetime] = None
     project_id: Optional[str] = None
     tags: Optional[List[str]] = []
@@ -68,7 +68,7 @@ class TaskUpdate(BaseModel):
     """Task update model - all fields optional"""
     title: Optional[str] = Field(None, min_length=1, max_length=500)
     description: Optional[str] = None
-    priority: Optional[str] = Field(None, pattern="^(low|medium|high)$")
+    priority: Optional[str] = Field(None, pattern="^(low|medium|high|critical)$")
     due_date: Optional[datetime] = None
     project_id: Optional[str] = None
     tags: Optional[List[str]] = None

@@ -45,6 +45,19 @@ app.mount("/static", StaticFiles(directory="src/todo_cli/webapp/static"), name="
 # Templates
 templates = Jinja2Templates(directory="src/todo_cli/webapp/templates")
 
+# Add custom Jinja2 functions
+def url_for(name: str, **path_params):
+    """Generate URL for route name"""
+    # For static files
+    if name == 'static':
+        path = path_params.get('path', '')
+        return f"/static{path}"
+    # For routes
+    return app.url_path_for(name, **path_params)
+
+templates.env.globals['url_for'] = url_for
+templates.env.globals['get_flashed_messages'] = lambda **kwargs: []  # Flash messages not implemented yet
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize application on startup"""
@@ -241,7 +254,7 @@ async def dashboard(request: Request, current_user=Depends(get_current_user)):
     return templates.TemplateResponse("dashboard.html", context)
 
 
-@app.get("/tasks", response_class=HTMLResponse)
+@app.get("/tasks", response_class=HTMLResponse, name="tasks")
 async def tasks_page(request: Request, current_user=Depends(get_current_user)):
     """Tasks list page"""
     bridge = get_storage_bridge()
@@ -279,7 +292,7 @@ async def tasks_upcoming(request: Request, current_user=Depends(get_current_user
     return templates.TemplateResponse("tasks.html", context)
 
 
-@app.get("/projects", response_class=HTMLResponse)
+@app.get("/projects", response_class=HTMLResponse, name="projects")
 async def projects_page(request: Request, current_user=Depends(get_current_user)):
     """Projects list page"""
     context = get_template_context(request, current_user)
@@ -306,7 +319,7 @@ async def project_detail(
     return templates.TemplateResponse("project_detail.html", context)
 
 
-@app.get("/analytics", response_class=HTMLResponse)
+@app.get("/analytics", response_class=HTMLResponse, name="analytics")
 async def analytics_page(request: Request, current_user=Depends(get_current_user)):
     """Analytics page"""
     context = get_template_context(request, current_user)
@@ -315,6 +328,30 @@ async def analytics_page(request: Request, current_user=Depends(get_current_user
     })
     
     return templates.TemplateResponse("analytics.html", context)
+
+
+@app.post("/tasks/create", name="create_task")
+async def create_task_form(
+    request: Request,
+    current_user=Depends(get_current_user),
+    title: str = Form(...),
+    project: str = Form("inbox"),
+    priority: str = Form("medium"),
+):
+    """Create task from form submission"""
+    bridge = get_storage_bridge()
+    
+    try:
+        bridge.create_task(
+            current_user.id,
+            project,
+            title,
+            priority=Priority(priority) if priority else Priority.MEDIUM,
+        )
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    except Exception as e:
+        # For now, just redirect back - in production would show error message
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
 
 
 # ============================================================================
