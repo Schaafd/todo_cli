@@ -329,10 +329,38 @@ async def project_detail(
     current_user=Depends(get_current_user)
 ):
     """Project detail page"""
+    bridge = get_storage_bridge()
     context = get_template_context(request, current_user)
+    
+    # Get project
+    projects = bridge.get_user_projects(current_user.id)
+    project = next((p for p in projects if p.name == project_id), None)
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get all tasks for this project
+    tasks = bridge.get_user_tasks(current_user.id, project_name=project.name)
+    
+    # Calculate statistics
+    completed_tasks = [t for t in tasks if t.completed]
+    active_tasks = [t for t in tasks if not t.completed]
+    completion_rate = round((len(completed_tasks) / len(tasks) * 100) if tasks else 0)
+    
     context.update({
-        "project": None,  # Will be fetched from database
-        "tasks": [],
+        "project": {
+            "id": project.name,
+            "name": project.display_name or project.name,
+            "description": project.description,
+            "color": project.color,
+        },
+        "tasks": tasks,
+        "stats": {
+            "total_tasks": len(tasks),
+            "completed_tasks": len(completed_tasks),
+            "active_tasks": len(active_tasks),
+            "completion_rate": completion_rate,
+        }
     })
     
     return templates.TemplateResponse("project_detail.html", context)
@@ -576,6 +604,32 @@ async def api_get_projects(current_user=Depends(get_current_user)):
     }
 
 
+@app.get("/api/projects/{project_id}")
+async def api_get_project(project_id: str, current_user=Depends(get_current_user)):
+    """Get single project"""
+    bridge = get_storage_bridge()
+    projects = bridge.get_user_projects(current_user.id)
+    project = next((p for p in projects if p.name == project_id), None)
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get task counts
+    project_tasks = bridge.get_user_tasks(current_user.id, project_name=project.name)
+    completed = sum(1 for t in project_tasks if t.completed)
+    
+    return {
+        "project": {
+            "id": project.name,
+            "name": project.display_name or project.name,
+            "description": project.description,
+            "color": project.color,
+            "task_count": len(project_tasks),
+            "completed_count": completed,
+        }
+    }
+
+
 @app.post("/api/projects")
 async def api_create_project(
     project: ProjectCreate,
@@ -604,6 +658,92 @@ async def api_create_project(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create project: {str(e)}")
+
+
+@app.put("/api/projects/{project_id}")
+async def api_update_project(
+    project_id: str,
+    project: ProjectUpdate,
+    current_user=Depends(get_current_user)
+):
+    """Update project"""
+    bridge = get_storage_bridge()
+    
+    # Check if project exists and user has access
+    projects = bridge.get_user_projects(current_user.id)
+    existing_project = next((p for p in projects if p.name == project_id), None)
+    
+    if not existing_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    try:
+        # Update project fields
+        if project.name is not None:
+            existing_project.display_name = project.name
+        if project.description is not None:
+            existing_project.description = project.description
+        if project.color is not None:
+            existing_project.color = project.color
+        
+        # Save project (this will update the markdown file)
+        # Note: The storage bridge doesn't have an update_project method yet,
+        # so we'll need to reload and save the project
+        from src.todo_cli.config import get_storage
+        storage = get_storage()
+        project_obj, tasks = storage.load_project(project_id)
+        
+        # Update project object
+        if project.name is not None:
+            project_obj.display_name = project.name
+        if project.description is not None:
+            project_obj.description = project.description
+        if project.color is not None:
+            project_obj.color = project.color
+        
+        storage.save_project(project_obj, tasks)
+        
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update project: {str(e)}")
+
+
+@app.delete("/api/projects/{project_id}")
+async def api_delete_project(
+    project_id: str,
+    current_user=Depends(get_current_user)
+):
+    """Delete project (moves tasks to inbox)"""
+    bridge = get_storage_bridge()
+    
+    # Check if project exists and user has access
+    projects = bridge.get_user_projects(current_user.id)
+    existing_project = next((p for p in projects if p.name == project_id), None)
+    
+    if not existing_project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Don't allow deleting inbox
+    if project_id.lower() == "inbox":
+        raise HTTPException(status_code=400, detail="Cannot delete inbox project")
+    
+    try:
+        # Get all tasks in project
+        project_tasks = bridge.get_user_tasks(current_user.id, project_name=project_id)
+        
+        # Move tasks to inbox
+        for task in project_tasks:
+            bridge.update_task(current_user.id, task.id, project="inbox")
+        
+        # Delete project file
+        from src.todo_cli.config import get_storage
+        storage = get_storage()
+        project_file = storage.projects_dir / f"{project_id}.md"
+        if project_file.exists():
+            project_file.unlink()
+        
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete project: {str(e)}")
 
 
 # ============================================================================
