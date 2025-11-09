@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+
+{% block title %}Projects - Todo CLI{% endblock %}
+
+{% block content %}
+<div class="main-content-header">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h1 class="main-content-title">Projects</h1>
+            <p class="main-content-subtitle">Organize your tasks into projects</p>
+        </div>
+        <button class="btn btn-primary" onclick="showCreateProjectModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            New Project
+        </button>
+    </div>
+</div>
+
+<!-- Search and Filter Bar -->
+<div style="display: flex; gap: var(--space-4); margin-bottom: var(--space-6); align-items: center;">
+    <div style="flex: 1;">
+        <input 
+            type="text" 
+            class="input" 
+            placeholder="Search projects..." 
+            id="searchInput"
+            onkeyup="filterProjects()"
+        >
+    </div>
+    
+    <div style="display: flex; gap: var(--space-2);">
+        <button class="btn btn-ghost btn-sm" onclick="setView('grid')" id="gridViewBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="setView('list')" id="listViewBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<!-- Projects Grid/List -->
+<div id="projectsContainer" class="projects-grid">
+    {% if projects %}
+        {% for project in projects %}
+        <a href="{{ url_for('project_detail', project_id=project.id) }}" 
+           class="project-card"
+           data-project-name="{{ project.name|lower }}">
+            <div class="project-card-header">
+                <div style="display: flex; align-items: center; gap: var(--space-3);">
+                    <div class="project-color-indicator" style="background-color: {{ project.color or '#6366f1' }};"></div>
+                    <h3 class="project-card-title">{{ project.name }}</h3>
+                </div>
+                <div class="project-card-menu">
+                    <button class="btn btn-ghost btn-icon btn-sm" 
+                            onclick="event.preventDefault(); editProject('{{ project.id }}')"
+                            title="Edit project">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="1"></circle>
+                            <circle cx="12" cy="5" r="1"></circle>
+                            <circle cx="12" cy="19" r="1"></circle>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            {% if project.description %}
+            <p class="project-card-description">{{ project.description[:120] }}{% if project.description|length > 120 %}...{% endif %}</p>
+            {% endif %}
+            
+            <div class="project-card-stats">
+                <div class="project-stat">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 11l3 3L22 4"></path>
+                        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"></path>
+                    </svg>
+                    <span>{{ project.task_count or 0 }} tasks</span>
+                </div>
+                
+                {% if project.task_count and project.task_count > 0 %}
+                <div class="project-stat">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span>{{ project.completed_count or 0 }} completed</span>
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if project.task_count and project.task_count > 0 %}
+            <div class="project-progress">
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" 
+                         style="width: {{ ((project.completed_count or 0) / project.task_count * 100)|round }}%; background-color: {{ project.color or '#6366f1' }};"></div>
+                </div>
+                <span class="progress-label">{{ ((project.completed_count or 0) / project.task_count * 100)|round }}%</span>
+            </div>
+            {% endif %}
+        </a>
+        {% endfor %}
+    {% else %}
+    <div class="empty-state" style="grid-column: 1 / -1;">
+        <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"></path>
+        </svg>
+        <div class="empty-state-title">No projects yet</div>
+        <div class="empty-state-message">Create your first project to organize your tasks</div>
+        <button class="btn btn-primary" onclick="showCreateProjectModal()">
+            Create Project
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Create/Edit Project Modal -->
+<div id="projectModal" style="display: none;">
+    <div class="modal-backdrop" onclick="closeProjectModal()"></div>
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title" id="modalTitle">Create Project</h2>
+            <button class="btn btn-ghost btn-icon" onclick="closeProjectModal()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        
+        <form id="projectForm" onsubmit="submitProject(event)">
+            <div class="modal-body">
+                <input type="hidden" id="projectId" name="id">
+                
+                <div class="form-field">
+                    <label for="projectName" class="form-label">Name *</label>
+                    <input 
+                        type="text" 
+                        id="projectName" 
+                        name="name" 
+                        class="input" 
+                        placeholder="Project name"
+                        required
+                        autofocus
+                    >
+                </div>
+                
+                <div class="form-field">
+                    <label for="projectDescription" class="form-label">Description</label>
+                    <textarea 
+                        id="projectDescription" 
+                        name="description" 
+                        class="textarea" 
+                        placeholder="What is this project about?"
+                        rows="3"
+                    ></textarea>
+                </div>
+                
+                <div class="form-field">
+                    <label for="projectColor" class="form-label">Color</label>
+                    <div style="display: flex; gap: var(--space-3); align-items: center;">
+                        <input 
+                            type="color" 
+                            id="projectColor" 
+                            name="color" 
+                            class="color-input"
+                            value="#6366f1"
+                        >
+                        <span class="form-hint">Choose a color to identify this project</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" onclick="closeProjectModal()">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Save Project
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .projects-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: var(--space-4);
+    }
+    
+    .projects-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+    
+    .project-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-5);
+        transition: all var(--transition-fast);
+        text-decoration: none;
+        color: inherit;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+    
+    .project-card:hover {
+        border-color: var(--color-primary);
+        box-shadow: var(--shadow-lg);
+        transform: translateY(-2px);
+    }
+    
+    .project-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+    
+    .project-color-indicator {
+        width: 4px;
+        height: 40px;
+        border-radius: var(--radius-full);
+    }
+    
+    .project-card-title {
+        font-size: var(--font-size-lg);
+        font-weight: var(--font-weight-bold);
+        color: var(--color-text-bright);
+        margin: 0;
+    }
+    
+    .project-card-menu {
+        opacity: 0;
+        transition: opacity var(--transition-fast);
+    }
+    
+    .project-card:hover .project-card-menu {
+        opacity: 1;
+    }
+    
+    .project-card-description {
+        color: var(--color-text-muted);
+        font-size: var(--font-size-sm);
+        line-height: 1.5;
+        margin: 0;
+    }
+    
+    .project-card-stats {
+        display: flex;
+        gap: var(--space-4);
+        flex-wrap: wrap;
+    }
+    
+    .project-stat {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        font-size: var(--font-size-sm);
+        color: var(--color-text-muted);
+    }
+    
+    .project-stat svg {
+        flex-shrink: 0;
+    }
+    
+    .project-progress {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+    }
+    
+    .progress-bar {
+        flex: 1;
+        height: 6px;
+        background: var(--color-surface-light);
+        border-radius: var(--radius-full);
+        overflow: hidden;
+    }
+    
+    .progress-bar-fill {
+        height: 100%;
+        background: var(--color-primary);
+        transition: width var(--transition-normal);
+    }
+    
+    .progress-label {
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-bold);
+        color: var(--color-text-muted);
+        min-width: 40px;
+        text-align: right;
+    }
+    
+    .color-input {
+        width: 60px;
+        height: 40px;
+        border: 2px solid var(--color-border);
+        border-radius: var(--radius-md);
+        cursor: pointer;
+    }
+    
+    /* List view styles */
+    .projects-list .project-card {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--space-4);
+    }
+    
+    .projects-list .project-card-header {
+        flex: 1;
+    }
+    
+    .projects-list .project-card-stats {
+        flex-shrink: 0;
+    }
+    
+    .projects-list .project-progress {
+        min-width: 200px;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentView = 'grid';
+    
+    // View toggling
+    function setView(view) {
+        currentView = view;
+        const container = document.getElementById('projectsContainer');
+        
+        if (view === 'grid') {
+            container.className = 'projects-grid';
+            document.getElementById('gridViewBtn').classList.add('active');
+            document.getElementById('listViewBtn').classList.remove('active');
+        } else {
+            container.className = 'projects-list';
+            document.getElementById('listViewBtn').classList.add('active');
+            document.getElementById('gridViewBtn').classList.remove('active');
+        }
+        
+        localStorage.setItem('projectsView', view);
+    }
+    
+    // Restore view preference
+    const savedView = localStorage.getItem('projectsView') || 'grid';
+    setView(savedView);
+    
+    // Project filtering
+    function filterProjects() {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const projects = document.querySelectorAll('.project-card');
+        
+        projects.forEach(project => {
+            const name = project.dataset.projectName;
+            if (name.includes(search)) {
+                project.style.display = '';
+            } else {
+                project.style.display = 'none';
+            }
+        });
+    }
+    
+    // Modal operations
+    function showCreateProjectModal() {
+        document.getElementById('modalTitle').textContent = 'Create Project';
+        document.getElementById('projectForm').reset();
+        document.getElementById('projectId').value = '';
+        document.getElementById('projectColor').value = '#6366f1';
+        document.getElementById('projectModal').style.display = 'block';
+    }
+    
+    function editProject(projectId) {
+        fetch(`/api/projects/${projectId}`)
+            .then(response => response.json())
+            .then(project => {
+                document.getElementById('modalTitle').textContent = 'Edit Project';
+                document.getElementById('projectId').value = project.id;
+                document.getElementById('projectName').value = project.name;
+                document.getElementById('projectDescription').value = project.description || '';
+                document.getElementById('projectColor').value = project.color || '#6366f1';
+                document.getElementById('projectModal').style.display = 'block';
+            })
+            .catch(error => console.error('Error:', error));
+    }
+    
+    function closeProjectModal() {
+        document.getElementById('projectModal').style.display = 'none';
+    }
+    
+    function submitProject(event) {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const projectId = formData.get('id');
+        const method = projectId ? 'PUT' : 'POST';
+        const url = projectId ? `/api/projects/${projectId}` : '/api/projects';
+        
+        const data = {
+            name: formData.get('name'),
+            description: formData.get('description'),
+            color: formData.get('color')
+        };
+        
+        fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+    
+    // Close modal with Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeProjectModal();
+        }
+    });
+</script>
+{% endblock %}

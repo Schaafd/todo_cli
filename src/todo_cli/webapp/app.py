@@ -295,9 +295,28 @@ async def tasks_upcoming(request: Request, current_user=Depends(get_current_user
 @app.get("/projects", response_class=HTMLResponse, name="projects")
 async def projects_page(request: Request, current_user=Depends(get_current_user)):
     """Projects list page"""
+    bridge = get_storage_bridge()
     context = get_template_context(request, current_user)
+    
+    # Get all projects with task counts
+    projects = bridge.get_user_projects(current_user.id)
+    
+    # Enrich projects with task statistics
+    enriched_projects = []
+    for project in projects:
+        project_tasks = bridge.get_user_tasks(current_user.id, project_name=project.name)
+        completed = sum(1 for t in project_tasks if t.completed)
+        enriched_projects.append({
+            "id": project.name,
+            "name": project.display_name or project.name,
+            "description": project.description,
+            "color": project.color,
+            "task_count": len(project_tasks),
+            "completed_count": completed,
+        })
+    
     context.update({
-        "projects": [],  # Will be populated from database
+        "projects": enriched_projects,
     })
     
     return templates.TemplateResponse("projects.html", context)
