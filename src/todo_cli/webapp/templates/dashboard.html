@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Todo CLI{% endblock %}
+
+{% block content %}
+<div class="main-content-header">
+    <h1 class="main-content-title">Dashboard</h1>
+    <p class="main-content-subtitle">Welcome back, {{ current_user.username }}!</p>
+</div>
+
+<!-- Stats Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6);">
+    <div class="card card-compact">
+        <div style="display: flex; align-items: center; gap: var(--space-3);">
+            <div style="width: 48px; height: 48px; background-color: var(--color-primary); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--color-background);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 11l3 3L22 4"></path>
+                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"></path>
+                </svg>
+            </div>
+            <div>
+                <div class="text-muted" style="font-size: var(--font-size-xs); margin-bottom: var(--space-1);">Total Tasks</div>
+                <div style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); color: var(--color-text-bright);">
+                    {{ stats.total_tasks }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card card-compact">
+        <div style="display: flex; align-items: center; gap: var(--space-3);">
+            <div style="width: 48px; height: 48px; background-color: var(--color-success); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--color-background);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>
+            <div>
+                <div class="text-muted" style="font-size: var(--font-size-xs); margin-bottom: var(--space-1);">Completed</div>
+                <div style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); color: var(--color-text-bright);">
+                    {{ stats.completed_tasks }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card card-compact">
+        <div style="display: flex; align-items: center; gap: var(--space-3);">
+            <div style="width: 48px; height: 48px; background-color: var(--color-warning); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--color-background);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+            <div>
+                <div class="text-muted" style="font-size: var(--font-size-xs); margin-bottom: var(--space-1);">Due Today</div>
+                <div style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); color: var(--color-text-bright);">
+                    {{ stats.due_today }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card card-compact">
+        <div style="display: flex; align-items: center; gap: var(--space-3);">
+            <div style="width: 48px; height: 48px; background-color: var(--color-error); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--color-background);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            <div>
+                <div class="text-muted" style="font-size: var(--font-size-xs); margin-bottom: var(--space-1);">Overdue</div>
+                <div style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); color: var(--color-text-bright);">
+                    {{ stats.overdue }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Grid -->
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-6); margin-bottom: var(--space-6);">
+    <!-- Today's Tasks -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Today's Tasks</h2>
+        </div>
+        <div class="card-body">
+            {% if today_tasks %}
+            <div class="task-list">
+                {% for task in today_tasks %}
+                <div class="task-item {% if task.completed %}completed{% endif %}">
+                    <div class="task-checkbox {% if task.completed %}checked{% endif %}" 
+                         onclick="toggleTask('{{ task.id }}')"></div>
+                    <div class="task-content">
+                        <div class="task-title">{{ task.title }}</div>
+                        {% if task.description %}
+                        <div class="task-description">{{ task.description[:100] }}{% if task.description|length > 100 %}...{% endif %}</div>
+                        {% endif %}
+                        <div class="task-meta">
+                            {% if task.priority %}
+                            <span class="task-priority {{ task.priority }}">
+                                {{ task.priority|upper }}
+                            </span>
+                            {% endif %}
+                            {% if task.project %}
+                            <span class="task-project">{{ task.project }}</span>
+                            {% endif %}
+                            {% if task.tags %}
+                            <div class="task-tags">
+                                {% for tag in task.tags[:3] %}
+                                <span class="task-tag">{{ tag }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: var(--space-8);">
+                <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <div class="empty-state-title">All caught up!</div>
+                <div class="empty-state-message">You don't have any tasks scheduled for today.</div>
+            </div>
+            {% endif %}
+        </div>
+        <div class="card-footer">
+            <a href="{{ url_for('tasks') }}" class="btn btn-secondary">View All Tasks</a>
+        </div>
+    </div>
+    
+    <!-- Quick Stats & Actions -->
+    <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+        <!-- Quick Add -->
+        <div class="card card-compact">
+            <h3 style="font-size: var(--font-size-base); font-weight: var(--font-weight-bold); color: var(--color-text-bright); margin-bottom: var(--space-4);">
+                Quick Add
+            </h3>
+            <form action="{{ url_for('create_task') }}" method="POST">
+                <div class="form-field">
+                    <input 
+                        type="text" 
+                        name="title" 
+                        class="input" 
+                        placeholder="Task title..."
+                        required
+                    >
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add Task
+                </button>
+            </form>
+        </div>
+        
+        <!-- Recent Projects -->
+        <div class="card card-compact">
+            <h3 style="font-size: var(--font-size-base); font-weight: var(--font-weight-bold); color: var(--color-text-bright); margin-bottom: var(--space-4);">
+                Recent Projects
+            </h3>
+            {% if recent_projects %}
+            <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+                {% for project in recent_projects %}
+                <a href="{{ url_for('project_detail', project_id=project.id) }}" 
+                   style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2); border-radius: var(--radius-md); transition: background-color var(--transition-fast);"
+                   onmouseover="this.style.backgroundColor='var(--color-surface-light)'"
+                   onmouseout="this.style.backgroundColor='transparent'">
+                    <span class="text-primary" style="font-weight: var(--font-weight-medium);">{{ project.name }}</span>
+                    <span class="badge badge-ghost">{{ project.task_count }}</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-muted text-center" style="padding: var(--space-4);">
+                No projects yet
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Productivity Tip -->
+        <div class="card card-compact" style="background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%); border: none;">
+            <div style="color: var(--color-background);">
+                <div style="font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-2); opacity: 0.8;">
+                    💡 Pro Tip
+                </div>
+                <div style="font-weight: var(--font-weight-medium); margin-bottom: var(--space-1);">
+                    Use ⌘K for quick commands
+                </div>
+                <div style="font-size: var(--font-size-sm); opacity: 0.9;">
+                    Access the command palette anywhere to quickly create tasks, search, and navigate.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upcoming Tasks -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Upcoming Tasks</h2>
+        <p class="card-subtitle">Next 7 days</p>
+    </div>
+    <div class="card-body">
+        {% if upcoming_tasks %}
+        <div class="task-list">
+            {% for task in upcoming_tasks[:5] %}
+            <div class="task-item {% if task.completed %}completed{% endif %}">
+                <div class="task-checkbox {% if task.completed %}checked{% endif %}" 
+                     onclick="toggleTask('{{ task.id }}')"></div>
+                <div class="task-content">
+                    <div class="task-title">{{ task.title }}</div>
+                    <div class="task-meta">
+                        {% if task.due_date %}
+                        <span class="task-due-date">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                            </svg>
+                            {{ task.due_date.strftime('%b %d') }}
+                        </span>
+                        {% endif %}
+                        {% if task.priority %}
+                        <span class="task-priority {{ task.priority }}">
+                            {{ task.priority|upper }}
+                        </span>
+                        {% endif %}
+                        {% if task.project %}
+                        <span class="task-project">{{ task.project }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: var(--space-8);">
+            <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <div class="empty-state-title">No upcoming tasks</div>
+            <div class="empty-state-message">Your schedule is clear for the next week.</div>
+        </div>
+        {% endif %}
+    </div>
+    {% if upcoming_tasks|length > 5 %}
+    <div class="card-footer">
+        <a href="{{ url_for('tasks_upcoming') }}" class="btn btn-ghost">View All Upcoming →</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleTask(taskId) {
+        fetch(`/api/tasks/${taskId}/toggle`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+</script>
+{% endblock %}
