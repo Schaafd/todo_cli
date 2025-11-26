@@ -598,11 +598,11 @@ class TodoApp {
     renderBoard(tasks) {
         // Get all board columns with defensive checks
         const pendingColumn = document.getElementById('pending-tasks');
-        const inProgressColumn = document.getElementById('in-progress-tasks');
+        const blockedColumn = document.getElementById('blocked-tasks');
         const completedColumn = document.getElementById('completed-tasks');
 
         // Clear all columns safely
-        const columns = { pendingColumn, inProgressColumn, completedColumn };
+        const columns = { pendingColumn, blockedColumn, completedColumn };
         Object.values(columns).forEach(column => {
             if (column) column.innerHTML = '';
         });
@@ -622,7 +622,7 @@ class TodoApp {
         }
 
         // Track tasks per column for empty state handling
-        const columnCounts = { pending: 0, inProgress: 0, completed: 0 };
+        const columnCounts = { pending: 0, blocked: 0, completed: 0 };
 
         // Distribute tasks to columns with error handling
         validTasks.forEach(task => {
@@ -635,9 +635,9 @@ class TodoApp {
                 if (status === 'completed' && completedColumn) {
                     completedColumn.appendChild(taskElement);
                     columnCounts.completed++;
-                } else if ((status === 'in-progress' || status === 'blocked') && inProgressColumn) {
-                    inProgressColumn.appendChild(taskElement);
-                    columnCounts.inProgress++;
+                } else if (status === 'blocked' && blockedColumn) {
+                    blockedColumn.appendChild(taskElement);
+                    columnCounts.blocked++;
                 } else if (pendingColumn) {
                     pendingColumn.appendChild(taskElement);
                     columnCounts.pending++;
@@ -654,7 +654,7 @@ class TodoApp {
     renderBoardEmptyState() {
         const columns = {
             pendingColumn: document.getElementById('pending-tasks'),
-            inProgressColumn: document.getElementById('in-progress-tasks'),
+            blockedColumn: document.getElementById('blocked-tasks'),
             completedColumn: document.getElementById('completed-tasks')
         };
         
@@ -673,7 +673,7 @@ class TodoApp {
     }
 
     addEmptyColumnStates(columns, columnCounts) {
-        const { pendingColumn, inProgressColumn, completedColumn } = columns;
+        const { pendingColumn, blockedColumn, completedColumn } = columns;
         
         if (pendingColumn && columnCounts.pending === 0) {
             const emptyDiv = document.createElement('div');
@@ -682,11 +682,11 @@ class TodoApp {
             pendingColumn.appendChild(emptyDiv);
         }
         
-        if (inProgressColumn && columnCounts.inProgress === 0) {
+        if (blockedColumn && columnCounts.blocked === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'column-empty-state';
-            emptyDiv.innerHTML = '<p class="empty-message">Tasks in progress will appear here</p>';
-            inProgressColumn.appendChild(emptyDiv);
+            emptyDiv.innerHTML = '<p class="empty-message">Blocked tasks will appear here</p>';
+            blockedColumn.appendChild(emptyDiv);
         }
         
         if (completedColumn && columnCounts.completed === 0) {
@@ -849,13 +849,18 @@ class TodoApp {
         backups.forEach(backup => {
             const backupElement = document.createElement('div');
             backupElement.className = 'backup-item';
+
+            const filename = ui.escapeHtml(String(backup.filename || ''));
+            const createdAt = backup.created_at ? ui.formatDateTime(backup.created_at) : 'Unknown';
+            const sizeKb = backup.size ? (Number(backup.size) / 1024).toFixed(1) : '0.0';
+
             backupElement.innerHTML = `
                 <div class="backup-info">
-                    <strong>${backup.filename}</strong>
-                    <p>Created: ${ui.formatDateTime(backup.created_at)} | Size: ${(backup.size / 1024).toFixed(1)} KB</p>
+                    <strong>${filename}</strong>
+                    <p>Created: ${ui.escapeHtml(createdAt)} | Size: ${ui.escapeHtml(sizeKb)} KB</p>
                 </div>
                 <div class="backup-actions">
-                    <button class="btn btn-sm restore-backup" data-filename="${backup.filename}">Restore</button>
+                    <button class="btn btn-sm restore-backup" data-filename="${filename}">Restore</button>
                 </div>
             `;
 
