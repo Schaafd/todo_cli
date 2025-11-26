@@ -758,6 +758,27 @@
   display: block;
 }
 
+:root[data-theme="auto"] .theme-icon-sun,
+:root:not([data-theme]) .theme-icon-sun,
+:root[data-theme="auto"] .theme-icon-moon,
+:root:not([data-theme]) .theme-icon-moon {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"] .theme-icon-moon,
+  :root:not([data-theme]) .theme-icon-moon {
+    display: block;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="auto"] .theme-icon-sun,
+  :root:not([data-theme]) .theme-icon-sun {
+    display: block;
+  }
+}
+
 /* ========================================
    PRINT STYLES
    ======================================== */
