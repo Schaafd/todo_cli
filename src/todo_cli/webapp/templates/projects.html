@@ -127,9 +127,9 @@
 </div>
 
 <!-- Create/Edit Project Modal -->
-<div id="projectModal" style="display: none;">
-    <div class="modal-backdrop" onclick="closeProjectModal()"></div>
-    <div class="modal">
+<div id="projectModal" class="modal-container">
+    <div class="modal-backdrop"></div>
+    <div class="modal" data-animation="scale">
         <div class="modal-header">
             <h2 class="modal-title" id="modalTitle">Create Project</h2>
             <button class="btn btn-ghost btn-icon" onclick="closeProjectModal()">
@@ -139,42 +139,46 @@
                 </svg>
             </button>
         </div>
-        
-        <form id="projectForm" onsubmit="submitProject(event)">
+
+        <form id="projectForm" data-form-id="project-form" onsubmit="submitProject(event)">
             <div class="modal-body">
                 <input type="hidden" id="projectId" name="id">
-                
+
                 <div class="form-field">
                     <label for="projectName" class="form-label">Name *</label>
-                    <input 
-                        type="text" 
-                        id="projectName" 
-                        name="name" 
-                        class="input" 
+                    <input
+                        type="text"
+                        id="projectName"
+                        name="name"
+                        class="input input-validated"
                         placeholder="Project name"
                         required
+                        minlength="2"
+                        maxlength="100"
                         autofocus
                     >
                 </div>
-                
+
                 <div class="form-field">
                     <label for="projectDescription" class="form-label">Description</label>
-                    <textarea 
-                        id="projectDescription" 
-                        name="description" 
-                        class="textarea" 
+                    <textarea
+                        id="projectDescription"
+                        name="description"
+                        class="textarea"
                         placeholder="What is this project about?"
                         rows="3"
+                        maxlength="500"
                     ></textarea>
+                    <span class="form-hint">Optional - describe the purpose of this project</span>
                 </div>
-                
+
                 <div class="form-field">
                     <label for="projectColor" class="form-label">Color</label>
                     <div style="display: flex; gap: var(--space-3); align-items: center;">
-                        <input 
-                            type="color" 
-                            id="projectColor" 
-                            name="color" 
+                        <input
+                            type="color"
+                            id="projectColor"
+                            name="color"
                             class="color-input"
                             value="#6366f1"
                         >
@@ -182,12 +186,12 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="modal-footer">
                 <button type="button" class="btn btn-ghost" onclick="closeProjectModal()">
                     Cancel
                 </button>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" id="projectSubmitBtn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
@@ -345,12 +349,12 @@
 {% block extra_js %}
 <script>
     let currentView = 'grid';
-    
+
     // View toggling
     function setView(view) {
         currentView = view;
         const container = document.getElementById('projectsContainer');
-        
+
         if (view === 'grid') {
             container.className = 'projects-grid';
             document.getElementById('gridViewBtn').classList.add('active');
@@ -360,19 +364,19 @@
             document.getElementById('listViewBtn').classList.add('active');
             document.getElementById('gridViewBtn').classList.remove('active');
         }
-        
+
         localStorage.setItem('projectsView', view);
     }
-    
+
     // Restore view preference
     const savedView = localStorage.getItem('projectsView') || 'grid';
     setView(savedView);
-    
+
     // Project filtering
     function filterProjects() {
         const search = document.getElementById('searchInput').value.toLowerCase();
         const projects = document.querySelectorAll('.project-card');
-        
+
         projects.forEach(project => {
             const name = project.dataset.projectName;
             if (name.includes(search)) {
@@ -382,65 +386,102 @@
             }
         });
     }
-    
-    // Modal operations
+
+    // Modal operations with enhanced animations
     function showCreateProjectModal() {
         document.getElementById('modalTitle').textContent = 'Create Project';
         document.getElementById('projectForm').reset();
         document.getElementById('projectId').value = '';
         document.getElementById('projectColor').value = '#6366f1';
-        document.getElementById('projectModal').style.display = 'block';
+
+        // Clear any auto-saved data
+        formAutoSave?.clear(document.getElementById('projectForm'));
+
+        modalManager.open('projectModal', { animation: 'scale' });
     }
-    
-    function editProject(projectId) {
-        fetch(`/api/projects/${projectId}`)
-            .then(response => response.json())
-            .then(project => {
-                document.getElementById('modalTitle').textContent = 'Edit Project';
-                document.getElementById('projectId').value = project.id;
-                document.getElementById('projectName').value = project.name;
-                document.getElementById('projectDescription').value = project.description || '';
-                document.getElementById('projectColor').value = project.color || '#6366f1';
-                document.getElementById('projectModal').style.display = 'block';
-            })
-            .catch(error => console.error('Error:', error));
+
+    async function editProject(projectId) {
+        try {
+            const response = await fetch(`/api/projects/${projectId}`);
+            const project = await response.json();
+
+            document.getElementById('modalTitle').textContent = 'Edit Project';
+            document.getElementById('projectId').value = project.id;
+            document.getElementById('projectName').value = project.name;
+            document.getElementById('projectDescription').value = project.description || '';
+            document.getElementById('projectColor').value = project.color || '#6366f1';
+
+            // Clear auto-save for edit mode
+            formAutoSave?.clear(document.getElementById('projectForm'));
+
+            modalManager.open('projectModal', { animation: 'scale' });
+        } catch (error) {
+            console.error('Error:', error);
+            toast?.error('Failed to load project');
+        }
     }
-    
+
     function closeProjectModal() {
-        document.getElementById('projectModal').style.display = 'none';
+        modalManager.close('projectModal');
     }
-    
-    function submitProject(event) {
+
+    async function submitProject(event) {
         event.preventDefault();
+
+        // Validate form
+        if (window.formValidator && !formValidator.validateForm(event.target)) {
+            return;
+        }
+
         const formData = new FormData(event.target);
         const projectId = formData.get('id');
         const method = projectId ? 'PUT' : 'POST';
         const url = projectId ? `/api/projects/${projectId}` : '/api/projects';
-        
+
         const data = {
             name: formData.get('name'),
             description: formData.get('description'),
             color: formData.get('color')
         };
-        
-        fetch(url, {
-            method: method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
+
+        // Show loading state
+        const submitBtn = document.getElementById('projectSubmitBtn');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner spinner-sm"></span> Saving...';
+
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                formAutoSave?.clear(event.target);
+                toast?.success(projectId ? 'Project updated!' : 'Project created!');
+                closeProjectModal();
+                setTimeout(() => location.reload(), 300);
+            } else {
+                throw new Error(result.detail || 'Failed to save project');
             }
-        })
-        .catch(error => console.error('Error:', error));
+        } catch (error) {
+            console.error('Error:', error);
+            toast?.error(error.message || 'Failed to save project');
+
+            // Restore button
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
     }
-    
-    // Close modal with Escape key
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeProjectModal();
+
+    // Initialize on DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+        // Attach form validation
+        const projectForm = document.getElementById('projectForm');
+        if (projectForm && window.formValidator) {
+            formValidator.attach(projectForm);
         }
     });
 </script>
