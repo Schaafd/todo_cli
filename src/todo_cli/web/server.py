@@ -155,6 +155,12 @@ def ensure_backup_dir() -> Path:
 
 def sanitize_backup_filename(filename: str) -> str:
     """Validate backup filenames to prevent path traversal."""
+    if not filename or not filename.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Backup filename is required",
+        )
+
     normalized = Path(filename).name
     if normalized != filename or ".." in Path(filename).parts:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
@@ -213,8 +219,9 @@ def list_backup_files() -> List[BackupResponse]:
                 data = json.load(f)
                 meta = data.get("backup_metadata", {})
                 created_at = meta.get("timestamp", created_at)
-        except Exception:
-            pass
+        except (json.JSONDecodeError, OSError) as exc:
+            # Continue listing backups even if metadata cannot be read
+            print(f"Warning: Unable to read backup metadata from {backup_file.name}: {exc}")
 
         backups.append(BackupResponse(
             filename=backup_file.name,
