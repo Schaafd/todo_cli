@@ -503,3 +503,387 @@
   height: auto;
   margin: 0 var(--space-4);
 }
+
+/* ========================================
+   ENHANCED MODAL ANIMATIONS
+   ======================================== */
+
+.modal-container {
+  display: none;
+}
+
+.modal-backdrop {
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.modal-backdrop.active {
+  opacity: 1;
+}
+
+.modal {
+  opacity: 0;
+  transition: all var(--transition-base);
+}
+
+/* Scale animation (default) */
+.modal[data-animation="scale"] {
+  transform: translate(-50%, -50%) scale(0.9);
+}
+
+.modal[data-animation="scale"].active {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.modal[data-animation="scale"].closing {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.9);
+}
+
+/* Slide up animation */
+.modal[data-animation="slide-up"] {
+  transform: translate(-50%, calc(-50% + 20px));
+}
+
+.modal[data-animation="slide-up"].active {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+
+.modal[data-animation="slide-up"].closing {
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 20px));
+}
+
+/* Slide down animation */
+.modal[data-animation="slide-down"] {
+  transform: translate(-50%, calc(-50% - 20px));
+}
+
+.modal[data-animation="slide-down"].active {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+
+.modal[data-animation="slide-down"].closing {
+  opacity: 0;
+  transform: translate(-50%, calc(-50% - 20px));
+}
+
+/* Fade animation */
+.modal[data-animation="fade"].active {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+
+.modal[data-animation="fade"].closing {
+  opacity: 0;
+}
+
+/* Modal size variants */
+.modal-sm {
+  max-width: 400px;
+}
+
+.modal-lg {
+  max-width: 800px;
+}
+
+.modal-xl {
+  max-width: 1000px;
+}
+
+/* ========================================
+   DRAG AND DROP STYLES
+   ======================================== */
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: var(--space-2);
+  cursor: grab;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.task-item:hover .drag-handle {
+  opacity: 1;
+}
+
+.drag-handle:hover {
+  color: var(--color-primary);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.task-item.dragging {
+  background-color: var(--color-surface-lighter);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-xl), var(--shadow-glow-primary);
+}
+
+.drag-placeholder {
+  background: linear-gradient(90deg,
+    var(--color-primary) 0%,
+    transparent 50%,
+    var(--color-primary) 100%
+  );
+  background-size: 200% 100%;
+  animation: dragPlaceholderPulse 1.5s ease-in-out infinite;
+  border: 2px dashed var(--color-primary);
+  border-radius: var(--radius-md);
+  margin: var(--space-2) 0;
+  opacity: 0.5;
+}
+
+@keyframes dragPlaceholderPulse {
+  0%, 100% {
+    background-position: 0% 50%;
+    opacity: 0.3;
+  }
+  50% {
+    background-position: 100% 50%;
+    opacity: 0.6;
+  }
+}
+
+.task-item {
+  display: flex;
+  align-items: flex-start;
+  transition: transform var(--transition-fast),
+              box-shadow var(--transition-fast),
+              background-color var(--transition-fast);
+}
+
+.task-item.drag-over {
+  border-top: 2px solid var(--color-primary);
+}
+
+/* ========================================
+   AUTO-SAVE INDICATOR
+   ======================================== */
+
+.autosave-indicator {
+  display: none;
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  border-radius: var(--radius-sm);
+  transition: opacity var(--transition-fast);
+  z-index: 10;
+}
+
+.autosave-indicator.saving {
+  background-color: var(--color-warning);
+  color: var(--color-background);
+}
+
+.autosave-indicator.saved {
+  background-color: var(--color-success);
+  color: var(--color-background);
+}
+
+.autosave-indicator.restored {
+  background-color: var(--color-info);
+  color: var(--color-background);
+}
+
+/* Position relative on form fields for indicator placement */
+.modal-body {
+  position: relative;
+}
+
+/* ========================================
+   REAL-TIME VALIDATION STYLES
+   ======================================== */
+
+.input-error {
+  border-color: var(--color-error) !important;
+  box-shadow: 0 0 0 2px rgba(247, 140, 108, 0.2);
+}
+
+.input-error:focus {
+  box-shadow: var(--shadow-glow-error);
+}
+
+.input-success {
+  border-color: var(--color-success) !important;
+}
+
+.input-success:focus {
+  box-shadow: var(--shadow-glow-success);
+}
+
+.field-error-message {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+  animation: slideInDown var(--transition-fast);
+}
+
+/* Shake animation for validation errors */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Input with validation icon */
+.input-validated {
+  padding-right: var(--space-10);
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+  background-size: 16px;
+}
+
+.input-validated.input-success {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238BD649' stroke-width='2'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+.input-validated.input-error {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23F78C6C' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='10'%3E%3C/circle%3E%3Cline x1='15' y1='9' x2='9' y2='15'%3E%3C/line%3E%3Cline x1='9' y1='9' x2='15' y2='15'%3E%3C/line%3E%3C/svg%3E");
+}
+
+/* ========================================
+   ENHANCED KEYFRAME ANIMATIONS
+   ======================================== */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes slideInDown {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutUp {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+}
+
+@keyframes slideOutDown {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleOut {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* Animation utility classes */
+.animate-fadeIn { animation: fadeIn var(--transition-base); }
+.animate-fadeOut { animation: fadeOut var(--transition-base); }
+.animate-slideInDown { animation: slideInDown var(--transition-base); }
+.animate-slideInUp { animation: slideInUp var(--transition-base); }
+.animate-slideOutUp { animation: slideOutUp var(--transition-base); }
+.animate-slideOutDown { animation: slideOutDown var(--transition-base); }
+.animate-scaleIn { animation: scaleIn var(--transition-base); }
+.animate-scaleOut { animation: scaleOut var(--transition-base); }
+.animate-spin { animation: spin 1s linear infinite; }
+.animate-pulse { animation: pulse 2s ease-in-out infinite; }
+.animate-bounce { animation: bounce 1s ease-in-out infinite; }
+
+/* ========================================
+   ENHANCED CONFIRMATIONS
+   ======================================== */
+
+.confirm-dialog {
+  text-align: center;
+}
+
+.confirm-dialog .modal-body p {
+  margin: 0;
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+}
+
+.confirm-dialog .modal-footer {
+  justify-content: center;
+}
