@@ -372,8 +372,8 @@ class FormAutoSave {
         // Setup input listeners
         const inputs = form.querySelectorAll('input, textarea, select');
         inputs.forEach(input => {
-            input.addEventListener('input', () => this.schedulesSave(form));
-            input.addEventListener('change', () => this.schedulesSave(form));
+            input.addEventListener('input', () => this.scheduleSave(form));
+            input.addEventListener('change', () => this.scheduleSave(form));
         });
 
         // Show indicator if there's saved data
@@ -390,7 +390,7 @@ class FormAutoSave {
     /**
      * Schedule a save (debounced)
      */
-    schedulesSave(form) {
+    scheduleSave(form) {
         const formId = this.getFormId(form);
 
         // Clear existing timer
