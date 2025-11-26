@@ -143,6 +143,116 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # Initialize templates
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+# Backup configuration
+BACKUP_DIR = Path.home() / ".todo" / "backups"
+
+
+def ensure_backup_dir() -> Path:
+    """Ensure backup directory exists and return its path."""
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    return BACKUP_DIR
+
+
+def sanitize_backup_filename(filename: str) -> str:
+    """Validate backup filenames to prevent path traversal."""
+    normalized = Path(filename).name
+    if normalized != filename or ".." in Path(filename).parts:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid backup filename")
+    if not normalized.endswith(".json"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Backups must be JSON files")
+    return normalized
+
+
+def build_backup_payload(storage: Storage) -> Dict[str, Any]:
+    """Create a snapshot of all projects and tasks for backup."""
+    config = get_config()
+    projects = storage.list_projects() or [config.default_project]
+
+    backup_data: Dict[str, Any] = {
+        "projects": {},
+        "config": {
+            "default_project": config.default_project,
+        },
+        "metadata": {
+            "created_at": datetime.utcnow().isoformat() + "Z",
+            "version": "1.0"
+        },
+        "backup_metadata": {
+            "version": "1.0",
+            "backup_type": "manual"
+        }
+    }
+
+    for project_name in projects:
+        try:
+            project, todos = storage.load_project(project_name)
+            if project or todos:
+                backup_data["projects"][project_name] = {
+                    "project": project.to_dict() if project else {"name": project_name},
+                    "todos": [todo.to_dict() for todo in todos] if todos else []
+                }
+        except Exception:
+            continue
+
+    return backup_data
+
+
+def list_backup_files() -> List[BackupResponse]:
+    """List available backups with metadata."""
+    backup_dir = ensure_backup_dir()
+    backups: List[BackupResponse] = []
+
+    for backup_file in sorted(backup_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+        stat = backup_file.stat()
+        created_at = datetime.fromtimestamp(stat.st_mtime).isoformat() + "Z"
+
+        try:
+            with backup_file.open("r") as f:
+                data = json.load(f)
+                meta = data.get("backup_metadata", {})
+                created_at = meta.get("timestamp", created_at)
+        except Exception:
+            pass
+
+        backups.append(BackupResponse(
+            filename=backup_file.name,
+            created_at=created_at,
+            size=stat.st_size,
+        ))
+
+    return backups
+
+
+def restore_backup(storage: Storage, filename: str) -> None:
+    """Restore all projects and todos from a backup file."""
+    safe_name = sanitize_backup_filename(filename)
+    backup_path = ensure_backup_dir() / safe_name
+
+    if not backup_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backup not found")
+
+    with backup_path.open("r") as f:
+        backup_data = json.load(f)
+
+    projects_data = backup_data.get("projects", {})
+    if not isinstance(projects_data, dict):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid backup format")
+
+    for project_name, payload in projects_data.items():
+        try:
+            project_dict = payload.get("project", {"name": project_name})
+            todos_data = payload.get("todos", [])
+
+            project = Project.from_dict(project_dict)
+            todos = [Todo.from_dict(todo_dict) for todo_dict in todos_data if isinstance(todo_dict, dict)]
+
+            storage.save_project(project, todos)
+        except Exception as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"Failed to restore project {project_name}: {exc}")
+
 # Global dependencies
 def get_todo_storage():
     """Get the todo storage instance."""
@@ -638,29 +748,48 @@ async def get_tags(storage=Depends(get_todo_storage)):
 async def get_backups():
     """Get list of available backups."""
     try:
-        # For now, return empty list
-        # TODO: Implement backup functionality
-        return []
+        return list_backup_files()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving backups: {str(e)}")
 
 
-@app.post("/api/backups")
-async def create_backup_api():
+@app.post("/api/backups", response_model=BackupResponse)
+async def create_backup_api(storage=Depends(get_todo_storage)):
     """Create a new backup."""
     try:
-        # TODO: Implement backup functionality
-        return {"message": "Backup functionality not yet implemented", "filename": None}
+        ensure_backup_dir()
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"{timestamp}_manual.json"
+        backup_path = BACKUP_DIR / filename
+
+        payload = build_backup_payload(storage)
+        payload["backup_metadata"]["timestamp"] = datetime.utcnow().isoformat() + "Z"
+
+        with backup_path.open("w") as f:
+            json.dump(payload, f, indent=2)
+
+        stat = backup_path.stat()
+        return BackupResponse(
+            filename=filename,
+            created_at=payload["backup_metadata"]["timestamp"],
+            size=stat.st_size,
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating backup: {str(e)}")
 
 
 @app.post("/api/backups/{filename}/restore")
-async def restore_backup_api(filename: str):
+async def restore_backup_api(filename: str, storage=Depends(get_todo_storage)):
     """Restore from a backup."""
     try:
-        # TODO: Implement restore functionality
-        return {"message": "Restore functionality not yet implemented"}
+        restore_backup(storage, filename)
+        return {"message": "Restore completed"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error restoring backup: {str(e)}")
 
