@@ -284,8 +284,8 @@ class ProductivityAnalyzer:
         if timeframe == AnalyticsTimeframe.DAILY:
             return end_date.replace(hour=0, minute=0, second=0, microsecond=0)
         elif timeframe == AnalyticsTimeframe.WEEKLY:
-            days_back = end_date.weekday()
-            return (end_date - timedelta(days=days_back)).replace(hour=0, minute=0, second=0, microsecond=0)
+            # Use a rolling 7-day window ending at end_date
+            return (end_date - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
         elif timeframe == AnalyticsTimeframe.MONTHLY:
             return end_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         elif timeframe == AnalyticsTimeframe.QUARTERLY:
