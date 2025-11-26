@@ -154,7 +154,7 @@ class ThemeManager {
     }
 
     loadTheme() {
-        return localStorage.getItem(this.storageKey) || 'dark';
+        return localStorage.getItem(this.storageKey) || 'auto';
     }
 
     saveTheme(theme) {
