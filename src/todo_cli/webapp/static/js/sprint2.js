@@ -367,7 +367,7 @@ class FormAutoSave {
         const formId = this.getFormId(form);
 
         // Load any saved data
-        this.load(form);
+        const restored = this.load(form);
 
         // Setup input listeners
         const inputs = form.querySelectorAll('input, textarea, select');
@@ -376,8 +376,10 @@ class FormAutoSave {
             input.addEventListener('change', () => this.schedulesSave(form));
         });
 
-        // Show indicator if there's saved data
-        this.showSaveIndicator(form, 'restored');
+        // Show indicator only when data is restored
+        if (restored) {
+            this.showSaveIndicator(form, 'restored');
+        }
     }
 
     /**
