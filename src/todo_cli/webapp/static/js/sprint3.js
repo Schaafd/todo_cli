@@ -409,6 +409,7 @@ class MobileOptimizer {
 
             startX = e.touches[0].clientX;
             startY = e.touches[0].clientY;
+            currentX = startX;
             taskItem.dataset.swiping = 'true';
         }, { passive: true });
 
@@ -434,7 +435,7 @@ class MobileOptimizer {
             delete taskItem.dataset.swiping;
             taskItem.style.transition = 'transform 0.3s ease';
 
-            const diffX = currentX - startX;
+            const diffX = (currentX ?? startX) - startX;
 
             if (diffX > threshold) {
                 // Swipe right - complete task
@@ -451,6 +452,9 @@ class MobileOptimizer {
             }
 
             taskItem.style.transform = '';
+            startX = undefined;
+            startY = undefined;
+            currentX = undefined;
         });
     }
 
