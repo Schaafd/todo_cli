@@ -284,8 +284,11 @@ class ProductivityAnalyzer:
         if timeframe == AnalyticsTimeframe.DAILY:
             return end_date.replace(hour=0, minute=0, second=0, microsecond=0)
         elif timeframe == AnalyticsTimeframe.WEEKLY:
-            # Use a rolling 7-day window ending at end_date
-            return (end_date - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+            # Use a rolling 7-day window to capture tasks from the previous week even if the
+            # current week has just started (e.g., Monday morning). Using a fixed "start of
+            # week" anchor could drop tasks from the past few days and inflate completion
+            # metrics.
+            return (end_date - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
         elif timeframe == AnalyticsTimeframe.MONTHLY:
             return end_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         elif timeframe == AnalyticsTimeframe.QUARTERLY:
