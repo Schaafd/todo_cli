@@ -2,6 +2,7 @@
 
 import os
 import sys
+import subprocess
 from typing import Optional
 from datetime import datetime, timedelta
 import click
@@ -10,6 +11,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.panel import Panel
 from ..utils.datetime import ensure_aware, max_utc
+from ..utils.validation import validate_file_path, PathValidationError
 
 from ..config import get_config, load_config
 from ..storage import Storage
@@ -1584,14 +1586,30 @@ def export(format_type, output, project, include_completed, exclude_completed, i
         # Open file if requested
         if open_after:
             try:
-                import subprocess
+                # Validate the file path for security before opening
+                validated_path = validate_file_path(output, must_exist=True)
+                validated_path_str = str(validated_path)
+                
                 if sys.platform == "darwin":  # macOS
-                    subprocess.run(["open", output])
+                    cmd = ["open", validated_path_str]
                 elif sys.platform == "win32":  # Windows
-                    os.startfile(output)
+                    os.startfile(validated_path_str)
+                    cmd = None
                 else:  # Linux and others
-                    subprocess.run(["xdg-open", output])
-                get_console().print(f"[success]🚀 Opened {output}[/success]")
+                    cmd = ["xdg-open", validated_path_str]
+                
+                # Run command for non-Windows platforms
+                if cmd:
+                    result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+                    if result.returncode != 0:
+                        error_msg = result.stderr.strip() if result.stderr else result.stdout.strip() or 'Unknown error'
+                        raise RuntimeError(f"Failed to open file: {error_msg}")
+                
+                get_console().print(f"[success]🚀 Opened {validated_path_str}[/success]")
+            except PathValidationError as e:
+                get_console().print(f"[error]❌ Security validation failed: {e}[/error]")
+            except FileNotFoundError as e:
+                get_console().print(f"[error]❌ File not found: {e}[/error]")
             except Exception as e:
                 get_console().print(f"[warning]⚠️  Could not open file: {e}[/warning]")
         
