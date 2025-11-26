@@ -13,6 +13,7 @@
 class ModalManager {
     constructor() {
         this.activeModals = [];
+        this.confirmStates = new Map();
         this.setupGlobalListeners();
     }
 
@@ -69,7 +70,10 @@ class ModalManager {
      */
     close(modalId) {
         const modal = document.getElementById(modalId);
-        if (!modal) return;
+        if (!modal) {
+            this.cleanupConfirmState(modalId);
+            return;
+        }
 
         const backdrop = modal.querySelector('.modal-backdrop');
         const content = modal.querySelector('.modal');
@@ -89,6 +93,7 @@ class ModalManager {
             if (form) {
                 formAutoSave.clear(form);
             }
+            this.cleanupConfirmState(modalId);
         }, 200);
 
         // Remove from active modals
@@ -113,9 +118,14 @@ class ModalManager {
      */
     confirm(message, options = {}) {
         return new Promise((resolve) => {
+            const uniqueSuffix = typeof crypto !== 'undefined' && crypto.randomUUID
+                ? crypto.randomUUID()
+                : Date.now().toString(36) + Math.random().toString(36).slice(2);
+            const modalId = `confirmModal_${uniqueSuffix}`;
+
             const modalHtml = `
-                <div id="confirmModal" class="modal-container">
-                    <div class="modal-backdrop" onclick="modalManager.close('confirmModal'); window._confirmResolve(false);"></div>
+                <div id="${modalId}" class="modal-container" data-confirm-modal="true">
+                    <div class="modal-backdrop" data-confirm-role="backdrop"></div>
                     <div class="modal modal-sm" data-animation="scale">
                         <div class="modal-header">
                             <h2 class="modal-title">${options.title || 'Confirm'}</h2>
@@ -124,10 +134,10 @@ class ModalManager {
                             <p>${message}</p>
                         </div>
                         <div class="modal-footer">
-                            <button class="btn btn-ghost" onclick="modalManager.close('confirmModal'); window._confirmResolve(false);">
+                            <button class="btn btn-ghost" data-confirm-role="cancel">
                                 ${options.cancelText || 'Cancel'}
                             </button>
-                            <button class="btn ${options.danger ? 'btn-error' : 'btn-primary'}" onclick="modalManager.close('confirmModal'); window._confirmResolve(true);">
+                            <button class="btn ${options.danger ? 'btn-error' : 'btn-primary'}" data-confirm-role="confirm">
                                 ${options.confirmText || 'Confirm'}
                             </button>
                         </div>
@@ -141,9 +151,66 @@ class ModalManager {
             // Add to DOM
             document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-            window._confirmResolve = resolve;
-            this.open('confirmModal', { animation: 'scale', autoSave: false });
+            const modalElement = document.getElementById(modalId);
+            if (!modalElement) {
+                resolve(false);
+                return;
+            }
+
+            const listeners = [];
+            const addListener = (target, type, handler) => {
+                if (!target) return;
+                target.addEventListener(type, handler);
+                listeners.push(() => target.removeEventListener(type, handler));
+            };
+            const detachListeners = () => {
+                while (listeners.length) {
+                    const remove = listeners.pop();
+                    remove();
+                }
+            };
+
+            const state = { settled: false };
+            const finalize = (result, { skipClose } = {}) => {
+                if (state.settled) return;
+                state.settled = true;
+                detachListeners();
+                this.confirmStates.delete(modalId);
+                resolve(result);
+                if (!skipClose) {
+                    this.close(modalId);
+                }
+                setTimeout(() => modalElement?.remove(), 250);
+            };
+            state.finalize = finalize;
+            this.confirmStates.set(modalId, state);
+
+            const backdrop = modalElement.querySelector('[data-confirm-role="backdrop"]');
+            const cancelButton = modalElement.querySelector('[data-confirm-role="cancel"]');
+            const confirmButton = modalElement.querySelector('[data-confirm-role="confirm"]');
+
+            const handleCancel = (event) => {
+                event?.preventDefault?.();
+                finalize(false);
+            };
+            const handleConfirm = (event) => {
+                event?.preventDefault?.();
+                finalize(true);
+            };
+
+            addListener(backdrop, 'click', handleCancel);
+            addListener(cancelButton, 'click', handleCancel);
+            addListener(confirmButton, 'click', handleConfirm);
+
+            this.open(modalId, { animation: 'scale', autoSave: false });
         });
+    }
+
+    cleanupConfirmState(modalId) {
+        const state = this.confirmStates.get(modalId);
+        if (state && typeof state.finalize === 'function') {
+            state.finalize(false, { skipClose: true });
+        }
     }
 }
 
