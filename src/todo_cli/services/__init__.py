@@ -24,6 +24,14 @@ from .time_tracking import (
 )
 from .dashboard import DashboardManager, Dashboard, Widget, WidgetType
 from .plugins import PluginManager, PluginType, PluginStatus
+from .voice_input import (
+    VoiceToTask,
+    VoiceTranscriber,
+    LocalTranscriber,
+    CloudTranscriber,
+    AudioRecorder,
+    TranscriptionResult,
+)
 
 __all__ = [
     "QueryEngine",
@@ -54,4 +62,10 @@ __all__ = [
     "PluginManager",
     "PluginType",
     "PluginStatus",
+    "VoiceToTask",
+    "VoiceTranscriber",
+    "LocalTranscriber",
+    "CloudTranscriber",
+    "AudioRecorder",
+    "TranscriptionResult",
 ]

@@ -2079,6 +2079,10 @@ main.add_command(web)
 from .dashboard_commands import dashboard_group
 main.add_command(dashboard_group)
 
+# Add voice command group
+from .voice_commands import voice_group
+main.add_command(voice_group)
+
 
 if __name__ == "__main__":
     main()

@@ -129,7 +129,13 @@
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <textarea id="quick-capture-input" placeholder="Add a task..." class="quick-capture-input"></textarea>
+                <div class="quick-capture-input-wrapper" style="position: relative;">
+                    <textarea id="quick-capture-input" placeholder="Add a task..." class="quick-capture-input"></textarea>
+                    <button id="voice-input-btn" class="btn btn-icon" title="Voice input"
+                            style="position: absolute; right: 8px; top: 8px; background: none; border: none; cursor: pointer; font-size: 1.2em; opacity: 0.6;"
+                            onclick="toggleVoiceInput()">&#127908;</button>
+                </div>
+                <div id="voice-status" style="display: none; padding: 4px 0; font-size: 0.85em; color: #888;"></div>
                 <div class="quick-capture-actions">
                     <button id="quick-capture-save" class="btn btn-primary">Add Task</button>
                     <button id="quick-capture-cancel" class="btn btn-secondary">Cancel</button>
@@ -194,6 +200,47 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Scripts -->
+    <script src="/static/js/voice.js"></script>
+    <script>
+        function toggleVoiceInput() {
+            const btn = document.getElementById('voice-input-btn');
+            const status = document.getElementById('voice-status');
+            const input = document.getElementById('quick-capture-input');
+
+            if (!Voice.isSupported()) {
+                status.textContent = 'Speech recognition is not supported in this browser.';
+                status.style.display = 'block';
+                return;
+            }
+
+            if (Voice.isListening()) {
+                Voice.stopListening();
+                btn.style.opacity = '0.6';
+                status.style.display = 'none';
+            } else {
+                status.textContent = 'Listening...';
+                status.style.display = 'block';
+                btn.style.opacity = '1';
+
+                Voice.startListening(
+                    function(transcript, isFinal) {
+                        input.value = transcript;
+                        if (isFinal) {
+                            status.textContent = 'Done!';
+                        }
+                    },
+                    function(error) {
+                        status.textContent = 'Error: ' + error;
+                        btn.style.opacity = '0.6';
+                    },
+                    function() {
+                        btn.style.opacity = '0.6';
+                        setTimeout(function() { status.style.display = 'none'; }, 2000);
+                    }
+                );
+            }
+        }
+    </script>
     <script src="/static/js/config.js"></script>
     <script src="/static/js/api.js"></script>
     <script src="/static/js/data-loader.js"></script>

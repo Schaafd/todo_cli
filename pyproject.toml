@@ -42,6 +42,13 @@ dev = [
 pdf = [
     "fpdf2>=2.8.0",
 ]
+voice = [
+    "sounddevice>=0.5.0",
+    "vosk>=0.3.45",
+]
+voice-cloud = [
+    "openai>=1.0.0",
+]
 
 [project.scripts]
 todo = "todo_cli.cli:main"

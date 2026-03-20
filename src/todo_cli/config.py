@@ -68,6 +68,13 @@ class ConfigModel:
     theme_compact: bool = False
     theme_high_contrast: bool = False
     theme_colorblind_safe: bool = False
+
+    # Voice input settings
+    voice_provider: str = "local"  # "local" or "cloud"
+    voice_language: str = "en-us"
+    voice_model_path: Optional[str] = None  # Path to Vosk model
+    voice_openai_api_key: Optional[str] = None
+    voice_default_duration: float = 5.0
     
     def __post_init__(self):
         """Post-initialization setup."""
@@ -114,6 +121,11 @@ class ConfigModel:
             "theme_compact": self.theme_compact,
             "theme_high_contrast": self.theme_high_contrast,
             "theme_colorblind_safe": self.theme_colorblind_safe,
+            "voice_provider": self.voice_provider,
+            "voice_language": self.voice_language,
+            "voice_model_path": self.voice_model_path,
+            "voice_default_duration": self.voice_default_duration,
+            # Note: voice_openai_api_key is intentionally omitted for security
         }
         if yaml is not None:
             return yaml.dump(data, default_flow_style=False)
