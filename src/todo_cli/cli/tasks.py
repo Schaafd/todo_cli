@@ -33,20 +33,6 @@ from ..theme import (
     get_status_emoji,
     PRODUCTIVITY_NINJA_THEME
 )
-from ..services import (
-    QueryEngine,
-    TaskRecommendationEngine,
-    get_context_suggestions,
-    get_energy_suggestions,
-    ExportManager,
-    ExportFormat,
-    NotificationManager,
-    NotificationType,
-    NotificationPreferences,
-)
-from ..sync.calendar_integration import CalendarSync, CalendarConfig, CalendarType, SyncDirection, ConflictResolution
-from ..sync import SyncManager, SyncConfig, SyncProvider, ConflictStrategy, SyncStatus
-from .analytics_commands import get_analytics_commands
 
 
 # Dynamic console - no longer created at module level
@@ -54,8 +40,14 @@ def get_console():
     """Get a themed console that reflects current configuration."""
     return get_themed_console()
 
-query_engine = QueryEngine()
-recommend_engine = TaskRecommendationEngine()
+def _get_query_engine():
+    from ..services import QueryEngine
+    return QueryEngine()
+
+def _get_recommend_engine():
+    from ..services import TaskRecommendationEngine
+    return TaskRecommendationEngine()
+
 recurring_manager = RecurringTaskManager()
 
 
@@ -644,6 +636,7 @@ def dashboard():
     
     # Check and send notifications silently
     try:
+        from ..services import NotificationManager
         notification_manager = NotificationManager()
         notification_manager.check_and_send_notifications(all_todos)
     except Exception:
@@ -900,11 +893,11 @@ def search(query, project, save_name, sort_by, limit, reverse):
     
     try:
         # Execute search query
-        results = query_engine.search(all_todos, query)
+        results = _get_query_engine().search(all_todos, query)
         
         # Save query if requested
         if save_name:
-            query_engine.save_query(save_name, query)
+            _get_query_engine().save_query(save_name, query)
             get_console().print(f"[success]✅ Saved query as '{save_name}'[/success]")
         
         # Sort results if requested
@@ -986,7 +979,7 @@ def recommend(context, energy, time, limit, explain):
         return
     
     # Get recommendations
-    recommendations = recommend_engine.get_recommendations(
+    recommendations = _get_recommend_engine().get_recommendations(
         all_todos,
         current_context=context,
         current_energy=energy, 
@@ -1027,6 +1020,7 @@ def recommend(context, energy, time, limit, explain):
                 get_console().print(f"   [muted]Why: {reasons_text}[/muted]")
     
     # Show contextual suggestions
+    from ..services import get_context_suggestions, get_energy_suggestions
     if not context:
         suggested_contexts = get_context_suggestions(all_todos)
         if suggested_contexts:
@@ -1046,7 +1040,7 @@ def recommend(context, energy, time, limit, explain):
 def queries(list_queries, delete_name):
     """Manage saved search queries."""
     if list_queries:
-        saved = query_engine.list_saved_queries()
+        saved = _get_query_engine().list_saved_queries()
         if saved:
             get_console().print("[bold]Saved Queries:[/bold]")
             for name, query in saved.items():
@@ -1056,7 +1050,7 @@ def queries(list_queries, delete_name):
             get_console().print("[muted]No saved queries found.[/muted]")
             get_console().print("[muted]Save a query with: todo search 'query' --save name[/muted]")
     elif delete_name:
-        if query_engine.delete_query(delete_name):
+        if _get_query_engine().delete_query(delete_name):
             get_console().print(f"[success]✅ Deleted saved query '{delete_name}'[/success]")
         else:
             get_console().print(f"[error]❌ Saved query '{delete_name}' not found[/error]")
@@ -1481,6 +1475,7 @@ def export(format_type, output, project, include_completed, exclude_completed, i
       todo export html --open-after
       todo export pdf --project personal -o report.pdf
     """
+    from ..services import ExportManager, ExportFormat
     storage = get_storage()
     config = get_config()
     export_manager = ExportManager()
@@ -1619,6 +1614,7 @@ def notify():
 @click.option('--test', is_flag=True, help='Test notification delivery')
 def status(test):
     """Show notification system status and availability."""
+    from ..services import NotificationManager
     notification_manager = NotificationManager()
     
     get_console().print("[header]🔔 Notification System Status[/header]\n")
@@ -1692,6 +1688,7 @@ def config(enabled, desktop, email, due_soon_hours, overdue_hours, quiet_start,
       todo notify config --quiet-start 22 --quiet-end 8
       todo notify config --email --email-address user@example.com --smtp-server smtp.gmail.com
     """
+    from ..services import NotificationManager
     notification_manager = NotificationManager()
     prefs = notification_manager.preferences
     changes_made = False
@@ -1770,8 +1767,9 @@ def history(limit, notification_type):
       todo notify history --limit 50
       todo notify history --type overdue
     """
+    from ..services import NotificationManager, NotificationType
     notification_manager = NotificationManager()
-    
+
     # Convert string to enum if provided
     filter_type = None
     if notification_type:
@@ -1825,6 +1823,7 @@ def test(title, message):
       todo notify test
       todo notify test --title "Custom Test" --message "Testing notifications"
     """
+    from ..services import NotificationManager
     notification_manager = NotificationManager()
     
     if not notification_manager.preferences.enabled:
@@ -1865,6 +1864,7 @@ def check():
     This command manually triggers the notification check that would normally
     run automatically. Useful for testing or immediate notification delivery.
     """
+    from ..services import NotificationManager
     storage = get_storage()
     config = get_config()
     notification_manager = NotificationManager()
@@ -2040,6 +2040,7 @@ main.add_command(pin)
 main.add_command(projects)
 main.add_command(export)
 main.add_command(notify)
+from .analytics_commands import get_analytics_commands
 main.add_command(get_analytics_commands())
 
 # Add app-sync command group

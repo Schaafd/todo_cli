@@ -1,6 +1,6 @@
 [project]
 name = "todo-cli"
-version = "0.1.1"
+version = "0.2.0"
 description = "A powerful command-line todo application with advanced features"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -18,9 +18,9 @@ dependencies = [
     "python-levenshtein>=0.27.1",
     "tabulate>=0.9.0",
     "keyring>=24.0.0",
-    "httpx>=0.27,<0.28",
+    "httpx>=0.27,<1.0",
     "fpdf2>=2.8.4",
-    "fastapi==0.115.6",
+    "fastapi>=0.115.6,<1.0",
     "uvicorn[standard]>=0.24.0",
     "jinja2>=3.1.0",
     "bcrypt>=4.1.0",
@@ -28,8 +28,6 @@ dependencies = [
     "itsdangerous>=2.1.2",
     "python-multipart>=0.0.20",
     "watchdog>=4.0.0",
-    "itsdangerous>=2.1.2",
-    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
@@ -73,10 +71,6 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
     "asyncio: marks coroutine-based tests",
-]
-filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::PendingDeprecationWarning",
 ]
 
 [tool.coverage.run]
@@ -123,4 +117,4 @@ warn_unused_ignores = false
 warn_redundant_casts = true
 warn_unused_configs = true
 namespace_packages = true
-follow_imports = "skip"
+follow_imports = "normal"
