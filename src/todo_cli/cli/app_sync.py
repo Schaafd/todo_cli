@@ -63,6 +63,22 @@ def get_app_sync_manager() -> AppSyncManager:
                 from ..sync.providers.jira_adapter import JiraAdapter
                 adapter = JiraAdapter(provider_config)
                 manager.register_adapter(provider, adapter)
+            elif provider == AppSyncProvider.MICROSOFT_TODO:
+                from ..sync.providers.microsoft_todo_adapter import MicrosoftTodoAdapter
+                adapter = MicrosoftTodoAdapter(provider_config)
+                manager.register_adapter(provider, adapter)
+            elif provider == AppSyncProvider.GOOGLE_TASKS:
+                from ..sync.providers.google_tasks_adapter import GoogleTasksAdapter
+                adapter = GoogleTasksAdapter(provider_config)
+                manager.register_adapter(provider, adapter)
+            elif provider == AppSyncProvider.NOTION:
+                from ..sync.providers.notion_adapter import NotionAdapter
+                adapter = NotionAdapter(provider_config)
+                manager.register_adapter(provider, adapter)
+            elif provider == AppSyncProvider.TICKTICK:
+                from ..sync.providers.ticktick_adapter import TickTickAdapter
+                adapter = TickTickAdapter(provider_config)
+                manager.register_adapter(provider, adapter)
             # Add other providers as they're implemented
             else:
                 continue  # Skip unsupported providers

@@ -5,6 +5,56 @@ All notable changes to the Todo CLI project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-03-20
+
+### 🚀 New Features
+
+#### Customizable Dashboard Widgets
+- Rich terminal renderer for all widget types: metric, gauge, sparkline, bar/pie charts, tables, lists, progress bars
+- CLI command group `dashboard-mgr` with subcommands: show, create, list, add-widget, remove-widget, delete, reset, templates
+- Four dashboard templates: Productivity, Project Manager, Time Tracking, Minimal
+- REST API endpoints for dashboard CRUD and widget data refresh
+
+#### Voice Input (Speech-to-Task)
+- `todo voice add` — record and create tasks from speech
+- `todo voice status` — check voice backend availability
+- `todo voice test` — test recording/transcription
+- Local transcription via Vosk (offline, optional `voice` dependency group)
+- Cloud transcription via OpenAI Whisper API (optional `voice-cloud` dependency group)
+- Web Speech API integration in PWA with microphone button
+
+#### Third-Party Integrations
+- **GitHub Issues sync adapter** — bidirectional sync mapping issues to todos (title, labels→tags, milestones→projects, assignees, state→status, body→description, priority via labels)
+- **Jira sync adapter** — bidirectional sync via REST v3 (summary, description, priority, labels→tags, sprint→project, status transitions, assignees)
+- **Slack integration plugin** — event-driven notifications for task completion/creation, daily summaries with Block Kit formatting, `/todo` message parsing
+
+#### Complete Sync Provider Coverage
+- **Notion adapter** — sync with Notion databases (title, status, priority, tags, due date, assignee, description, project properties)
+- **Microsoft Todo adapter** — sync via Microsoft Graph API (title, body, importance, status, due date, categories)
+- **Google Tasks adapter** — sync via Google Tasks API (title, notes, due date, status; priority/tags stored as metadata)
+- **TickTick adapter** — sync via TickTick Open API (experimental; title, content, priority, tags, due date, status, project)
+
+### 🛠️ Improvements
+
+#### Dependency Updates & Performance
+- Upgraded all 57 dependencies to latest versions (FastAPI 0.115→0.135, Pydantic 2.11→2.12, pytest 8→9, etc.)
+- Removed duplicate `itsdangerous` and `python-multipart` entries
+- Widened FastAPI and httpx version ranges for easier future upgrades
+- Lazy-loaded heavy CLI service imports (analytics, recommendations, query engine, export, notifications) for faster startup
+- Removed unused sync imports from CLI module
+- Enabled deprecation warnings in pytest
+- Fixed mypy `follow_imports` from "skip" to "normal"
+
+#### Configuration
+- Added dashboard config fields (default layout, auto-refresh, refresh interval)
+- Added voice input config fields (provider, language, model path, duration)
+- Added Slack integration config fields (channel, notification preferences)
+- Sensitive credentials (API keys, tokens) excluded from YAML serialization
+
+### 📊 Testing
+- Test count: 173 → 579 (406 new tests)
+- New test coverage: dashboards (35), voice input (24), Slack plugin (27), GitHub Issues (37), Jira (42), Notion (34), Microsoft Todo (41), Google Tasks (46), TickTick (36)
+
 ## [Unreleased]
 
 ### 🛠️ Fixes

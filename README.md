@@ -4,7 +4,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Phase 6 Complete](https://img.shields.io/badge/phase-6%20complete-brightgreen.svg)](./docs/PHASE_6_APP_SYNC_PLAN.md)
-[![Tests Passing](https://img.shields.io/badge/tests-173%20passing-green.svg)](#testing)
+[![Tests Passing](https://img.shields.io/badge/tests-579%20passing-green.svg)](#testing)
 [![PWA Ready](https://img.shields.io/badge/PWA-ready-blue.svg)](#progressive-web-app-pwa)
 
 ## 🚀 Features
@@ -35,14 +35,30 @@
 - **Version Control Friendly**: Plain text format works great with git
 - **Organized Structure**: `~/.todo/projects/` with individual project files
 
-### 🔄 **NEW: Multi-App Synchronization (Phase 6)**
-- **Bidirectional Sync**: Keep todos in sync with external apps like Todoist and Apple Reminders
-- **Multiple Provider Support**: Todoist (API-based) and Apple Reminders (native macOS integration)
+### 🔄 **Multi-App Synchronization**
+- **Bidirectional Sync**: Keep todos in sync with external apps
+- **8 Provider Support**: Todoist, Apple Reminders, GitHub Issues, Jira, Notion, Microsoft Todo, Google Tasks, TickTick
 - **Conflict Resolution**: Multiple strategies (newest wins, manual, local/remote preference)
 - **Secure Credential Storage**: System keyring integration with fallback options
 - **Project Mapping**: Map local projects to external app projects/lists
 - **Incremental Updates**: Efficient sync using change detection and timestamps
-- **Extensible Architecture**: Adapter pattern ready for TickTick, Notion, Microsoft Todo, and more
+
+### 🎙️ **NEW: Voice Input**
+- **Speech-to-Task**: Create tasks by speaking — `todo voice add`
+- **Local Transcription**: Offline via Vosk (optional dependency)
+- **Cloud Transcription**: OpenAI Whisper API support
+- **PWA Integration**: Web Speech API microphone button in the web app
+
+### 📊 **NEW: Customizable Dashboard Widgets**
+- **Widget-Based Dashboards**: Metric, gauge, sparkline, bar/pie charts, tables, lists
+- **Dashboard Templates**: Productivity, Project Manager, Time Tracking, Minimal
+- **CLI Management**: `todo dashboard-mgr create/show/add-widget/remove-widget`
+- **REST API**: Full CRUD endpoints for dashboard configuration
+
+### 🔗 **NEW: Third-Party Integrations**
+- **Slack Plugin**: Task completion notifications, daily summaries, `/todo` message parsing
+- **GitHub Issues**: Bidirectional sync (labels→tags, milestones→projects, assignees)
+- **Jira**: Bidirectional sync (priorities, status transitions, sprints→projects)
 
 ### 🎯 **NEW: Enhanced Query Engine & AI Recommendations**
 - **Advanced Search**: Complex queries with logical operators (AND, OR, NOT)
@@ -292,11 +308,14 @@ todo app-sync conflicts --resolve     # Interactive conflict resolution
 todo app-sync conflicts --provider todoist  # Filter by provider
 
 # Supported providers:
-# ✅ todoist        - Full bidirectional sync with projects and labels
-# ✅ apple_reminders - Full bidirectional sync with lists (macOS native integration)
-# 🚧 ticktick      - Coming soon (cross-platform with calendar sync)
-# 🚧 notion        - Coming soon (database integration)
-# 🚧 microsoft_todo - Coming soon (Office 365 integration)
+# ✅ todoist         - Full bidirectional sync with projects and labels
+# ✅ apple_reminders - Full bidirectional sync with lists (macOS native)
+# ✅ github_issues   - Bidirectional sync with labels, milestones, assignees
+# ✅ jira            - Bidirectional sync with priorities, sprints, statuses
+# ✅ notion          - Bidirectional sync with database properties
+# ✅ microsoft_todo  - Bidirectional sync via Microsoft Graph API
+# ✅ google_tasks    - Bidirectional sync with task lists
+# ✅ ticktick        - Bidirectional sync (experimental)
 # 🚧 google_tasks   - Coming soon (Google Workspace integration)
 ```
 
