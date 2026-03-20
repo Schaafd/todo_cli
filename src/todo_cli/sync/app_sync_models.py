@@ -27,6 +27,8 @@ class AppSyncProvider(Enum):
     GOOGLE_TASKS = "google_tasks"
     OMNIFOCUS = "omnifocus"
     THINGS = "things"
+    GITHUB_ISSUES = "github_issues"
+    JIRA = "jira"
 
 
 class SyncDirection(Enum):

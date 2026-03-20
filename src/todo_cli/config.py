@@ -75,7 +75,14 @@ class ConfigModel:
     voice_model_path: Optional[str] = None  # Path to Vosk model
     voice_openai_api_key: Optional[str] = None
     voice_default_duration: float = 5.0
-    
+
+    # Slack integration
+    slack_bot_token: Optional[str] = None
+    slack_channel: Optional[str] = None
+    slack_notify_on_complete: bool = True
+    slack_notify_on_create: bool = False
+    slack_daily_summary: bool = True
+
     def __post_init__(self):
         """Post-initialization setup."""
         # Expand user paths
@@ -126,6 +133,11 @@ class ConfigModel:
             "voice_model_path": self.voice_model_path,
             "voice_default_duration": self.voice_default_duration,
             # Note: voice_openai_api_key is intentionally omitted for security
+            # Slack integration (bot_token omitted for security)
+            "slack_channel": self.slack_channel,
+            "slack_notify_on_complete": self.slack_notify_on_complete,
+            "slack_notify_on_create": self.slack_notify_on_create,
+            "slack_daily_summary": self.slack_daily_summary,
         }
         if yaml is not None:
             return yaml.dump(data, default_flow_style=False)

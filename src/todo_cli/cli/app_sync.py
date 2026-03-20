@@ -55,6 +55,14 @@ def get_app_sync_manager() -> AppSyncManager:
                 from ..sync.providers.apple_reminders_adapter import AppleRemindersAdapter
                 adapter = AppleRemindersAdapter(provider_config)
                 manager.register_adapter(provider, adapter)
+            elif provider == AppSyncProvider.GITHUB_ISSUES:
+                from ..sync.providers.github_issues_adapter import GitHubIssuesAdapter
+                adapter = GitHubIssuesAdapter(provider_config)
+                manager.register_adapter(provider, adapter)
+            elif provider == AppSyncProvider.JIRA:
+                from ..sync.providers.jira_adapter import JiraAdapter
+                adapter = JiraAdapter(provider_config)
+                manager.register_adapter(provider, adapter)
             # Add other providers as they're implemented
             else:
                 continue  # Skip unsupported providers
