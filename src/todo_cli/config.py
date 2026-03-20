@@ -57,6 +57,11 @@ class ConfigModel:
     use_emoji: bool = True
     table_style: str = "rich"  # rich, simple, ascii
     
+    # Dashboard settings
+    dashboard_default: str = "default"
+    dashboard_auto_refresh: bool = False
+    dashboard_refresh_interval: int = 300  # seconds
+
     # Theme settings
     theme_name: str = "city_lights"
     theme_variant: Optional[str] = None
@@ -101,6 +106,9 @@ class ConfigModel:
             "no_color": self.no_color,
             "use_emoji": self.use_emoji,
             "table_style": self.table_style,
+            "dashboard_default": self.dashboard_default,
+            "dashboard_auto_refresh": self.dashboard_auto_refresh,
+            "dashboard_refresh_interval": self.dashboard_refresh_interval,
             "theme_name": self.theme_name,
             "theme_variant": self.theme_variant,
             "theme_compact": self.theme_compact,

@@ -807,6 +807,50 @@ class DashboardManager:
             
             return dashboard
         
+        elif template_name == "minimal":
+            dashboard = self.create_dashboard(
+                "Minimal Dashboard",
+                "Quick overview of task status"
+            )
+
+            # Total tasks widget
+            total_widget = self.create_widget(
+                WidgetType.METRIC,
+                "Total Tasks",
+                "todo_metrics",
+                WidgetSize.SMALL,
+                metric_type="total_tasks"
+            )
+            total_widget.position_x = 0
+            total_widget.position_y = 0
+            dashboard.add_widget(total_widget)
+
+            # Overdue tasks widget
+            overdue_widget = self.create_widget(
+                WidgetType.METRIC,
+                "Overdue Tasks",
+                "todo_metrics",
+                WidgetSize.SMALL,
+                metric_type="overdue_tasks"
+            )
+            overdue_widget.position_x = 3
+            overdue_widget.position_y = 0
+            dashboard.add_widget(overdue_widget)
+
+            # Completion rate widget
+            completion_widget = self.create_widget(
+                WidgetType.METRIC,
+                "Completion Rate",
+                "todo_metrics",
+                WidgetSize.SMALL,
+                metric_type="completion_rate"
+            )
+            completion_widget.position_x = 6
+            completion_widget.position_y = 0
+            dashboard.add_widget(completion_widget)
+
+            return dashboard
+
         else:
             # Default empty dashboard
             return self.create_dashboard("Custom Dashboard", "")

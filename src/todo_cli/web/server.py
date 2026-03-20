@@ -801,6 +801,116 @@ async def restore_backup_api(filename: str, storage=Depends(get_todo_storage)):
         raise HTTPException(status_code=500, detail=f"Error restoring backup: {str(e)}")
 
 
+# ---------------------------------------------------------------------------
+# Dashboard API endpoints
+# ---------------------------------------------------------------------------
+
+class DashboardCreateRequest(BaseModel):
+    """Request model for creating a dashboard."""
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = ""
+    template: Optional[str] = None
+
+
+@app.get("/api/dashboards")
+async def list_dashboards_api():
+    """List all saved dashboards."""
+    try:
+        from todo_cli.services.dashboard import DashboardManager
+        manager = DashboardManager()
+        return manager.list_dashboards()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing dashboards: {str(e)}")
+
+
+@app.get("/api/dashboards/{dashboard_id}")
+async def get_dashboard(dashboard_id: str):
+    """Get a specific dashboard by ID."""
+    try:
+        from todo_cli.services.dashboard import DashboardManager
+        manager = DashboardManager()
+        dashboard = manager.load_dashboard(dashboard_id)
+        if not dashboard:
+            raise HTTPException(status_code=404, detail="Dashboard not found")
+        return dashboard.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving dashboard: {str(e)}")
+
+
+@app.post("/api/dashboards")
+async def create_dashboard_api(request: DashboardCreateRequest):
+    """Create a new dashboard, optionally from a template."""
+    try:
+        from todo_cli.services.dashboard import DashboardManager
+        manager = DashboardManager()
+
+        template_map = {
+            "productivity": "productivity_overview",
+            "project": "project_dashboard",
+            "time_tracking": "time_tracking",
+            "minimal": "minimal",
+        }
+
+        if request.template and request.template in template_map:
+            dashboard = manager.create_template_dashboard(template_map[request.template])
+            dashboard.name = request.name
+            if request.description:
+                dashboard.description = request.description
+            manager.save_dashboard(dashboard)
+        else:
+            dashboard = manager.create_dashboard(request.name, request.description or "")
+
+        return dashboard.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating dashboard: {str(e)}")
+
+
+@app.delete("/api/dashboards/{dashboard_id}")
+async def delete_dashboard_api(dashboard_id: str):
+    """Delete a dashboard."""
+    try:
+        from todo_cli.services.dashboard import DashboardManager
+        manager = DashboardManager()
+        if manager.delete_dashboard(dashboard_id):
+            return {"message": "Dashboard deleted successfully"}
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting dashboard: {str(e)}")
+
+
+@app.get("/api/dashboards/{dashboard_id}/data")
+async def get_dashboard_data(dashboard_id: str, storage=Depends(get_todo_storage)):
+    """Refresh and return all widget data for a dashboard."""
+    try:
+        from todo_cli.services.dashboard import DashboardManager
+        manager = DashboardManager()
+        dashboard = manager.load_dashboard(dashboard_id)
+        if not dashboard:
+            raise HTTPException(status_code=404, detail="Dashboard not found")
+
+        # Collect all todos for data refresh
+        all_todos = []
+        projects = storage.list_projects()
+        for project_name in projects:
+            try:
+                project_obj, todos = storage.load_project(project_name)
+                if todos:
+                    all_todos.extend(todos)
+            except Exception:
+                continue
+
+        manager.refresh_dashboard_data(dashboard, all_todos)
+        return dashboard.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error refreshing dashboard: {str(e)}")
+
+
 # Note: Main health endpoint is at /health (not /api/health)
 
 

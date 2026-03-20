@@ -2075,6 +2075,10 @@ main.add_command(get_backup_commands())
 from .web import web
 main.add_command(web)
 
+# Add dashboard management command group
+from .dashboard_commands import dashboard_group
+main.add_command(dashboard_group)
+
 
 if __name__ == "__main__":
     main()
