@@ -1173,7 +1173,17 @@ def list_providers():
             status_icon = "⚪ Available"
         
         # Implementation status
-        if provider == AppSyncProvider.TODOIST:
+        implemented_providers = {
+            AppSyncProvider.TODOIST,
+            AppSyncProvider.APPLE_REMINDERS,
+            AppSyncProvider.GITHUB_ISSUES,
+            AppSyncProvider.JIRA,
+            AppSyncProvider.NOTION,
+            AppSyncProvider.MICROSOFT_TODO,
+            AppSyncProvider.GOOGLE_TASKS,
+            AppSyncProvider.TICKTICK,
+        }
+        if provider in implemented_providers:
             impl_status = "✅ Complete"
         else:
             impl_status = "🚧 Coming Soon"
