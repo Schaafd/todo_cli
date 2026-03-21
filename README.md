@@ -3,9 +3,10 @@
 > A powerful, feature-rich command-line todo application with advanced task management capabilities
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Phase 6 Complete](https://img.shields.io/badge/phase-6%20complete-brightgreen.svg)](./docs/PHASE_6_APP_SYNC_PLAN.md)
-[![Tests Passing](https://img.shields.io/badge/tests-579%20passing-green.svg)](#testing)
+[![Phase 10 Complete](https://img.shields.io/badge/phase-10%20complete-brightgreen.svg)](./CHANGELOG.md)
+[![Tests Passing](https://img.shields.io/badge/tests-705%20passing-green.svg)](#testing)
 [![PWA Ready](https://img.shields.io/badge/PWA-ready-blue.svg)](#progressive-web-app-pwa)
+[![iOS App](https://img.shields.io/badge/iOS-17%2B-blue.svg)](./ios/README.md)
 
 ## 🚀 Features
 
@@ -59,6 +60,34 @@
 - **Slack Plugin**: Task completion notifications, daily summaries, `/todo` message parsing
 - **GitHub Issues**: Bidirectional sync (labels→tags, milestones→projects, assignees)
 - **Jira**: Bidirectional sync (priorities, status transitions, sprints→projects)
+
+### 🤖 **NEW: AI/LLM Integration**
+- **Smart Suggestions**: `todo ai suggest` — AI recommends what to work on next
+- **Auto-Categorize**: `todo ai categorize` — AI suggests tags, priority, project
+- **Natural Language Queries**: `todo ai ask "what's overdue?"` — ask about your tasks
+- **Task Summaries**: `todo ai summary` — AI-generated status overview
+- **Dual Backend**: OpenAI (cloud) or Ollama (local) providers
+
+### ⏱️ **NEW: Pomodoro Focus Timer**
+- **Focus Sessions**: `todo focus start [TASK_ID]` with live Rich countdown
+- **Smart Breaks**: Auto-selects short/long break based on session count
+- **Statistics**: Streaks, daily totals, completion rates
+- **PWA Timer**: Circular SVG timer component in web app
+
+### 👥 **NEW: Collaboration**
+- **Shared Projects**: Share projects with team members
+- **Role-Based Access**: Owner, Admin, Editor, Viewer permissions
+- **Activity Feed**: Track all task changes across shared projects
+- **Comments & Assignments**: Comment on tasks, assign to team members
+- **Real-Time Updates**: WebSocket-based live sync between users
+
+### 📱 **NEW: iOS App**
+- **Native SwiftUI**: Flat material design, iOS 17+
+- **Quick Add**: Floating action button + always-visible quick add bar
+- **Quick Access**: Today/Overdue/Pinned sections, swipe gestures, search
+- **Personalization**: 10 accent colors, light/dark/system modes, density options
+- **Focus Timer**: Circular pomodoro timer with session tracking
+- **Backend Sync**: Connects to existing REST API
 
 ### 🎯 **NEW: Enhanced Query Engine & AI Recommendations**
 - **Advanced Search**: Complex queries with logical operators (AND, OR, NOT)

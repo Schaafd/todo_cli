@@ -51,9 +51,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Slack integration config fields (channel, notification preferences)
 - Sensitive credentials (API keys, tokens) excluded from YAML serialization
 
+#### AI/LLM Integration
+- `AIProvider` ABC with `OpenAIProvider` (cloud) and `OllamaProvider` (local) backends
+- `TaskAIAssistant`: suggest next task, auto-categorize, smart natural language queries, summarize tasks
+- `AIInsightsDataSource` for dashboard widgets
+- CLI commands: `ai suggest`, `ai ask`, `ai categorize`, `ai summary`, `ai status`
+- 5 REST API endpoints for AI features
+- Optional dependency groups: `ai` (openai), `ai-local` (ollama)
+
+#### Pomodoro Focus Timer
+- `PomodoroTimer` state machine: idle → focus → short break → focus → ... → long break
+- Session tracking with JSON persistence, statistics (streaks, daily totals, averages)
+- CLI: `focus start [TASK_ID]` with Rich Live countdown + progress bar, `focus break`, `focus stats`, `focus history`, `focus config`
+- PWA circular SVG timer component with API integration
+- 7 REST API endpoints for timer control and statistics
+
+#### Collaboration
+- `CollaborationDB`: SQLite storage for shared projects, members, activity feed, comments, task assignments
+- `CollaborationManager`: role-based permission checking (owner > admin > editor > viewer)
+- `RealtimeManager`: WebSocket connection tracking, project subscriptions, broadcasts
+- CLI: `collab share`, `collab invite`, `collab members`, `collab activity`, `collab comment`, `collab assign`, `collab projects`
+- 11 REST API endpoints + WebSocket endpoint `/ws/{user_id}`
+
+#### iOS App (SwiftUI)
+- Native iOS 17+ app with flat material design
+- Quick Add: floating action button + always-visible quick add bar with spring animations
+- Quick Access: Today/Overdue/Pinned sections, swipe gestures, instant search
+- Personalization: 10 accent colors, light/dark/system modes, compact/comfortable density
+- Focus Timer: circular pomodoro timer with session tracking
+- Full REST API integration with configurable backend URL
+- 24 Swift source files, Xcode project, asset catalogs
+
 ### 📊 Testing
-- Test count: 173 → 579 (406 new tests)
-- New test coverage: dashboards (35), voice input (24), Slack plugin (27), GitHub Issues (37), Jira (42), Notion (34), Microsoft Todo (41), Google Tasks (46), TickTick (36)
+- Test count: 173 → 705 (532 new tests)
+- New test coverage: dashboards (35), voice input (24), Slack plugin (27), GitHub Issues (37), Jira (42), Notion (34), Microsoft Todo (41), Google Tasks (46), TickTick (36), AI assistant (30), Pomodoro (28), Collaboration (54), iOS API compat (14)
 
 ## [Unreleased]
 
