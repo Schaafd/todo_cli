@@ -198,8 +198,13 @@ class ConfigModel:
                 data["default_priority"] = Priority(data["default_priority"])
             except ValueError:
                 data["default_priority"] = Priority.MEDIUM
-        
-        return cls(**data)
+
+        # Filter to only known fields to handle old/extra config keys gracefully
+        import dataclasses
+        known_fields = {f.name for f in dataclasses.fields(cls)}
+        filtered_data = {k: v for k, v in data.items() if k in known_fields}
+
+        return cls(**filtered_data)
     
     def get_project_path(self, project_name: str) -> Path:
         """Get the file path for a project."""
