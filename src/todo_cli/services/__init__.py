@@ -32,6 +32,17 @@ from .voice_input import (
     AudioRecorder,
     TranscriptionResult,
 )
+from .collaboration import (
+    CollaborationDB,
+    CollaborationManager,
+    ProjectRole,
+    ActivityType,
+    SharedProject,
+    ProjectMember,
+    ActivityEntry,
+    TaskComment,
+)
+from .realtime import RealtimeManager, WebSocketClient, realtime_manager
 
 __all__ = [
     "QueryEngine",
@@ -68,4 +79,15 @@ __all__ = [
     "CloudTranscriber",
     "AudioRecorder",
     "TranscriptionResult",
+    "CollaborationDB",
+    "CollaborationManager",
+    "ProjectRole",
+    "ActivityType",
+    "SharedProject",
+    "ProjectMember",
+    "ActivityEntry",
+    "TaskComment",
+    "RealtimeManager",
+    "WebSocketClient",
+    "realtime_manager",
 ]

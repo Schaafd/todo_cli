@@ -2092,5 +2092,10 @@ from .pomodoro_commands import focus_group
 main.add_command(focus_group)
 
 
+# Add collaboration command group
+from .collab_commands import collab_group
+main.add_command(collab_group)
+
+
 if __name__ == "__main__":
     main()

@@ -1189,6 +1189,219 @@ async def ai_status():
     }
 
 
+# ---------------------------------------------------------------------------
+# Collaboration API endpoints
+# ---------------------------------------------------------------------------
+
+from todo_cli.services.collaboration import (
+    CollaborationDB,
+    CollaborationManager,
+    ProjectRole,
+    ActivityType,
+)
+from todo_cli.services.realtime import realtime_manager
+
+_collab_manager: Optional[CollaborationManager] = None
+
+
+def _get_collab_manager() -> CollaborationManager:
+    global _collab_manager
+    if _collab_manager is None:
+        _collab_manager = CollaborationManager()
+    return _collab_manager
+
+
+class ShareProjectRequest(BaseModel):
+    name: str = Field(..., min_length=1)
+    owner_id: str = Field(..., min_length=1)
+    description: str = ""
+
+
+class AddMemberRequest(BaseModel):
+    user_id: str = Field(..., min_length=1)
+    username: str = Field(..., min_length=1)
+    role: str = Field(default="editor", pattern="^(admin|editor|viewer)$")
+    inviter_id: str = Field(..., min_length=1)
+
+
+class CommentRequest(BaseModel):
+    user_id: str = Field(..., min_length=1)
+    username: str = Field(..., min_length=1)
+    content: str = Field(..., min_length=1)
+
+
+class AssignRequest(BaseModel):
+    user_id: str = Field(..., min_length=1)
+    assigned_by: str = Field(..., min_length=1)
+
+
+@app.post("/api/projects/share")
+async def share_project_api(request: ShareProjectRequest):
+    """Create a new shared project."""
+    try:
+        manager = _get_collab_manager()
+        project = manager.share_project(request.name, request.owner_id, request.description)
+        return project.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error sharing project: {str(e)}")
+
+
+@app.get("/api/projects/shared")
+async def list_shared_projects_api(user_id: str):
+    """List shared projects for a user."""
+    try:
+        manager = _get_collab_manager()
+        projects = manager.db.list_user_projects(user_id)
+        return [p.to_dict() for p in projects]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing shared projects: {str(e)}")
+
+
+@app.get("/api/projects/{project_id}/members")
+async def get_project_members_api(project_id: str):
+    """Get members of a shared project."""
+    try:
+        manager = _get_collab_manager()
+        members = manager.db.get_project_members(project_id)
+        return [m.to_dict() for m in members]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting members: {str(e)}")
+
+
+@app.post("/api/projects/{project_id}/members")
+async def add_project_member_api(project_id: str, request: AddMemberRequest):
+    """Add a member to a shared project."""
+    try:
+        manager = _get_collab_manager()
+        role = ProjectRole(request.role)
+        member = manager.invite_member(project_id, request.inviter_id,
+                                       request.user_id, request.username, role)
+        if member:
+            return member.to_dict()
+        raise HTTPException(status_code=403, detail="Permission denied")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error adding member: {str(e)}")
+
+
+@app.delete("/api/projects/{project_id}/members/{user_id}")
+async def remove_project_member_api(project_id: str, user_id: str):
+    """Remove a member from a shared project."""
+    try:
+        manager = _get_collab_manager()
+        success = manager.db.remove_member(project_id, user_id)
+        if success:
+            return {"message": "Member removed"}
+        raise HTTPException(status_code=404, detail="Member not found or cannot remove owner")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error removing member: {str(e)}")
+
+
+@app.get("/api/projects/{project_id}/activity")
+async def get_project_activity_api(project_id: str, limit: int = 50):
+    """Get activity feed for a project."""
+    try:
+        manager = _get_collab_manager()
+        entries = manager.db.get_activity_feed(project_id, limit)
+        return [e.to_dict() for e in entries]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting activity: {str(e)}")
+
+
+@app.post("/api/tasks/{task_id}/comments")
+async def add_task_comment_api(task_id: str, request: CommentRequest):
+    """Add a comment to a task."""
+    try:
+        manager = _get_collab_manager()
+        comment = manager.db.add_comment(task_id, request.user_id,
+                                         request.username, request.content)
+        return comment.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error adding comment: {str(e)}")
+
+
+@app.get("/api/tasks/{task_id}/comments")
+async def get_task_comments_api(task_id: str):
+    """Get comments for a task."""
+    try:
+        manager = _get_collab_manager()
+        comments = manager.db.get_comments(task_id)
+        return [c.to_dict() for c in comments]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting comments: {str(e)}")
+
+
+@app.post("/api/tasks/{task_id}/assign")
+async def assign_task_api(task_id: str, request: AssignRequest):
+    """Assign a task to a user."""
+    try:
+        manager = _get_collab_manager()
+        success = manager.db.assign_task(task_id, request.user_id, request.assigned_by)
+        if success:
+            return {"message": "Task assigned", "task_id": task_id, "user_id": request.user_id}
+        raise HTTPException(status_code=500, detail="Failed to assign task")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error assigning task: {str(e)}")
+
+
+@app.get("/api/activity/me")
+async def get_my_activity_api(user_id: str, limit: int = 50):
+    """Get activity for the current user."""
+    try:
+        manager = _get_collab_manager()
+        entries = manager.db.get_user_activity(user_id, limit)
+        return [e.to_dict() for e in entries]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting activity: {str(e)}")
+
+
+# WebSocket endpoint for real-time updates
+from fastapi import WebSocket, WebSocketDisconnect
+
+
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    """WebSocket endpoint for real-time collaboration updates."""
+    await websocket.accept()
+    username = user_id  # simplified; a real app would look up username
+    connection_id = await realtime_manager.connect(websocket, user_id, username)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                msg = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            action = msg.get("action")
+            if action == "subscribe":
+                project_id = msg.get("project_id")
+                if project_id:
+                    await realtime_manager.subscribe_project(connection_id, project_id)
+                    await websocket.send_text(json.dumps({
+                        "type": "subscribed",
+                        "project_id": project_id,
+                    }))
+            elif action == "unsubscribe":
+                project_id = msg.get("project_id")
+                if project_id:
+                    await realtime_manager.unsubscribe_project(connection_id, project_id)
+                    await websocket.send_text(json.dumps({
+                        "type": "unsubscribed",
+                        "project_id": project_id,
+                    }))
+            elif action == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
+    except WebSocketDisconnect:
+        await realtime_manager.disconnect(connection_id)
+    except Exception:
+        await realtime_manager.disconnect(connection_id)
+
+
 def start_server(host: str = "127.0.0.1", port: int = 8000, debug: bool = False):
     """Start the web server."""
     uvicorn.run(

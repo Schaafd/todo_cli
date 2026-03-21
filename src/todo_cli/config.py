@@ -98,6 +98,12 @@ class ConfigModel:
     pomodoro_auto_start_breaks: bool = True
     pomodoro_notify: bool = True
 
+    # Collaboration settings
+    collab_user_id: Optional[str] = None
+    collab_username: Optional[str] = None
+    collab_server_url: str = "http://localhost:8000"
+    collab_auto_sync: bool = True
+
     def __post_init__(self):
         """Post-initialization setup."""
         # Expand user paths
@@ -166,6 +172,11 @@ class ConfigModel:
             "pomodoro_sessions_before_long_break": self.pomodoro_sessions_before_long_break,
             "pomodoro_auto_start_breaks": self.pomodoro_auto_start_breaks,
             "pomodoro_notify": self.pomodoro_notify,
+            # Collaboration settings
+            "collab_user_id": self.collab_user_id,
+            "collab_username": self.collab_username,
+            "collab_server_url": self.collab_server_url,
+            "collab_auto_sync": self.collab_auto_sync,
         }
         if yaml is not None:
             return yaml.dump(data, default_flow_style=False)
