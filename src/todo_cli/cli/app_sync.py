@@ -79,6 +79,22 @@ def get_app_sync_manager() -> AppSyncManager:
                 from ..sync.providers.ticktick_adapter import TickTickAdapter
                 adapter = TickTickAdapter(provider_config)
                 manager.register_adapter(provider, adapter)
+            elif provider == AppSyncProvider.EVERNOTE:
+                from ..sync.providers.evernote_adapter import EvernoteAdapter
+                adapter = EvernoteAdapter(provider_config)
+                manager.register_adapter(provider, adapter)
+            elif provider == AppSyncProvider.ANY_DO:
+                from ..sync.providers.anydo_adapter import AnyDoAdapter
+                adapter = AnyDoAdapter(provider_config)
+                manager.register_adapter(provider, adapter)
+            elif provider == AppSyncProvider.OMNIFOCUS:
+                from ..sync.providers.omnifocus_adapter import OmniFocusAdapter
+                adapter = OmniFocusAdapter(provider_config)
+                manager.register_adapter(provider, adapter)
+            elif provider == AppSyncProvider.THINGS:
+                from ..sync.providers.things_adapter import ThingsAdapter
+                adapter = ThingsAdapter(provider_config)
+                manager.register_adapter(provider, adapter)
             # Add other providers as they're implemented
             else:
                 continue  # Skip unsupported providers
@@ -1182,6 +1198,10 @@ def list_providers():
             AppSyncProvider.MICROSOFT_TODO,
             AppSyncProvider.GOOGLE_TASKS,
             AppSyncProvider.TICKTICK,
+            AppSyncProvider.EVERNOTE,
+            AppSyncProvider.ANY_DO,
+            AppSyncProvider.OMNIFOCUS,
+            AppSyncProvider.THINGS,
         }
         if provider in implemented_providers:
             impl_status = "✅ Complete"
