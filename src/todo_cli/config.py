@@ -76,12 +76,27 @@ class ConfigModel:
     voice_openai_api_key: Optional[str] = None
     voice_default_duration: float = 5.0
 
+    # AI settings
+    ai_provider: str = "openai"  # "openai" or "ollama"
+    ai_model: str = "gpt-4o-mini"
+    ai_ollama_model: str = "llama3.2"
+    ai_ollama_host: str = "http://localhost:11434"
+    ai_openai_api_key: Optional[str] = None  # exclude from YAML serialization
+
     # Slack integration
     slack_bot_token: Optional[str] = None
     slack_channel: Optional[str] = None
     slack_notify_on_complete: bool = True
     slack_notify_on_create: bool = False
     slack_daily_summary: bool = True
+
+    # Pomodoro settings
+    pomodoro_focus_minutes: int = 25
+    pomodoro_short_break_minutes: int = 5
+    pomodoro_long_break_minutes: int = 15
+    pomodoro_sessions_before_long_break: int = 4
+    pomodoro_auto_start_breaks: bool = True
+    pomodoro_notify: bool = True
 
     def __post_init__(self):
         """Post-initialization setup."""
@@ -133,11 +148,24 @@ class ConfigModel:
             "voice_model_path": self.voice_model_path,
             "voice_default_duration": self.voice_default_duration,
             # Note: voice_openai_api_key is intentionally omitted for security
+            # AI settings (api key omitted for security)
+            "ai_provider": self.ai_provider,
+            "ai_model": self.ai_model,
+            "ai_ollama_model": self.ai_ollama_model,
+            "ai_ollama_host": self.ai_ollama_host,
+            # Note: ai_openai_api_key is intentionally omitted for security
             # Slack integration (bot_token omitted for security)
             "slack_channel": self.slack_channel,
             "slack_notify_on_complete": self.slack_notify_on_complete,
             "slack_notify_on_create": self.slack_notify_on_create,
             "slack_daily_summary": self.slack_daily_summary,
+            # Pomodoro settings
+            "pomodoro_focus_minutes": self.pomodoro_focus_minutes,
+            "pomodoro_short_break_minutes": self.pomodoro_short_break_minutes,
+            "pomodoro_long_break_minutes": self.pomodoro_long_break_minutes,
+            "pomodoro_sessions_before_long_break": self.pomodoro_sessions_before_long_break,
+            "pomodoro_auto_start_breaks": self.pomodoro_auto_start_breaks,
+            "pomodoro_notify": self.pomodoro_notify,
         }
         if yaml is not None:
             return yaml.dump(data, default_flow_style=False)

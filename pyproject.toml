@@ -49,6 +49,12 @@ voice = [
 voice-cloud = [
     "openai>=1.0.0",
 ]
+ai = [
+    "openai>=1.0.0",
+]
+ai-local = [
+    "ollama>=0.4.0",
+]
 
 [project.scripts]
 todo = "todo_cli.cli:main"

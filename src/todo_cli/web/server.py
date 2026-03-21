@@ -914,6 +914,281 @@ async def get_dashboard_data(dashboard_id: str, storage=Depends(get_todo_storage
 # Note: Main health endpoint is at /health (not /api/health)
 
 
+# ---------------------------------------------------------------------------
+# Pomodoro API endpoints
+# ---------------------------------------------------------------------------
+
+# Module-level timer instance for the web API
+_pomodoro_timer = None
+
+
+def _get_pomodoro_timer():
+    global _pomodoro_timer
+    if _pomodoro_timer is None:
+        from todo_cli.services.pomodoro import PomodoroTimer
+        _pomodoro_timer = PomodoroTimer()
+    return _pomodoro_timer
+
+
+class PomodoroStartRequest(BaseModel):
+    """Request model for starting a pomodoro session."""
+    task_id: Optional[str] = None
+    task_text: Optional[str] = None
+    duration: Optional[int] = None
+
+
+@app.post("/api/pomodoro/start")
+async def pomodoro_start(request: PomodoroStartRequest):
+    """Start a pomodoro focus session."""
+    try:
+        timer = _get_pomodoro_timer()
+        if request.duration:
+            timer.config.focus_minutes = request.duration
+        session = timer.start_focus(task_id=request.task_id, task_text=request.task_text)
+        return {
+            "status": "started",
+            "session": session.to_dict(),
+            "remaining_seconds": timer.get_remaining_seconds(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error starting pomodoro: {str(e)}")
+
+
+@app.post("/api/pomodoro/stop")
+async def pomodoro_stop():
+    """Stop/interrupt the current pomodoro session."""
+    try:
+        timer = _get_pomodoro_timer()
+        session = timer.interrupt_session()
+        if session:
+            return {"status": "stopped", "session": session.to_dict()}
+        return {"status": "idle", "message": "No active session"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error stopping pomodoro: {str(e)}")
+
+
+@app.post("/api/pomodoro/pause")
+async def pomodoro_pause():
+    """Pause the current pomodoro session."""
+    try:
+        timer = _get_pomodoro_timer()
+        timer.pause()
+        return {"status": timer.state.value}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error pausing pomodoro: {str(e)}")
+
+
+@app.post("/api/pomodoro/resume")
+async def pomodoro_resume():
+    """Resume a paused pomodoro session."""
+    try:
+        timer = _get_pomodoro_timer()
+        timer.resume()
+        return {"status": timer.state.value}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error resuming pomodoro: {str(e)}")
+
+
+@app.get("/api/pomodoro/status")
+async def pomodoro_status():
+    """Get current pomodoro timer status."""
+    try:
+        timer = _get_pomodoro_timer()
+        result = {
+            "state": timer.state.value,
+            "session_count": timer.session_count,
+            "remaining_seconds": timer.get_remaining_seconds(),
+        }
+        if timer.current_session:
+            result["current_session"] = timer.current_session.to_dict()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting pomodoro status: {str(e)}")
+
+
+@app.get("/api/pomodoro/stats")
+async def pomodoro_stats(days: int = 7):
+    """Get pomodoro statistics."""
+    try:
+        timer = _get_pomodoro_timer()
+        stats = timer.get_stats(days=days)
+        return {
+            "total_sessions": stats.total_sessions,
+            "completed_sessions": stats.completed_sessions,
+            "interrupted_sessions": stats.interrupted_sessions,
+            "total_focus_minutes": stats.total_focus_minutes,
+            "total_break_minutes": stats.total_break_minutes,
+            "average_focus_minutes": stats.average_focus_minutes,
+            "current_streak": stats.current_streak,
+            "best_streak": stats.best_streak,
+            "sessions_today": stats.sessions_today,
+            "focus_minutes_today": stats.focus_minutes_today,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting pomodoro stats: {str(e)}")
+
+
+@app.get("/api/pomodoro/history")
+async def pomodoro_history(limit: int = 20):
+    """Get pomodoro session history."""
+    try:
+        timer = _get_pomodoro_timer()
+        sessions = timer.history[-limit:]
+        return [s.to_dict() for s in sessions]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting pomodoro history: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# AI API endpoints
+# ---------------------------------------------------------------------------
+
+
+class AIAskRequest(BaseModel):
+    """Request model for AI ask endpoint."""
+    question: str = Field(..., min_length=1)
+
+
+class AISuggestRequest(BaseModel):
+    """Request model for AI suggest endpoint."""
+    context: Optional[str] = None
+    energy: Optional[str] = None
+    available_time: Optional[int] = None
+
+
+class AICategorizeRequest(BaseModel):
+    """Request model for AI categorize endpoint."""
+    text: str = Field(..., min_length=1)
+
+
+def _get_ai_assistant():
+    """Get a configured AI assistant or raise 503."""
+    from todo_cli.services.ai_assistant import create_assistant_from_config
+
+    assistant = create_assistant_from_config()
+    if assistant is None or not assistant.provider.is_available():
+        raise HTTPException(
+            status_code=503,
+            detail="AI provider is not available. Install the required package and configure credentials.",
+        )
+    return assistant
+
+
+def _load_all_todos(storage):
+    """Load all todos from all projects."""
+    all_todos = []
+    projects = storage.list_projects()
+    for project_name in projects:
+        try:
+            _, todos = storage.load_project(project_name)
+            if todos:
+                all_todos.extend(todos)
+        except Exception:
+            continue
+    return all_todos
+
+
+@app.post("/api/ai/suggest")
+async def ai_suggest(request: AISuggestRequest, storage=Depends(get_todo_storage)):
+    """Get AI suggestion for next task to work on."""
+    assistant = _get_ai_assistant()
+    todos = _load_all_todos(storage)
+
+    parts = []
+    if request.context:
+        parts.append(f"context: {request.context}")
+    if request.energy:
+        parts.append(f"energy level: {request.energy}")
+    if request.available_time:
+        parts.append(f"available time: {request.available_time} minutes")
+    extra = ", ".join(parts) if parts else None
+
+    try:
+        result = assistant.suggest_next_task(todos, context=extra)
+        return {"suggestion": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {e}")
+
+
+@app.post("/api/ai/ask")
+async def ai_ask(request: AIAskRequest, storage=Depends(get_todo_storage)):
+    """Ask a natural language question about tasks."""
+    assistant = _get_ai_assistant()
+    todos = _load_all_todos(storage)
+
+    try:
+        result = assistant.smart_query(request.question, todos)
+        return {"answer": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {e}")
+
+
+@app.post("/api/ai/categorize")
+async def ai_categorize(request: AICategorizeRequest):
+    """Auto-categorize a task with AI-suggested metadata."""
+    assistant = _get_ai_assistant()
+
+    try:
+        result = assistant.auto_categorize(request.text)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {e}")
+
+
+@app.get("/api/ai/summary")
+async def ai_summary(
+    project: Optional[str] = None,
+    storage=Depends(get_todo_storage),
+):
+    """Get an AI-generated summary of task status."""
+    assistant = _get_ai_assistant()
+    todos = _load_all_todos(storage)
+
+    if project:
+        todos = [t for t in todos if t.project == project]
+
+    try:
+        result = assistant.summarize_tasks(todos)
+        return {"summary": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {e}")
+
+
+@app.get("/api/ai/status")
+async def ai_status():
+    """Check AI provider availability."""
+    from todo_cli.services.ai_assistant import OpenAIProvider, OllamaProvider
+
+    config = get_config()
+    provider_name = getattr(config, "ai_provider", "openai")
+
+    openai_available = False
+    ollama_available = False
+
+    try:
+        openai_prov = OpenAIProvider(
+            api_key=getattr(config, "ai_openai_api_key", None),
+        )
+        openai_available = openai_prov.is_available()
+    except Exception:
+        pass
+
+    try:
+        ollama_prov = OllamaProvider(
+            host=getattr(config, "ai_ollama_host", "http://localhost:11434"),
+        )
+        ollama_available = ollama_prov.is_available()
+    except Exception:
+        pass
+
+    return {
+        "configured_provider": provider_name,
+        "model": getattr(config, "ai_model", "gpt-4o-mini"),
+        "openai_available": openai_available,
+        "ollama_available": ollama_available,
+    }
+
+
 def start_server(host: str = "127.0.0.1", port: int = 8000, debug: bool = False):
     """Start the web server."""
     uvicorn.run(

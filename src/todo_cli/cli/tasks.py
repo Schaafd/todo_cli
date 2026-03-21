@@ -2083,6 +2083,14 @@ main.add_command(dashboard_group)
 from .voice_commands import voice_group
 main.add_command(voice_group)
 
+# Add AI command group
+from .ai_commands import ai_group
+main.add_command(ai_group)
+
+# Add pomodoro/focus command group
+from .pomodoro_commands import focus_group
+main.add_command(focus_group)
+
 
 if __name__ == "__main__":
     main()
