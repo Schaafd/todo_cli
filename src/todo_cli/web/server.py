@@ -1402,6 +1402,67 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
         await realtime_manager.disconnect(connection_id)
 
 
+# ---------------------------------------------------------------------------
+# Demo endpoints
+# ---------------------------------------------------------------------------
+
+class DemoPopulateRequest(BaseModel):
+    """Request model for populating demo data."""
+    count: int = Field(default=30, ge=1, le=200)
+    seed: Optional[int] = None
+
+
+class DemoStatusResponse(BaseModel):
+    """Response model for demo status."""
+    has_demo_data: bool
+    demo_count: int
+
+
+@app.post("/api/demo/populate")
+async def demo_populate(body: DemoPopulateRequest = DemoPopulateRequest()):
+    """Populate the app with realistic demo tasks."""
+    try:
+        from todo_cli.services.demo import DemoDataGenerator
+        gen = DemoDataGenerator()
+        created = gen.populate(count=body.count, seed=body.seed)
+        return {"created": created}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Failed to populate demo data", "details": str(e)},
+        )
+
+
+@app.delete("/api/demo/clear")
+async def demo_clear():
+    """Remove all demo tasks."""
+    try:
+        from todo_cli.services.demo import DemoDataGenerator
+        gen = DemoDataGenerator()
+        removed = gen.clear()
+        return {"removed": removed}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Failed to clear demo data", "details": str(e)},
+        )
+
+
+@app.get("/api/demo/status", response_model=DemoStatusResponse)
+async def demo_status():
+    """Show demo data status."""
+    try:
+        from todo_cli.services.demo import DemoDataGenerator
+        gen = DemoDataGenerator()
+        count = gen.get_demo_count()
+        return DemoStatusResponse(has_demo_data=count > 0, demo_count=count)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Failed to get demo status", "details": str(e)},
+        )
+
+
 def start_server(host: str = "127.0.0.1", port: int = 8000, debug: bool = False):
     """Start the web server."""
     uvicorn.run(

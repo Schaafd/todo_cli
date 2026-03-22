@@ -2096,6 +2096,10 @@ main.add_command(focus_group)
 from .collab_commands import collab_group
 main.add_command(collab_group)
 
+# Add demo command group
+from .demo_commands import demo_group
+main.add_command(demo_group)
+
 
 if __name__ == "__main__":
     main()
