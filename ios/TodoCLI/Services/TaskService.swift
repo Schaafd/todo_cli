@@ -10,9 +10,21 @@ class TaskService: ObservableObject {
     @Published var error: String?
 
     private let apiClient: APIClient
+    private var offlineManager: OfflineManager?
+    private weak var pushNotificationManager: PushNotificationManager?
 
-    init(apiClient: APIClient) {
+    init(apiClient: APIClient, offlineManager: OfflineManager? = nil, pushNotificationManager: PushNotificationManager? = nil) {
         self.apiClient = apiClient
+        self.offlineManager = offlineManager
+        self.pushNotificationManager = pushNotificationManager
+    }
+
+    func setOfflineManager(_ manager: OfflineManager) {
+        self.offlineManager = manager
+    }
+
+    func setPushNotificationManager(_ manager: PushNotificationManager) {
+        self.pushNotificationManager = manager
     }
 
     func loadTasks(project: String? = nil) async {
@@ -30,9 +42,23 @@ class TaskService: ObservableObject {
                 return t1.text < t2.text
             }
 
+            // Cache tasks for offline use
+            offlineManager?.cacheTasks(tasks)
             categorizeTasks()
         } catch {
-            self.error = error.localizedDescription
+            // If offline, return cached data
+            if let offlineManager = offlineManager {
+                let cached = offlineManager.getCachedTasks()
+                if !cached.isEmpty {
+                    tasks = cached
+                    categorizeTasks()
+                    self.error = "Showing cached data (offline)"
+                } else {
+                    self.error = error.localizedDescription
+                }
+            } else {
+                self.error = error.localizedDescription
+            }
         }
 
         isLoading = false
@@ -49,12 +75,55 @@ class TaskService: ObservableObject {
         )
 
         do {
-            _ = try await apiClient.createTask(request)
+            let response = try await apiClient.createTask(request)
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)
+
+            // Schedule a reminder notification if the task has a due date
+            if let dueDate = dueDate {
+                let taskId = response.taskId ?? response.task?.id ?? ""
+                if !taskId.isEmpty {
+                    pushNotificationManager?.scheduleTaskReminder(
+                        taskId: taskId,
+                        title: title,
+                        dueDate: dueDate
+                    )
+                }
+            }
+
             await loadTasks()
             return true
         } catch {
+            // If offline, queue the change
+            if let offlineManager = offlineManager, offlineManager.isOffline {
+                let task = TodoTask(
+                    id: UUID().uuidString,
+                    text: title,
+                    description: description,
+                    project: project,
+                    priority: priority,
+                    dueDate: dueDate,
+                    tags: tags,
+                    createdAt: Date()
+                )
+                offlineManager.queueChange(.create(task: task))
+                tasks.append(task)
+                categorizeTasks()
+
+                // Schedule reminder even when offline (local notification)
+                if let dueDate = dueDate {
+                    pushNotificationManager?.scheduleTaskReminder(
+                        taskId: task.id,
+                        title: title,
+                        dueDate: dueDate
+                    )
+                }
+
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
+                return true
+            }
+
             self.error = error.localizedDescription
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.error)
@@ -64,11 +133,46 @@ class TaskService: ObservableObject {
 
     func toggleTask(_ task: TodoTask) async {
         do {
-            _ = try await apiClient.toggleTask(id: task.id)
+            let response = try await apiClient.toggleTask(id: task.id)
             let generator = UIImpactFeedbackGenerator(style: .light)
             generator.impactOccurred()
+
+            // If the task was just completed, cancel its reminder.
+            // If it was uncompleted and has a due date, reschedule.
+            if response.completed {
+                pushNotificationManager?.cancelTaskReminder(taskId: task.id)
+            } else if let dueDate = task.dueDate {
+                pushNotificationManager?.scheduleTaskReminder(
+                    taskId: task.id,
+                    title: task.text,
+                    dueDate: dueDate
+                )
+            }
+
             await loadTasks()
         } catch {
+            // If offline, queue the change
+            if let offlineManager = offlineManager, offlineManager.isOffline {
+                offlineManager.queueChange(.toggleComplete(taskId: task.id))
+                if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+                    let willBeCompleted = !tasks[index].completed
+                    tasks[index].completed.toggle()
+                    categorizeTasks()
+
+                    if willBeCompleted {
+                        pushNotificationManager?.cancelTaskReminder(taskId: task.id)
+                    } else if let dueDate = task.dueDate {
+                        pushNotificationManager?.scheduleTaskReminder(
+                            taskId: task.id,
+                            title: task.text,
+                            dueDate: dueDate
+                        )
+                    }
+                }
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.impactOccurred()
+                return
+            }
             self.error = error.localizedDescription
         }
     }
@@ -78,9 +182,26 @@ class TaskService: ObservableObject {
             _ = try await apiClient.deleteTask(id: task.id)
             let generator = UIImpactFeedbackGenerator(style: .medium)
             generator.impactOccurred()
+
+            // Cancel any scheduled reminder for the deleted task
+            pushNotificationManager?.cancelTaskReminder(taskId: task.id)
+
             tasks.removeAll { $0.id == task.id }
             categorizeTasks()
         } catch {
+            // If offline, queue the change
+            if let offlineManager = offlineManager, offlineManager.isOffline {
+                offlineManager.queueChange(.delete(taskId: task.id))
+
+                // Cancel the reminder even when offline
+                pushNotificationManager?.cancelTaskReminder(taskId: task.id)
+
+                tasks.removeAll { $0.id == task.id }
+                categorizeTasks()
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.impactOccurred()
+                return
+            }
             self.error = error.localizedDescription
         }
     }
@@ -95,10 +216,54 @@ class TaskService: ObservableObject {
 
         do {
             _ = try await apiClient.updateTask(id: task.id, request)
+
+            // If the due date changed, update the reminder notification
+            if let newDueDate = dueDate {
+                pushNotificationManager?.cancelTaskReminder(taskId: task.id)
+                pushNotificationManager?.scheduleTaskReminder(
+                    taskId: task.id,
+                    title: title ?? task.text,
+                    dueDate: newDueDate
+                )
+            }
+
             await loadTasks()
         } catch {
+            // If offline, queue the change
+            if let offlineManager = offlineManager, offlineManager.isOffline {
+                var updatedTask = task
+                if let title = title { updatedTask.text = title }
+                if let priority = priority { updatedTask.priority = priority }
+                if let dueDate = dueDate { updatedTask.dueDate = dueDate }
+                if let tags = tags { updatedTask.tags = tags }
+                offlineManager.queueChange(.update(task: updatedTask))
+                if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+                    tasks[index] = updatedTask
+                    categorizeTasks()
+                }
+
+                // Update reminder even when offline
+                if let newDueDate = dueDate {
+                    pushNotificationManager?.cancelTaskReminder(taskId: task.id)
+                    pushNotificationManager?.scheduleTaskReminder(
+                        taskId: task.id,
+                        title: title ?? task.text,
+                        dueDate: newDueDate
+                    )
+                }
+
+                return
+            }
             self.error = error.localizedDescription
         }
+    }
+
+    /// Syncs any pending offline changes when connectivity is restored.
+    func syncPendingChanges() async {
+        guard let offlineManager = offlineManager else { return }
+        await offlineManager.syncPendingChanges(apiClient: apiClient)
+        // Reload fresh data from server
+        await loadTasks()
     }
 
     private func categorizeTasks() {

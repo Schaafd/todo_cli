@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var apiClient: APIClient
+    @EnvironmentObject var biometricAuth: BiometricAuthManager
     @State private var serverURL: String = ""
     @State private var isTestingConnection = false
     @State private var connectionStatus: ConnectionStatus = .unknown
@@ -33,6 +34,27 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("Appearance")
+                }
+
+                // Notifications
+                Section {
+                    NavigationLink {
+                        NotificationSettingsView()
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading) {
+                                Text("Notifications")
+                                Text("Reminders, daily summary")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "bell.badge.fill")
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                } header: {
+                    Text("Notifications")
                 }
 
                 // Home Screen
@@ -94,6 +116,46 @@ struct SettingsView: View {
                     Text("Server")
                 } footer: {
                     Text("Configure the URL of your Todo CLI backend server.")
+                }
+
+                // Security
+                Section {
+                    NavigationLink {
+                        AppLockView()
+                            .environmentObject(biometricAuth)
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading) {
+                                Text("App Lock")
+                                Text(biometricAuth.isAppLockEnabled
+                                     ? "Enabled (\(biometricAuth.isBiometricEnabled ? biometricAuth.getBiometricTypeName() : "Passcode"))"
+                                     : "Disabled")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "lock.shield.fill")
+                                .foregroundStyle(.blue)
+                        }
+                    }
+
+                    Toggle(isOn: $apiClient.isPinningEnabled) {
+                        Label {
+                            VStack(alignment: .leading) {
+                                Text("Certificate Pinning")
+                                Text("Validate server certificates against pinned keys")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "checkmark.shield.fill")
+                                .foregroundStyle(.green)
+                        }
+                    }
+                } header: {
+                    Text("Security")
+                } footer: {
+                    Text("App Lock protects access to the app. Certificate Pinning adds extra network security.")
                 }
 
                 // Account
@@ -180,4 +242,5 @@ struct SettingsView: View {
     SettingsView()
         .environmentObject(ThemeManager())
         .environmentObject(APIClient())
+        .environmentObject(BiometricAuthManager())
 }

@@ -38,13 +38,40 @@ class APIClient: ObservableObject {
         }
     }
 
-    private let session: URLSession
+    private var session: URLSession
     private let decoder: JSONDecoder
+    private var pinningDelegate: CertificatePinningDelegate?
 
-    init() {
+    /// Whether certificate pinning is enabled.
+    /// Pinning is automatically disabled for localhost URLs.
+    var isPinningEnabled: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: "certificate_pinning_enabled")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "certificate_pinning_enabled")
+            reconfigureSession()
+        }
+    }
+
+    /// Base64-encoded SHA-256 public key hashes for certificate pinning.
+    var pinnedPublicKeyHashes: Set<String> {
+        get {
+            let array = UserDefaults.standard.stringArray(forKey: "pinned_public_key_hashes") ?? []
+            return Set(array)
+        }
+        set {
+            UserDefaults.standard.set(Array(newValue), forKey: "pinned_public_key_hashes")
+            reconfigureSession()
+        }
+    }
+
+    init(pinningConfiguration: CertificatePinningConfiguration = .disabled) {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = 30
+
+        // Temporary session; will be reconfigured below
         session = URLSession(configuration: config)
 
         decoder = JSONDecoder()
@@ -55,6 +82,47 @@ class APIClient: ObservableObject {
 
         // Restore token from Keychain
         token = KeychainManager.retrieve(for: .authToken)
+
+        // Apply pinning configuration if provided
+        if pinningConfiguration.isPinningEnabled {
+            UserDefaults.standard.set(true, forKey: "certificate_pinning_enabled")
+            UserDefaults.standard.set(Array(pinningConfiguration.pinnedPublicKeyHashes), forKey: "pinned_public_key_hashes")
+        }
+
+        // Configure session with pinning
+        reconfigureSession()
+    }
+
+    /// Reconfigures the URLSession with current pinning settings.
+    /// Automatically disables pinning for localhost base URLs.
+    private func reconfigureSession() {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 30
+
+        let isLocalhost: Bool
+        if let url = URL(string: baseURL), let host = url.host {
+            isLocalhost = host == "localhost" || host == "127.0.0.1" || host == "::1"
+        } else {
+            isLocalhost = false
+        }
+
+        let shouldPin = isPinningEnabled && !isLocalhost && !pinnedPublicKeyHashes.isEmpty
+
+        if shouldPin {
+            pinningDelegate = CertificatePinningDelegate(
+                pinnedHashes: pinnedPublicKeyHashes,
+                enabled: true
+            )
+            session = URLSession(
+                configuration: config,
+                delegate: pinningDelegate,
+                delegateQueue: nil
+            )
+        } else {
+            pinningDelegate = nil
+            session = URLSession(configuration: config)
+        }
     }
 
     // MARK: - Authentication
@@ -123,6 +191,12 @@ class APIClient: ObservableObject {
 
     func createProject(_ request: ProjectCreateRequest) async throws -> ProjectCreateResponse {
         return try await post("/api/projects", body: request)
+    }
+
+    // MARK: - Notifications
+
+    func registerDeviceToken(_ request: DeviceTokenRequest) async throws -> SuccessResponse {
+        return try await post("/api/notifications/register", body: request)
     }
 
     // MARK: - Pomodoro

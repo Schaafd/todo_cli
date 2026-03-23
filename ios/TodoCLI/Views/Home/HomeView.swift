@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject var apiClient: APIClient
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var offlineManager: OfflineManager
     @Binding var showQuickAdd: Bool
     @State private var quickAddText = ""
     @State private var tasks: [TodoTask] = []
@@ -22,55 +23,71 @@ struct HomeView: View {
         Array(tasks.filter { !$0.completed }.prefix(10))
     }
 
+    /// Whether this is the initial load (no data yet).
+    private var isInitialLoad: Bool {
+        isLoading && tasks.isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: themeManager.sectionSpacing) {
-                    // Quick Add Bar
-                    QuickAddBar(text: $quickAddText) {
-                        await addQuickTask()
+                    if isInitialLoad {
+                        HomeDashboardSkeleton()
+                            .transition(.opacity)
+                    } else {
+                        // Offline Banner
+                        if offlineManager.isOffline {
+                            offlineBanner
+                        }
+
+                        // Quick Add Bar
+                        QuickAddBar(text: $quickAddText) {
+                            await addQuickTask()
+                        }
+                        .padding(.horizontal, themeManager.contentPadding)
+
+                        // Today Section
+                        if themeManager.showTodaySection {
+                            taskSection(
+                                title: "Today",
+                                icon: "sun.max.fill",
+                                iconColor: .statusDueToday,
+                                tasks: todayTasks,
+                                sectionId: "today"
+                            )
+                        }
+
+                        // Overdue Section
+                        if themeManager.showOverdueSection && !overdueTasks.isEmpty {
+                            taskSection(
+                                title: "Overdue",
+                                icon: "exclamationmark.triangle.fill",
+                                iconColor: .statusOverdue,
+                                tasks: overdueTasks,
+                                sectionId: "overdue"
+                            )
+                        }
+
+                        // Recent / All Active Section
+                        if themeManager.showRecentSection {
+                            taskSection(
+                                title: "Active Tasks",
+                                icon: "list.bullet",
+                                iconColor: .statusActive,
+                                tasks: activeTasks,
+                                sectionId: "recent"
+                            )
+                        }
+
+                        // Stats summary
+                        statsCard
+
+                        Spacer(minLength: 100)
                     }
-                    .padding(.horizontal, themeManager.contentPadding)
-
-                    // Today Section
-                    if themeManager.showTodaySection {
-                        taskSection(
-                            title: "Today",
-                            icon: "sun.max.fill",
-                            iconColor: .statusDueToday,
-                            tasks: todayTasks,
-                            sectionId: "today"
-                        )
-                    }
-
-                    // Overdue Section
-                    if themeManager.showOverdueSection && !overdueTasks.isEmpty {
-                        taskSection(
-                            title: "Overdue",
-                            icon: "exclamationmark.triangle.fill",
-                            iconColor: .statusOverdue,
-                            tasks: overdueTasks,
-                            sectionId: "overdue"
-                        )
-                    }
-
-                    // Recent / All Active Section
-                    if themeManager.showRecentSection {
-                        taskSection(
-                            title: "Active Tasks",
-                            icon: "list.bullet",
-                            iconColor: .statusActive,
-                            tasks: activeTasks,
-                            sectionId: "recent"
-                        )
-                    }
-
-                    // Stats summary
-                    statsCard
-
-                    Spacer(minLength: 100)
                 }
                 .padding(.top, 8)
+                .animation(.easeInOut(duration: 0.35), value: isInitialLoad)
             }
             .refreshable {
                 await loadTasks()
@@ -97,6 +114,38 @@ struct HomeView: View {
                 await loadTasks()
             }
         }
+    }
+
+    // MARK: - Offline Banner
+
+    private var offlineBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "wifi.slash")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+
+            Text("You're offline")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+
+            Spacer()
+
+            if offlineManager.pendingChangesCount > 0 {
+                Text("\(offlineManager.pendingChangesCount) pending")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(.white.opacity(0.2)))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.orange)
+        )
+        .padding(.horizontal, themeManager.contentPadding)
     }
 
     // MARK: - Task Section
@@ -245,8 +294,17 @@ struct HomeView: View {
                 if t2.dueDate != nil { return false }
                 return t1.text < t2.text
             }
+            // Cache for offline use
+            offlineManager.cacheTasks(tasks)
         } catch {
-            errorMessage = error.localizedDescription
+            // Fall back to cached data when offline
+            let cached = offlineManager.getCachedTasks()
+            if !cached.isEmpty {
+                tasks = cached
+                errorMessage = "Showing cached data (offline)"
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
         isLoading = false
     }
@@ -258,7 +316,14 @@ struct HomeView: View {
             generator.impactOccurred()
             await loadTasks()
         } catch {
-            errorMessage = error.localizedDescription
+            if offlineManager.isOffline {
+                offlineManager.queueChange(.toggleComplete(taskId: task.id))
+                if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+                    tasks[index].completed.toggle()
+                }
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -269,7 +334,12 @@ struct HomeView: View {
             generator.impactOccurred()
             tasks.removeAll { $0.id == task.id }
         } catch {
-            errorMessage = error.localizedDescription
+            if offlineManager.isOffline {
+                offlineManager.queueChange(.delete(taskId: task.id))
+                tasks.removeAll { $0.id == task.id }
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }
@@ -278,4 +348,5 @@ struct HomeView: View {
     HomeView(showQuickAdd: .constant(false))
         .environmentObject(ThemeManager())
         .environmentObject(APIClient())
+        .environmentObject(OfflineManager())
 }

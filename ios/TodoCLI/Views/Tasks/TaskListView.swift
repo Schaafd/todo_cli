@@ -3,6 +3,7 @@ import SwiftUI
 struct TaskListView: View {
     @EnvironmentObject var apiClient: APIClient
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var offlineManager: OfflineManager
     @State private var tasks: [TodoTask] = []
     @State private var isLoading = false
     @State private var searchText = ""
@@ -52,13 +53,26 @@ struct TaskListView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // Offline Banner
+                if offlineManager.isOffline {
+                    offlineBanner
+                }
+
                 // Filter chips
                 filterBar
 
                 // Task list
                 if isLoading && tasks.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ScrollView {
+                        VStack(spacing: 2) {
+                            ForEach(0..<6, id: \.self) { _ in
+                                TaskRowSkeleton()
+                            }
+                        }
+                        .padding(.horizontal, themeManager.contentPadding)
+                        .padding(.top, 8)
+                    }
+                    .transition(.opacity)
                 } else if filteredTasks.isEmpty {
                     emptyState
                 } else {
@@ -70,10 +84,21 @@ struct TaskListView: View {
             .searchable(text: $searchText, prompt: "Search tasks...")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showCreateSheet = true
-                    } label: {
-                        Image(systemName: "plus")
+                    ZStack(alignment: .topTrailing) {
+                        Button {
+                            showCreateSheet = true
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+
+                        if offlineManager.pendingChangesCount > 0 {
+                            Text("\(offlineManager.pendingChangesCount)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 16, height: 16)
+                                .background(Circle().fill(.orange))
+                                .offset(x: 6, y: -6)
+                        }
                     }
                 }
             }
@@ -99,6 +124,34 @@ struct TaskListView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Offline Banner
+
+    private var offlineBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "wifi.slash")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+
+            Text("Offline mode")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.white)
+
+            Spacer()
+
+            if offlineManager.pendingChangesCount > 0 {
+                Text("\(offlineManager.pendingChangesCount) pending")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(.white.opacity(0.2)))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.orange)
     }
 
     // MARK: - Filter Bar
@@ -198,8 +251,17 @@ struct TaskListView: View {
         isLoading = true
         do {
             tasks = try await apiClient.fetchTasks()
+            // Cache for offline use
+            offlineManager.cacheTasks(tasks)
         } catch {
-            errorMessage = error.localizedDescription
+            // Fall back to cached data when offline
+            let cached = offlineManager.getCachedTasks()
+            if !cached.isEmpty {
+                tasks = cached
+                errorMessage = "Showing cached data (offline)"
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
         isLoading = false
     }
@@ -211,7 +273,14 @@ struct TaskListView: View {
             generator.impactOccurred()
             await loadTasks()
         } catch {
-            errorMessage = error.localizedDescription
+            if offlineManager.isOffline {
+                offlineManager.queueChange(.toggleComplete(taskId: task.id))
+                if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+                    tasks[index].completed.toggle()
+                }
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -222,7 +291,12 @@ struct TaskListView: View {
             generator.impactOccurred()
             tasks.removeAll { $0.id == task.id }
         } catch {
-            errorMessage = error.localizedDescription
+            if offlineManager.isOffline {
+                offlineManager.queueChange(.delete(taskId: task.id))
+                tasks.removeAll { $0.id == task.id }
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }
@@ -231,4 +305,5 @@ struct TaskListView: View {
     TaskListView()
         .environmentObject(APIClient())
         .environmentObject(ThemeManager())
+        .environmentObject(OfflineManager())
 }

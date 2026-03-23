@@ -32,7 +32,32 @@
 		A10000023 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000023; };
 		A10000024 /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000024; };
 		A10000025 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000025; };
+		A10000026 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000026; };
+		A10000027 /* CoreDataStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000027; };
+		A10000028 /* CachedTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000028; };
+		A10000029 /* OfflineManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000029; };
+		A10000030 /* BiometricAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000030; };
+		A10000031 /* CertificatePinning.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000031; };
+		A10000032 /* PushNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000032; };
+		A10000033 /* SkeletonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000033; };
+		A10000034 /* AppLockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000034; };
+		A10000035 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000035; };
+		A20000001 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000001; };
+		A20000002 /* TaskServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000002; };
+		A20000003 /* ModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000003; };
+		A20000004 /* ThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000004; };
+		A20000005 /* KeychainManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000005; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		P10000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = H10000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F10000001;
+			remoteInfo = TodoCLI;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		B10000001 /* TodoCLIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoCLIApp.swift; sourceTree = "<group>"; };
@@ -60,11 +85,34 @@
 		B10000023 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		B10000024 /* Date+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Extensions.swift"; sourceTree = "<group>"; };
 		B10000025 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B10000026 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
+		B10000027 /* CoreDataStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataStack.swift; sourceTree = "<group>"; };
+		B10000028 /* CachedTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedTask.swift; sourceTree = "<group>"; };
+		B10000029 /* OfflineManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineManager.swift; sourceTree = "<group>"; };
+		B10000030 /* BiometricAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricAuth.swift; sourceTree = "<group>"; };
+		B10000031 /* CertificatePinning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificatePinning.swift; sourceTree = "<group>"; };
+		B10000032 /* PushNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationManager.swift; sourceTree = "<group>"; };
+		B10000033 /* SkeletonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkeletonView.swift; sourceTree = "<group>"; };
+		B10000034 /* AppLockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLockView.swift; sourceTree = "<group>"; };
+		B10000035 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
+		B20000001 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
+		B20000002 /* TaskServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskServiceTests.swift; sourceTree = "<group>"; };
+		B20000003 /* ModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelTests.swift; sourceTree = "<group>"; };
+		B20000004 /* ThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeTests.swift; sourceTree = "<group>"; };
+		B20000005 /* KeychainManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManagerTests.swift; sourceTree = "<group>"; };
 		C10000001 /* TodoCLI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TodoCLI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C20000001 /* TodoCLITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TodoCLITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		D10000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D20000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -78,6 +126,7 @@
 			isa = PBXGroup;
 			children = (
 				E10000002 /* TodoCLI */,
+				E20000001 /* TodoCLITests */,
 				E10000099 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,6 +137,7 @@
 				E10000003 /* App */,
 				E10000004 /* Models */,
 				E10000005 /* Services */,
+				E10000015 /* Persistence */,
 				E10000006 /* Views */,
 				E10000013 /* Theme */,
 				E10000014 /* Extensions */,
@@ -121,8 +171,22 @@
 				B10000006 /* APIClient.swift */,
 				B10000007 /* AuthService.swift */,
 				B10000008 /* TaskService.swift */,
+				B10000026 /* KeychainManager.swift */,
+				B10000029 /* OfflineManager.swift */,
+				B10000030 /* BiometricAuth.swift */,
+				B10000031 /* CertificatePinning.swift */,
+				B10000032 /* PushNotificationManager.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		E10000015 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				B10000027 /* CoreDataStack.swift */,
+				B10000028 /* CachedTask.swift */,
+			);
+			path = Persistence;
 			sourceTree = "<group>";
 		};
 		E10000006 /* Views */ = {
@@ -179,6 +243,8 @@
 			children = (
 				B10000017 /* SettingsView.swift */,
 				B10000018 /* ThemePickerView.swift */,
+				B10000034 /* AppLockView.swift */,
+				B10000035 /* NotificationSettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -189,6 +255,7 @@
 				B10000019 /* PriorityBadge.swift */,
 				B10000020 /* TagChip.swift */,
 				B10000021 /* EmptyStateView.swift */,
+				B10000033 /* SkeletonView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -214,8 +281,21 @@
 			isa = PBXGroup;
 			children = (
 				C10000001 /* TodoCLI.app */,
+				C20000001 /* TodoCLITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		E20000001 /* TodoCLITests */ = {
+			isa = PBXGroup;
+			children = (
+				B20000001 /* APIClientTests.swift */,
+				B20000002 /* TaskServiceTests.swift */,
+				B20000003 /* ModelTests.swift */,
+				B20000004 /* ThemeTests.swift */,
+				B20000005 /* KeychainManagerTests.swift */,
+			);
+			path = TodoCLITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -238,6 +318,24 @@
 			productReference = C10000001 /* TodoCLI.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F20000001 /* TodoCLITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = G20000003 /* Build configuration list for PBXNativeTarget "TodoCLITests" */;
+			buildPhases = (
+				F20000002 /* Sources */,
+				D20000001 /* Frameworks */,
+				F20000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				P20000001 /* PBXTargetDependency */,
+			);
+			name = TodoCLITests;
+			productName = TodoCLITests;
+			productReference = C20000001 /* TodoCLITests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -250,6 +348,10 @@
 				TargetAttributes = {
 					F10000001 = {
 						CreatedOnToolsVersion = 15.0;
+					};
+					F20000001 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = F10000001;
 					};
 				};
 			};
@@ -267,6 +369,7 @@
 			projectRoot = "";
 			targets = (
 				F10000001 /* TodoCLI */,
+				F20000001 /* TodoCLITests */,
 			);
 		};
 /* End PBXProject section */
@@ -277,6 +380,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000025 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F20000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -311,10 +421,40 @@
 				A10000022 /* AppTheme.swift in Sources */,
 				A10000023 /* Colors.swift in Sources */,
 				A10000024 /* Date+Extensions.swift in Sources */,
+				A10000026 /* KeychainManager.swift in Sources */,
+				A10000027 /* CoreDataStack.swift in Sources */,
+				A10000028 /* CachedTask.swift in Sources */,
+				A10000029 /* OfflineManager.swift in Sources */,
+				A10000030 /* BiometricAuth.swift in Sources */,
+				A10000031 /* CertificatePinning.swift in Sources */,
+				A10000032 /* PushNotificationManager.swift in Sources */,
+				A10000033 /* SkeletonView.swift in Sources */,
+				A10000034 /* AppLockView.swift in Sources */,
+				A10000035 /* NotificationSettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F20000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000001 /* APIClientTests.swift in Sources */,
+				A20000002 /* TaskServiceTests.swift in Sources */,
+				A20000003 /* ModelTests.swift in Sources */,
+				A20000004 /* ThemeTests.swift in Sources */,
+				A20000005 /* KeychainManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		P20000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F10000001 /* TodoCLI */;
+			targetProxy = P10000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		G10000011 /* Debug */ = {
@@ -498,6 +638,46 @@
 			};
 			name = Release;
 		};
+		G20000021 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.todocli.ios.tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TodoCLI.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TodoCLI";
+			};
+			name = Debug;
+		};
+		G20000022 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.todocli.ios.tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TodoCLI.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TodoCLI";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -515,6 +695,15 @@
 			buildConfigurations = (
 				G10000021 /* Debug */,
 				G10000022 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		G20000003 /* Build configuration list for PBXNativeTarget "TodoCLITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				G20000021 /* Debug */,
+				G20000022 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

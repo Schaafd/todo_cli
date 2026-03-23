@@ -20,8 +20,10 @@ struct ProjectListView: View {
         NavigationStack {
             Group {
                 if isLoading && projects.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ScrollView {
+                        ProjectListSkeleton()
+                    }
+                    .transition(.opacity)
                 } else if projects.isEmpty {
                     emptyState
                 } else {
