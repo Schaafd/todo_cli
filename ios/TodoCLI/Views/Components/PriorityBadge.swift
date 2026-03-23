@@ -15,6 +15,7 @@ struct PriorityBadge: View {
                     Capsule()
                         .fill(Color.forPriority(priority).opacity(0.12))
                 )
+                .accessibilityLabel("\(priority.displayName) priority")
         } else {
             HStack(spacing: 4) {
                 Circle()
@@ -30,6 +31,7 @@ struct PriorityBadge: View {
                 Capsule()
                     .fill(Color.forPriority(priority).opacity(0.12))
             )
+            .accessibilityLabel("\(priority.displayName) priority")
         }
     }
 

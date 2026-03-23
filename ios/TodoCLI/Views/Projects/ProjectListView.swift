@@ -42,6 +42,11 @@ struct ProjectListView: View {
             .sheet(isPresented: $showCreateSheet) {
                 createProjectSheet
             }
+            .alert("Error", isPresented: .constant(errorMessage != nil)) {
+                Button("OK") { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "An unknown error occurred.")
+            }
             .refreshable {
                 await loadProjects()
             }
@@ -124,6 +129,8 @@ struct ProjectListView: View {
                 .fill(.regularMaterial)
                 .shadow(color: .black.opacity(0.06), radius: 2, x: 0, y: 1)
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(project.name), \(project.activeTasks) active tasks, \(Int(project.progress * 100)) percent complete")
     }
 
     // MARK: - Empty State

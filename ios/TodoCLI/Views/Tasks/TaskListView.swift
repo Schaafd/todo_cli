@@ -82,6 +82,11 @@ struct TaskListView: View {
                     .environmentObject(apiClient)
                     .environmentObject(themeManager)
             }
+            .alert("Error", isPresented: .constant(errorMessage != nil)) {
+                Button("OK") { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "An unknown error occurred.")
+            }
             .refreshable {
                 await loadTasks()
             }

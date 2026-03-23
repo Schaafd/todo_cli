@@ -89,6 +89,7 @@ struct ContentView: View {
                 )
         }
         .accessibilityLabel("Add new task")
+        .accessibilityHint("Opens the task creation form")
     }
 }
 

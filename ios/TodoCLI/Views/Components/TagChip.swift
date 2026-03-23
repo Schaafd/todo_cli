@@ -14,6 +14,7 @@ struct TagChip: View {
                 Capsule()
                     .fill(color.opacity(0.1))
             )
+            .accessibilityLabel("Tag: \(text)")
     }
 }
 

@@ -80,11 +80,16 @@ struct SettingsView: View {
                     }
 
                     Button("Save Server URL") {
-                        apiClient.baseURL = serverURL
+                        let trimmed = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard let url = URL(string: trimmed), url.scheme != nil, url.host != nil else {
+                            connectionStatus = .failure
+                            return
+                        }
+                        apiClient.baseURL = trimmed
                         let generator = UINotificationFeedbackGenerator()
                         generator.notificationOccurred(.success)
                     }
-                    .disabled(serverURL.isEmpty)
+                    .disabled(serverURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 } header: {
                     Text("Server")
                 } footer: {

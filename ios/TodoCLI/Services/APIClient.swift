@@ -10,9 +10,9 @@ class APIClient: ObservableObject {
     private var token: String? {
         didSet {
             if let token = token {
-                UserDefaults.standard.set(token, forKey: "auth_token")
+                try? KeychainManager.save(token, for: .authToken)
             } else {
-                UserDefaults.standard.removeObject(forKey: "auth_token")
+                KeychainManager.delete(for: .authToken)
             }
             isAuthenticated = token != nil
         }
@@ -20,10 +20,21 @@ class APIClient: ObservableObject {
 
     var baseURL: String {
         get {
-            UserDefaults.standard.string(forKey: "server_url") ?? "http://localhost:8000"
+            UserDefaults.standard.string(forKey: "server_url") ?? "https://localhost:8000"
         }
         set {
-            UserDefaults.standard.set(newValue, forKey: "server_url")
+            // Only allow HTTPS URLs in production; HTTP allowed for localhost only
+            let sanitized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let url = URL(string: sanitized),
+                  let scheme = url.scheme?.lowercased(),
+                  let host = url.host else {
+                return
+            }
+            let isLocalhost = host == "localhost" || host == "127.0.0.1" || host == "::1"
+            guard scheme == "https" || (scheme == "http" && isLocalhost) else {
+                return
+            }
+            UserDefaults.standard.set(sanitized, forKey: "server_url")
         }
     }
 
@@ -39,22 +50,35 @@ class APIClient: ObservableObject {
         decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
-        // Restore token
-        token = UserDefaults.standard.string(forKey: "auth_token")
+        // Migrate any legacy UserDefaults tokens to Keychain
+        KeychainManager.migrateFromUserDefaultsIfNeeded()
+
+        // Restore token from Keychain
+        token = KeychainManager.retrieve(for: .authToken)
     }
 
     // MARK: - Authentication
 
     func login(username: String, password: String) async throws -> Bool {
-        let body = LoginRequest(username: username, password: password, remember: true)
-        let _: TokenResponse = try await post("/api/auth/login", body: body, authenticated: false)
-        // If we get a cookie-based auth, the token might be in the cookie
-        // For now, assume the response gives us a token
+        // Input validation
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty, trimmedUsername.count <= 150 else {
+            throw APIError.validationError("Username must be between 1 and 150 characters.")
+        }
+        guard !password.isEmpty, password.count <= 128 else {
+            throw APIError.validationError("Password must be between 1 and 128 characters.")
+        }
+
+        let body = LoginRequest(username: trimmedUsername, password: password, remember: true)
+        let response: TokenResponse = try await post("/api/auth/login", body: body, authenticated: false)
+        // Store the received token securely
+        token = response.accessToken
         return true
     }
 
     func logout() {
         token = nil
+        KeychainManager.delete(for: .authCookie)
     }
 
     // MARK: - Tasks
@@ -188,7 +212,12 @@ class APIClient: ObservableObject {
     // MARK: - Helpers
 
     private func buildURL(_ path: String, params: [String: String] = [:]) throws -> URL {
-        guard var components = URLComponents(string: baseURL + path) else {
+        // Sanitize the path to prevent path traversal
+        let sanitizedPath = path.replacingOccurrences(of: "..", with: "")
+        guard sanitizedPath.hasPrefix("/") else {
+            throw APIError.invalidURL
+        }
+        guard var components = URLComponents(string: baseURL + sanitizedPath) else {
             throw APIError.invalidURL
         }
         if !params.isEmpty {
@@ -204,8 +233,8 @@ class APIClient: ObservableObject {
         if let token = token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        // Also include cookie-based auth
-        if let cookieToken = UserDefaults.standard.string(forKey: "auth_cookie") {
+        // Also include cookie-based auth from Keychain
+        if let cookieToken = KeychainManager.retrieve(for: .authCookie) {
             request.setValue("access_token=Bearer \(cookieToken)", forHTTPHeaderField: "Cookie")
         }
     }

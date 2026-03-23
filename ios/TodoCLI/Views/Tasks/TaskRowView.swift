@@ -134,6 +134,32 @@ struct TaskRowView: View {
             }
         }
         .opacity(task.completed ? 0.7 : 1.0)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(taskAccessibilityLabel)
+        .accessibilityHint(task.completed ? "Swipe to reopen or delete" : "Swipe to complete or delete")
+        .accessibilityAddTraits(task.completed ? .isSelected : [])
+    }
+
+    private var taskAccessibilityLabel: String {
+        var parts: [String] = []
+        parts.append(task.text)
+        parts.append("\(task.priority.displayName) priority")
+        if task.completed {
+            parts.append("completed")
+        }
+        if let dueDate = task.dueDate {
+            parts.append("due \(dueDate.relativeDescription)")
+            if task.isOverdue {
+                parts.append("overdue")
+            }
+        }
+        if let project = task.project, !project.isEmpty {
+            parts.append("project \(project)")
+        }
+        if !task.tags.isEmpty {
+            parts.append("tags: \(task.tags.joined(separator: ", "))")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func dueDateColor(_ date: Date) -> Color {

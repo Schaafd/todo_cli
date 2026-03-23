@@ -226,35 +226,36 @@ class TestTimeTracker:
 
     def test_time_report_generation(self, time_tracker):
         """Test time report generation"""
-        # Add some test entries
-        start_date = datetime.now() - timedelta(days=7)
-        end_date = datetime.now()
-        
-        # Mock some time entries within the last week
+        # Use a fixed end_date that is a Sunday so the whole week is covered
+        # when _calculate_start_date goes back to the start of the week (Monday).
+        # Pick a Sunday so weekday()=6, meaning start_date goes back 6 days to Monday.
+        end_date = datetime(2026, 3, 29, 18, 0, 0)  # Sunday
+
+        # Mock some time entries within the same week (Mon-Sun)
         time_tracker.entries = [
             TimeEntry(
                 id="entry1",
                 todo_id="todo1",
-                start_time=end_date - timedelta(days=2),
+                start_time=end_date - timedelta(days=2),  # Friday
                 end_time=(end_date - timedelta(days=2)) + timedelta(hours=2),
                 duration_minutes=120,
                 project="Work",
                 tags=["coding"]
             ),
             TimeEntry(
-                id="entry2", 
+                id="entry2",
                 todo_id="todo2",
-                start_time=end_date - timedelta(days=1),
+                start_time=end_date - timedelta(days=1),  # Saturday
                 end_time=(end_date - timedelta(days=1)) + timedelta(hours=1),
                 duration_minutes=60,
                 project="Personal",
                 tags=["reading"]
             )
         ]
-        
+
         analyzer = TimeAnalyzer(time_tracker)
         report = analyzer.generate_time_report(AnalyticsTimeframe.WEEKLY, end_date=end_date)
-        
+
         assert isinstance(report, TimeReport)
         assert pytest.approx(report.total_work_hours, 0.01) == 3.0  # 3 hours total
         assert "Work" in report.time_allocation.project_breakdown

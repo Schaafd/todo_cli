@@ -15,6 +15,7 @@ struct TaskCreateView: View {
     @State private var tags: [String] = []
     @State private var isCreating = false
     @State private var projects: [Project] = []
+    @State private var errorMessage: String?
 
     @FocusState private var titleFocused: Bool
 
@@ -137,6 +138,11 @@ struct TaskCreateView: View {
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isCreating)
                 }
             }
+            .alert("Error", isPresented: .constant(errorMessage != nil)) {
+                Button("OK") { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "Failed to create task.")
+            }
             .task {
                 titleFocused = true
                 await loadProjects()
@@ -201,6 +207,7 @@ struct TaskCreateView: View {
             generator.notificationOccurred(.success)
             dismiss()
         } catch {
+            errorMessage = error.localizedDescription
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.error)
         }

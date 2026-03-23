@@ -77,6 +77,22 @@ struct HomeView: View {
             }
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.large)
+            .overlay {
+                if let errorMessage, !isLoading {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.yellow)
+                            Text(errorMessage)
+                                .font(.subheadline)
+                        }
+                        .padding()
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                        .padding()
+                    }
+                }
+            }
             .task {
                 await loadTasks()
             }
@@ -194,6 +210,8 @@ struct HomeView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value)")
     }
 
     // MARK: - Actions

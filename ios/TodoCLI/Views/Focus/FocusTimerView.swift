@@ -75,6 +75,7 @@ struct FocusTimerView: View {
                             .font(.system(size: 56, weight: .light, design: .monospaced))
                             .foregroundStyle(.primary)
                             .contentTransition(.numericText())
+                            .accessibilityLabel(timerAccessibilityLabel)
 
                         if isRunning && !isPaused {
                             HStack(spacing: 4) {
@@ -92,6 +93,7 @@ struct FocusTimerView: View {
                         }
                     }
                 }
+                .accessibilityElement(children: .combine)
 
                 // Session dots
                 HStack(spacing: 12) {
@@ -116,6 +118,8 @@ struct FocusTimerView: View {
                         controlButton(icon: "stop.fill", color: .red) {
                             Task { await stopTimer() }
                         }
+                        .accessibilityLabel("Stop timer")
+                        .accessibilityHint("Stops the current focus session")
 
                         // Pause/Resume button
                         controlButton(
@@ -131,11 +135,14 @@ struct FocusTimerView: View {
                                 }
                             }
                         }
+                        .accessibilityLabel(isPaused ? "Resume timer" : "Pause timer")
                     } else {
                         // Start button
                         controlButton(icon: "play.fill", color: timerColor, isLarge: true) {
                             Task { await startTimer() }
                         }
+                        .accessibilityLabel("Start focus session")
+                        .accessibilityHint("Starts a 25-minute focus timer")
                     }
                 }
 
@@ -151,6 +158,18 @@ struct FocusTimerView: View {
                 timer?.invalidate()
             }
         }
+    }
+
+    private var timerAccessibilityLabel: String {
+        let minutes = timeRemaining / 60
+        let seconds = timeRemaining % 60
+        var label = "\(minutes) minutes and \(seconds) seconds remaining"
+        if isRunning && !isPaused {
+            label += ", running"
+        } else if isPaused {
+            label += ", paused"
+        }
+        return label
     }
 
     // MARK: - Control Button

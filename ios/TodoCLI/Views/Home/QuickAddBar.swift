@@ -43,6 +43,7 @@ struct QuickAddBar: View {
                             .font(.body)
                             .foregroundStyle(.tertiary)
                     }
+                    .accessibilityLabel("Clear text")
                 }
             }
             .padding(.horizontal, 14)
@@ -88,6 +89,8 @@ struct QuickAddBar: View {
                         .symbolEffect(.bounce, value: isAnimating)
                 }
                 .transition(.scale.combined(with: .opacity))
+                .accessibilityLabel("Submit task")
+                .accessibilityHint("Creates a new task with the entered text")
             }
         }
         .animation(.easeInOut(duration: 0.2), value: text.isEmpty)
