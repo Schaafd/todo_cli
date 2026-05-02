@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 _yaml_spec = importlib.util.find_spec("yaml")
 yaml = importlib.import_module("yaml") if _yaml_spec is not None else None
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -90,13 +90,15 @@ class ProviderSettings(BaseModel):
     rate_limit_requests_per_minute: int = 50
     batch_size: int = 100
     
-    @validator('sync_interval')
+    @field_validator("sync_interval")
+    @classmethod
     def validate_sync_interval(cls, v):
         if v < 60:
             raise ValueError('Sync interval must be at least 60 seconds')
         return v
     
-    @validator('rate_limit_requests_per_minute')
+    @field_validator("rate_limit_requests_per_minute")
+    @classmethod
     def validate_rate_limit(cls, v):
         if v < 1 or v > 1000:
             raise ValueError('Rate limit must be between 1 and 1000 requests per minute')
@@ -130,7 +132,8 @@ class GlobalSyncSettings(BaseModel):
     log_sync_operations: bool = True
     debug_mode: bool = False
     
-    @validator('max_concurrent_syncs')
+    @field_validator("max_concurrent_syncs")
+    @classmethod
     def validate_concurrent_syncs(cls, v):
         if v < 1 or v > 10:
             raise ValueError('Max concurrent syncs must be between 1 and 10')
