@@ -3,6 +3,7 @@ FastAPI Web Application for Todo CLI
 Terminal-inspired task management web interface
 """
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -29,11 +30,19 @@ from todo_cli.webapp.models import (
 )
 from todo_cli.domain import TodoStatus, Priority
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Application lifespan hooks."""
+    # Database and storage bridge are initialized on first access
+    yield
+
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Todo CLI Web",
     description="Terminal-inspired task management",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Add session middleware for flash messages
@@ -57,13 +66,6 @@ def url_for(name: str, **path_params):
 
 templates.env.globals['url_for'] = url_for
 templates.env.globals['get_flashed_messages'] = lambda **kwargs: []  # Flash messages not implemented yet
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize application on startup"""
-    # Database and storage bridge are initialized on first access
-    pass
-
 
 # ============================================================================
 # Template Context Processors
