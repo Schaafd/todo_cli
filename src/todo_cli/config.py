@@ -104,6 +104,10 @@ class ConfigModel:
     collab_server_url: str = "http://localhost:8000"
     collab_auto_sync: bool = True
 
+    # Reliability / diagnostics
+    strict_validation: bool = False
+    log_level: str = "INFO"
+
     def __post_init__(self):
         """Post-initialization setup."""
         # Expand user paths
@@ -177,6 +181,8 @@ class ConfigModel:
             "collab_username": self.collab_username,
             "collab_server_url": self.collab_server_url,
             "collab_auto_sync": self.collab_auto_sync,
+            "strict_validation": self.strict_validation,
+            "log_level": self.log_level,
         }
         if yaml is not None:
             return yaml.dump(data, default_flow_style=False)
