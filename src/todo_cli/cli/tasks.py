@@ -141,15 +141,22 @@ def add(input_text, project, dry_run, suggest):
         storage = get_storage()
         config = get_config()
 
-        if dry_run:
-            parsed, _, _ = parse_task_input(
+        if dry_run or suggest:
+            parsed, _, suggestions = parse_task_input(
                 input_text,
                 config,
                 project_hint=project or config.default_project,
             )
-            preview_todo = TaskBuilder(config).build(parsed, 1)
-            get_console().print("[bold yellow]🔍 DRY RUN - Would create:[/bold yellow]")
-            get_console().print(f"  {format_todo_for_display(preview_todo, show_id=False)}")
+            if dry_run:
+                preview_todo = TaskBuilder(config).build(parsed, 1)
+                get_console().print("[bold yellow]🔍 DRY RUN - Would create:[/bold yellow]")
+                get_console().print(f"  {format_todo_for_display(preview_todo, show_id=False)}")
+            if suggest and suggestions:
+                get_console().print("[bold blue]💡 Suggestions:[/bold blue]")
+                for suggestion in suggestions:
+                    get_console().print(f"  [blue]{suggestion}[/blue]")
+            elif suggest:
+                get_console().print("[blue]ℹ️  No suggestions for this input.[/blue]")
             return
 
         result = add_task_from_input(
@@ -158,10 +165,6 @@ def add(input_text, project, dry_run, suggest):
             input_text=input_text,
             project=project,
         )
-        if suggest and result.suggestions:
-            get_console().print("[bold blue]💡 Suggestions:[/bold blue]")
-            for suggestion in result.suggestions:
-                get_console().print(f"  [blue]{suggestion}[/blue]")
 
         get_console().print(f"[green]✅ Added:[/green] {format_todo_for_display(result.todo)}")
 
