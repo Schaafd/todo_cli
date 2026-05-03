@@ -29,7 +29,10 @@ def add_task_from_input(
     projects = repository.list_projects() or [config.default_project]
 
     for proj_name in projects:
-        _, todos = repository.load_project(proj_name)
+        try:
+            _, todos = repository.load_project(proj_name)
+        except StorageError:
+            todos = []
         if todos:
             all_todos.extend(todos)
 
@@ -53,7 +56,8 @@ def add_task_from_input(
 
     target_project = parsed.project or project or config.default_project
     proj, existing_todos = repository.load_project(target_project)
-    next_id = max((todo.id for todo in existing_todos), default=0) + 1
+    # Use the globally unique next ID across all projects.
+    next_id = repository.next_todo_id()
 
     builder = TaskBuilder(config)
     todo = builder.build(parsed, next_id)
