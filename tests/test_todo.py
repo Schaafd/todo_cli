@@ -200,6 +200,7 @@ class TestTodo:
         assert data["tags"] == ["urgent", "work"]
         assert data["assignees"] == ["john", "jane"]
         assert data["status"] == "pending"
+
     def test_todo_post_init_normalizes_completed_status(self):
         """Test post-init consistency between status and completed fields."""
         todo = Todo(id=99, text="Done task", completed=True)
