@@ -117,8 +117,34 @@ class Todo:
         # Update modified timestamp
         self.modified = now_utc()
         
-        # Temporarily disable validation to isolate parsing issue
-        pass
+        self._normalize_state()
+
+    def _normalize_state(self):
+        """Normalize and enforce cross-field state invariants."""
+        # Keep progress in valid bounds
+        self.progress = max(0.0, min(1.0, float(self.progress)))
+
+        # Completed status and completed flag must remain consistent
+        if self.status == TodoStatus.COMPLETED:
+            self.completed = True
+        elif self.completed and self.status != TodoStatus.COMPLETED:
+            self.status = TodoStatus.COMPLETED
+
+        # Promote fully complete progress to completed state
+        if self.progress >= 1.0 and not self.completed:
+            self.completed = True
+            self.status = TodoStatus.COMPLETED
+
+        # Ensure completed tasks always have completion date and full progress
+        if self.completed:
+            if self.completed_date is None:
+                self.completed_date = now_utc()
+            self.progress = 1.0
+
+        # If status is not completed, avoid stale completion metadata
+        if self.status != TodoStatus.COMPLETED and not self.completed:
+            self.completed_date = None
+            self.completed_by = None
     
     def complete(self, completed_by: Optional[str] = None):
         """Mark the task as completed."""
