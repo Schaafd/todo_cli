@@ -142,11 +142,20 @@ def add(input_text, project, dry_run, suggest):
         config = get_config()
 
         if dry_run:
-            parsed, _, _ = parse_task_input(
+            parsed, errors, suggestions = parse_task_input(
                 input_text,
                 config,
                 project_hint=project or config.default_project,
             )
+            blocking_errors = [e for e in errors if e.severity == "error"]
+            if blocking_errors:
+                for err in blocking_errors:
+                    get_console().print(f"[red]❌ {err.message}[/red]")
+                sys.exit(1)
+            if suggestions:
+                get_console().print("[bold blue]💡 Suggestions:[/bold blue]")
+                for suggestion in suggestions:
+                    get_console().print(f"  [blue]{suggestion}[/blue]")
             preview_todo = TaskBuilder(config).build(parsed, 1)
             get_console().print("[bold yellow]🔍 DRY RUN - Would create:[/bold yellow]")
             get_console().print(f"  {format_todo_for_display(preview_todo, show_id=False)}")
