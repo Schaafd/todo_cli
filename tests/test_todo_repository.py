@@ -15,10 +15,16 @@ def test_repository_next_id_and_add(tmp_path):
 
     first = Todo(id=1, text="first", project="inbox")
     assert repo.add_todo("inbox", first)
-    assert repo.next_todo_id("inbox") == 2
 
-    second = Todo(id=2, text="second", project="inbox")
-    assert repo.add_todo("inbox", second)
+    # IDs are allocated globally across all projects, so after adding the
+    # first inbox todo, the next ID for a different project must advance too.
+    assert repo.next_todo_id("work") == 2
 
-    _, todos = repo.load_project("inbox")
-    assert [t.id for t in todos] == [1, 2]
+    second = Todo(id=2, text="second", project="work")
+    assert repo.add_todo("work", second)
+
+    _, inbox_todos = repo.load_project("inbox")
+    assert [t.id for t in inbox_todos] == [1]
+
+    _, work_todos = repo.load_project("work")
+    assert [t.id for t in work_todos] == [2]
