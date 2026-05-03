@@ -152,16 +152,26 @@ def add(input_text, project, dry_run, suggest):
             get_console().print(f"  {format_todo_for_display(preview_todo, show_id=False)}")
             return
 
+        if suggest:
+            _, _, suggestions = parse_task_input(
+                input_text,
+                config,
+                project_hint=project or config.default_project,
+            )
+            get_console().print("[bold blue]💡 Suggestions:[/bold blue]")
+            if suggestions:
+                for suggestion in suggestions:
+                    get_console().print(f"  [blue]{suggestion}[/blue]")
+            else:
+                get_console().print("  [dim]No suggestions available.[/dim]")
+            return
+
         result = add_task_from_input(
             storage=storage,
             config=config,
             input_text=input_text,
             project=project,
         )
-        if suggest and result.suggestions:
-            get_console().print("[bold blue]💡 Suggestions:[/bold blue]")
-            for suggestion in result.suggestions:
-                get_console().print(f"  [blue]{suggestion}[/blue]")
 
         get_console().print(f"[green]✅ Added:[/green] {format_todo_for_display(result.todo)}")
 
