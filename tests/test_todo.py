@@ -200,3 +200,21 @@ class TestTodo:
         assert data["tags"] == ["urgent", "work"]
         assert data["assignees"] == ["john", "jane"]
         assert data["status"] == "pending"
+    def test_todo_post_init_normalizes_completed_status(self):
+        """Test post-init consistency between status and completed fields."""
+        todo = Todo(id=99, text="Done task", completed=True)
+
+        assert todo.status == TodoStatus.COMPLETED
+        assert todo.completed is True
+        assert todo.completed_date is not None
+        assert todo.progress == 1.0
+
+    def test_todo_post_init_clamps_progress(self):
+        """Test post-init clamps invalid progress values."""
+        low = Todo(id=100, text="Low progress", progress=-2)
+        high = Todo(id=101, text="High progress", progress=3)
+
+        assert low.progress == 0.0
+        assert high.progress == 1.0
+        assert high.completed is True
+        assert high.status == TodoStatus.COMPLETED
