@@ -4,7 +4,7 @@ Pydantic models for API validation
 
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 # ============================================================================
@@ -34,8 +34,7 @@ class UserResponse(UserBase):
     id: str
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -51,7 +50,8 @@ class TaskBase(BaseModel):
     project_id: Optional[str] = None
     tags: Optional[List[str]] = []
     
-    @validator('tags')
+    @field_validator("tags")
+    @classmethod
     def validate_tags(cls, v):
         """Validate and clean tags"""
         if v is None:
@@ -74,7 +74,8 @@ class TaskUpdate(BaseModel):
     tags: Optional[List[str]] = None
     completed: Optional[bool] = None
     
-    @validator('tags')
+    @field_validator("tags")
+    @classmethod
     def validate_tags(cls, v):
         """Validate and clean tags"""
         if v is None:
@@ -92,8 +93,7 @@ class TaskResponse(TaskBase):
     is_overdue: bool = False
     is_today: bool = False
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TaskToggle(BaseModel):
@@ -133,8 +133,7 @@ class ProjectResponse(ProjectBase):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
