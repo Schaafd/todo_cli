@@ -22,8 +22,7 @@ class TodoRepository:
         return self.storage.save_project(project, todos)
 
     def next_todo_id(self, project_name: str) -> int:
-        _, todos = self.storage.load_project(project_name)
-        return (max(todo.id for todo in todos) + 1) if todos else 1
+        return self.storage.get_next_todo_id()
 
     def add_todo(self, project_name: str, todo: Todo) -> bool:
         project, todos = self.storage.load_project(project_name)
