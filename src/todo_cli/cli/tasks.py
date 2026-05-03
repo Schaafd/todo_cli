@@ -12,7 +12,7 @@ from rich.panel import Panel
 from ..utils.datetime import ensure_aware, max_utc
 
 from ..config import get_config, load_config
-from ..core.errors import TodoCliError, ValidationError
+from ..core.errors import TodoCliError
 from ..storage import Storage
 from ..application.task_commands import add_task_from_input
 from ..domain import (
