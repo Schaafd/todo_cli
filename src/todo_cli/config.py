@@ -103,10 +103,6 @@ class ConfigModel:
     collab_username: Optional[str] = None
     collab_server_url: str = "http://localhost:8000"
     collab_auto_sync: bool = True
-    
-    # Reliability / diagnostics
-    strict_validation: bool = False
-    log_level: str = "INFO"
 
     def __post_init__(self):
         """Post-initialization setup."""
