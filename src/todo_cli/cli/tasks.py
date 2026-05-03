@@ -12,7 +12,9 @@ from rich.panel import Panel
 from ..utils.datetime import ensure_aware, max_utc
 
 from ..config import get_config, load_config
+from ..core.errors import TodoCliError, ValidationError
 from ..storage import Storage
+from ..application.task_commands import add_task_from_input
 from ..domain import (
     Todo,
     TodoStatus,
@@ -138,87 +140,32 @@ def add(input_text, project, dry_run, suggest):
     try:
         storage = get_storage()
         config = get_config()
-        
-        # Get available data for suggestions
-        all_todos = []
-        projects = storage.list_projects()
-        if not projects:
-            projects = [config.default_project]
-        
-        for proj_name in projects:
-            proj, todos = storage.load_project(proj_name)
-            if todos:
-                all_todos.extend(todos)
-        
-        available_projects = list(set(t.project for t in all_todos if t.project))
-        available_tags = list(set(tag for t in all_todos for tag in t.tags))
-        available_people = list(set(person for t in all_todos for person in t.assignees))
-        
-        # Parse the input
-        parsed, errors, suggestions = parse_task_input(
-            input_text, 
-            config, 
-            project_hint=project or config.default_project,
-            available_projects=available_projects, 
-            available_tags=available_tags, 
-            available_people=available_people
-        )
-        
-        # Show parsing errors
-        if errors:
-            get_console().print("[bold yellow]⚠️  Parsing Issues:[/bold yellow]")
-            for error in errors:
-                if error.severity == "error":
-                    get_console().print(f"  [red]❌ {error.message}[/red]")
-                    for suggestion in error.suggestions:
-                        get_console().print(f"     [blue]💡 {suggestion}[/blue]")
-                elif error.severity == "warning":
-                    get_console().print(f"  [yellow]⚠️  {error.message}[/yellow]")
-            
-            # Don't proceed if there are blocking errors
-            if any(e.severity == "error" for e in errors):
-                sys.exit(1)
-        
-        # Show suggestions if requested
-        if suggest or suggestions:
-            if suggestions:
-                get_console().print("[bold blue]💡 Suggestions:[/bold blue]")
-                for suggestion in suggestions:
-                    get_console().print(f"  [blue]{suggestion}[/blue]")
-            
-            if suggest:
-                return
-        
-        # Get next todo ID for the project
-        target_project = parsed.project or project or config.default_project
-        proj, existing_todos = storage.load_project(target_project)
-        
-        if existing_todos:
-            next_id = max(todo.id for todo in existing_todos) + 1
-        else:
-            next_id = 1
-        
-        # Convert ParsedTask to Todo using TaskBuilder
-        builder = TaskBuilder(config)
-        todo = builder.build(parsed, next_id)
-        todo.project = target_project
-        
+
         if dry_run:
+            parsed, _, _ = parse_task_input(
+                input_text,
+                config,
+                project_hint=project or config.default_project,
+            )
+            preview_todo = TaskBuilder(config).build(parsed, 1)
             get_console().print("[bold yellow]🔍 DRY RUN - Would create:[/bold yellow]")
-            get_console().print(f"  {format_todo_for_display(todo)}")
+            get_console().print(f"  {format_todo_for_display(preview_todo, show_id=False)}")
             return
-        
-        # Add the todo
-        existing_todos.append(todo)
-        
-        # Save the project
-        if storage.save_project(proj, existing_todos):
-            get_console().print(f"[green]✅ Added:[/green] {format_todo_for_display(todo)}")
-        else:
-            get_console().print("[red]❌ Failed to save todo[/red]")
-            sys.exit(1)
-            
-    except Exception as e:
+
+        result = add_task_from_input(
+            storage=storage,
+            config=config,
+            input_text=input_text,
+            project=project,
+        )
+        if suggest and result.suggestions:
+            get_console().print("[bold blue]💡 Suggestions:[/bold blue]")
+            for suggestion in result.suggestions:
+                get_console().print(f"  [blue]{suggestion}[/blue]")
+
+        get_console().print(f"[green]✅ Added:[/green] {format_todo_for_display(result.todo)}")
+
+    except (TodoCliError, ParseError) as e:
         get_console().print(f"[red]❌ Error creating todo: {e}[/red]")
         sys.exit(1)
 
