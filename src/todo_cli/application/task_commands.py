@@ -33,9 +33,9 @@ def add_task_from_input(
         if todos:
             all_todos.extend(todos)
 
-    available_projects = list({t.project for t in all_todos if t.project})
-    available_tags = list({tag for t in all_todos for tag in t.tags})
-    available_people = list({person for t in all_todos for person in t.assignees})
+    available_projects = sorted({t.project for t in all_todos if t.project})
+    available_tags = sorted({tag for t in all_todos for tag in t.tags})
+    available_people = sorted({person for t in all_todos for person in t.assignees})
 
     parsed, errors, suggestions = parse_task_input(
         input_text,
