@@ -242,11 +242,11 @@ class Todo:
             return self.completed
         raise AttributeError(f"{self.__class__.__name__} object has no attribute '{name}'")
     
-# Validation method temporarily disabled to isolate parsing issue
-    # def validate_datetimes(self, strict_mode: bool = False) -> Dict[str, Any]:
-    #     """Validate all datetime fields are timezone-aware."""
-    #     from .utils.validation import validate_todo_datetimes
-    #     return validate_todo_datetimes(self, strict_mode=strict_mode)
+    def validate_datetimes(self, strict_mode: bool = False) -> Dict[str, Any]:
+        """Validate all datetime fields are timezone-aware."""
+        from ..utils.validation import validate_todo_datetimes
+
+        return validate_todo_datetimes(self, strict_mode=strict_mode)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the Todo to a dictionary with timezone-aware ISO strings."""

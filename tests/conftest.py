@@ -11,6 +11,29 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
+@pytest.fixture
+def isolated_cli_config(tmp_path, monkeypatch):
+    """Provide a CLI config path that cannot touch the user's real ~/.todo."""
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    from todo_cli.config import Config, ConfigModel
+    from todo_cli.storage import reset_storage
+
+    Config._instance = None
+    reset_storage()
+
+    data_dir = tmp_path / "todo-data"
+    backup_dir = tmp_path / "todo-backups"
+    config = ConfigModel(data_dir=str(data_dir), backup_dir=str(backup_dir))
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(config.to_yaml(), encoding="utf-8")
+
+    yield config_path, data_dir, backup_dir
+
+    Config._instance = None
+    reset_storage()
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_pyfunc_call(pyfuncitem):
     """Execute async tests without external plugins."""

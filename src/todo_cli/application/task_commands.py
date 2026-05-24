@@ -7,6 +7,7 @@ from ..config import ConfigModel
 from ..core.errors import ValidationError, StorageError
 from ..domain import TaskBuilder, parse_task_input, Todo
 from ..storage import Storage
+from ..validation import validate_parsed_task, validate_project_name, validate_task_text
 
 
 @dataclass
@@ -23,6 +24,9 @@ def add_task_from_input(
     project: Optional[str] = None,
 ) -> AddTaskResult:
     """Parse natural-language input and persist a new task."""
+    input_text = validate_task_text(input_text)
+    project = validate_project_name(project)
+
     all_todos: list[Todo] = []
     projects = storage.list_projects() or [config.default_project]
 
@@ -49,7 +53,10 @@ def add_task_from_input(
         joined = "; ".join(e.message for e in blocking_errors)
         raise ValidationError(joined)
 
+    validate_parsed_task(parsed)
+
     target_project = parsed.project or project or config.default_project
+    target_project = validate_project_name(target_project)
     proj, existing_todos = storage.load_project(target_project)
     next_id = (max(todo.id for todo in existing_todos) + 1) if existing_todos else 1
 

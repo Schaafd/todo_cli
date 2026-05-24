@@ -5,6 +5,7 @@ import re
 import json
 import importlib
 import importlib.util
+import tempfile
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
@@ -75,7 +76,9 @@ else:
 
 from .domain import Todo, TodoStatus, Priority, Project
 from .config import ConfigModel
+from .core.errors import StorageError
 from .utils.datetime import now_utc, max_utc, min_utc, ensure_aware
+from .validation import validate_project_name, validate_todo_id
 
 
 # ID comment handling utilities
@@ -452,8 +455,37 @@ class Storage:
         Path(self.config.data_dir, "projects").mkdir(parents=True, exist_ok=True)
         Path(self.config.backup_dir).mkdir(parents=True, exist_ok=True)
 
+    def _write_text_atomic(self, path: Path, content: str) -> None:
+        """Write text via a same-directory temp file and atomic replace."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = None
+
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=path.parent,
+                prefix=f".{path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as tmp_file:
+                tmp_path = Path(tmp_file.name)
+                tmp_file.write(content)
+                tmp_file.flush()
+                os.fsync(tmp_file.fileno())
+
+            tmp_path.replace(path)
+        except Exception:
+            if tmp_path is not None:
+                try:
+                    tmp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            raise
+
     def load_project(self, project_name: str) -> Tuple[Optional[Project], List[Todo]]:
         """Load a project and its todos from markdown file."""
+        project_name = validate_project_name(project_name)
         project_path = self.config.get_project_path(project_name)
 
         if not project_path.exists():
@@ -468,47 +500,46 @@ class Storage:
             return ProjectMarkdownFormat.from_markdown(content)
 
         except Exception as e:
-            print(f"Error loading project {project_name}: {e}")
-            return None, []
+            raise StorageError(
+                f"Could not load project '{project_name}': {e}",
+                suggestion="Check the project markdown file or restore from backup.",
+            ) from e
 
     def save_project(self, project: Project, todos: List[Todo]) -> bool:
         """Save a project and its todos to markdown file."""
+        project.name = validate_project_name(project.name)
         project_path = self.config.get_project_path(project.name)
 
-        try:
-            # Safety check: detect duplicate IDs before saving
-            ids = [t.id for t in todos]
-            if len(ids) != len(set(ids)):
-                raise ValueError(
-                    f"Duplicate todo IDs detected in project '{project.name}': {ids}"
-                )
+        # Safety check: detect duplicate IDs before saving
+        ids = [t.id for t in todos]
+        if len(ids) != len(set(ids)):
+            raise ValueError(
+                f"Duplicate todo IDs detected in project '{project.name}': {ids}"
+            )
 
+        try:
             # Update project stats
             try:
                 project.update_stats(todos)
             except Exception as stats_error:
-                print(f"Error in update_stats for project {project.name}: {stats_error}")
-                print(f"Todo details:")
-                for i, todo in enumerate(todos[:3]):
-                    print(f"  Todo {i}: created={getattr(todo, 'created', None)} (tz={getattr(todo.created, 'tzinfo', 'N/A') if hasattr(todo, 'created') and todo.created else 'N/A'})")
-                    print(f"  Todo {i}: modified={getattr(todo, 'modified', None)} (tz={getattr(todo.modified, 'tzinfo', 'N/A') if hasattr(todo, 'modified') and todo.modified else 'N/A'})")
-                    print(f"  Todo {i}: due_date={getattr(todo, 'due_date', None)} (tz={getattr(todo.due_date, 'tzinfo', 'N/A') if hasattr(todo, 'due_date') and todo.due_date else 'N/A'})")
-                print(f"Project details: created={project.created} (tz={project.created.tzinfo if project.created else 'N/A'})")
-                raise stats_error
+                raise StorageError(
+                    f"Could not update stats for project '{project.name}': {stats_error}"
+                ) from stats_error
 
             # Generate markdown content
             content = ProjectMarkdownFormat.to_markdown(project, todos)
 
-            # Write to file
-            project_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(project_path, "w", encoding="utf-8") as f:
-                f.write(content)
+            self._write_text_atomic(project_path, content)
 
             return True
 
         except Exception as e:
-            print(f"Error saving project {project.name}: {e}")
-            return False
+            if isinstance(e, StorageError):
+                raise
+            raise StorageError(
+                f"Could not save project '{project.name}': {e}",
+                suggestion="Check file permissions and available disk space.",
+            ) from e
 
     def list_projects(self) -> List[str]:
         """List all available projects."""
@@ -521,21 +552,26 @@ class Storage:
 
     def delete_project(self, project_name: str) -> bool:
         """Delete a project file."""
+        project_name = validate_project_name(project_name)
         project_path = self.config.get_project_path(project_name)
 
         try:
             if project_path.exists():
+                self.backup_project(project_name)
                 project_path.unlink()
                 return True
             return False
         except Exception as e:
-            print(f"Error deleting project {project_name}: {e}")
-            return False
+            raise StorageError(
+                f"Could not delete project '{project_name}': {e}",
+                suggestion="Check file permissions and try again.",
+            ) from e
 
     def backup_project(
         self, project_name: str, backup_path: Optional[Path] = None
     ) -> bool:
         """Create a backup of a project file."""
+        project_name = validate_project_name(project_name)
         project_path = self.config.get_project_path(project_name)
 
         if not project_path.exists():
@@ -550,11 +586,14 @@ class Storage:
         try:
             import shutil
 
+            backup_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(project_path, backup_path)
             return True
         except Exception as e:
-            print(f"Error backing up project {project_name}: {e}")
-            return False
+            raise StorageError(
+                f"Could not back up project '{project_name}': {e}",
+                suggestion="Check backup directory permissions.",
+            ) from e
 
     def get_next_todo_id(self, project_name: Optional[str] = None) -> int:
         """Get the next available todo ID globally across all projects.
@@ -606,6 +645,9 @@ class Storage:
         Returns:
             Todo object if found, None otherwise
         """
+        todo_id = validate_todo_id(todo_id)
+        project = validate_project_name(project)
+
         if project:
             # Search in specific project
             _, todos = self.load_project(project)
@@ -628,7 +670,8 @@ class Storage:
         Returns:
             ID of the added todo
         """
-        project_name = todo.project or self.config.default_project
+        project_name = validate_project_name(todo.project or self.config.default_project)
+        todo.project = project_name
         project, todos = self.load_project(project_name)
         
         # Ensure unique ID globally across all projects
@@ -654,7 +697,9 @@ class Storage:
         Returns:
             True if updated successfully, False otherwise
         """
-        project_name = todo.project or self.config.default_project
+        todo.id = validate_todo_id(todo.id)
+        project_name = validate_project_name(todo.project or self.config.default_project)
+        todo.project = project_name
         project, todos = self.load_project(project_name)
         
         # Find and update the todo
@@ -688,6 +733,9 @@ class Storage:
         Returns:
             True if deleted successfully, False otherwise
         """
+        todo_id = validate_todo_id(todo_id)
+        project = validate_project_name(project)
+
         if project:
             project_obj, todos = self.load_project(project)
             original_count = len(todos)

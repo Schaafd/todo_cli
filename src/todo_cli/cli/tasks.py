@@ -12,9 +12,17 @@ from rich.panel import Panel
 from ..utils.datetime import ensure_aware, max_utc
 
 from ..config import get_config, load_config
-from ..core.errors import TodoCliError, ValidationError
+from ..core.errors import StorageError, TaskNotFoundError, TodoCliError, ValidationError
+from .error_handling import exit_with_error
 from ..storage import Storage
 from ..application.task_commands import add_task_from_input
+from ..validation import (
+    validate_name_tokens,
+    validate_parsed_task,
+    validate_project_name,
+    validate_task_text,
+    validate_todo_id,
+)
 from ..domain import (
     Todo,
     TodoStatus,
@@ -105,11 +113,13 @@ def format_todo_for_display(todo: Todo, show_id: bool = True) -> str:
 @click.group()
 @click.option("--config", type=click.Path(), help="Path to config file")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@click.option("--debug", is_flag=True, help="Show stack traces for expected errors")
 @click.pass_context
-def cli(ctx, config, verbose):
+def cli(ctx, config, verbose, debug):
     """Todo CLI - A powerful command-line todo application."""
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = verbose
+    ctx.obj['debug'] = debug
     
     # Load configuration
     try:
@@ -142,11 +152,17 @@ def add(input_text, project, dry_run, suggest):
         config = get_config()
 
         if dry_run or suggest:
-            parsed, _, suggestions = parse_task_input(
+            project = validate_project_name(project)
+            parsed, errors, suggestions = parse_task_input(
                 input_text,
                 config,
                 project_hint=project or config.default_project,
             )
+            blocking_errors = [e for e in errors if e.severity == "error"]
+            if blocking_errors:
+                joined = "; ".join(e.message for e in blocking_errors)
+                raise ValidationError(joined)
+            validate_parsed_task(parsed)
             if dry_run:
                 preview_todo = TaskBuilder(config).build(parsed, 1)
                 get_console().print("[bold yellow]🔍 DRY RUN - Would create:[/bold yellow]")
@@ -168,9 +184,8 @@ def add(input_text, project, dry_run, suggest):
 
         get_console().print(f"[green]✅ Added:[/green] {format_todo_for_display(result.todo)}")
 
-    except (TodoCliError, ParseError) as e:
-        get_console().print(f"[red]❌ Error creating todo: {e}[/red]")
-        sys.exit(1)
+    except TodoCliError as e:
+        exit_with_error(e, console=get_console(), prefix="could not create todo")
 
 
 @cli.command()
@@ -190,50 +205,39 @@ def quick(text, project, priority, tag, context):
     try:
         storage = get_storage()
         config = get_config()
-        
-        # Use provided project or default
-        target_project = project or config.default_project
-        
-        # Get next todo ID for the project
+
+        text = validate_task_text(text)
+        target_project = validate_project_name(project or config.default_project)
+        tag = tuple(validate_name_tokens(tag, field_name="tag"))
+        context = tuple(validate_name_tokens(context, field_name="context"))
         proj, existing_todos = storage.load_project(target_project)
-        if existing_todos:
-            next_id = max(todo.id for todo in existing_todos) + 1
-        else:
-            next_id = 1
-        
-        # Create todo with minimal processing
+        next_id = (max(todo.id for todo in existing_todos) + 1) if existing_todos else 1
+
         todo = Todo(
             id=next_id,
-            text=text.strip(),
+            text=text,
             project=target_project,
             priority=Priority(priority),
             tags=list(tag) if tag else [],
-            context=list(context) if context else []
+            context=list(context) if context else [],
         )
-        
-        # Add to project
+
         existing_todos.append(todo)
-        
-        # Save project
-        if storage.save_project(proj, existing_todos):
-            # Quick feedback - just show the essential info
-            priority_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🔵"}
-            emoji = priority_emoji.get(priority, "🟡")
-            
-            tags_str = f" #{' #'.join(tag)}" if tag else ""
-            context_str = f" @{' @'.join(context)}" if context else ""
-            proj_str = f" ({target_project})" if target_project != "inbox" else ""
-            
-            get_console().print(
-                f"[green]✅ Quick added:[/green] {emoji} {text.strip()}{tags_str}{context_str}{proj_str}"
-            )
-        else:
-            get_console().print("[red]❌ Failed to save todo[/red]")
-            sys.exit(1)
-            
-    except Exception as e:
-        get_console().print(f"[red]❌ Error creating todo: {e}[/red]")
-        sys.exit(1)
+        storage.save_project(proj, existing_todos)
+
+        priority_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🔵"}
+        emoji = priority_emoji.get(priority, "🟡")
+
+        tags_str = f" #{' #'.join(tag)}" if tag else ""
+        context_str = f" @{' @'.join(context)}" if context else ""
+        proj_str = f" ({target_project})" if target_project != "inbox" else ""
+
+        get_console().print(
+            f"[green]✅ Quick added:[/green] {emoji} {text}{tags_str}{context_str}{proj_str}"
+        )
+
+    except TodoCliError as e:
+        exit_with_error(e, console=get_console(), prefix="could not create todo")
 
 
 @cli.command()
@@ -619,90 +623,84 @@ def dashboard():
 def list_todos(project, status, filter_priority, overdue, pinned, limit, priority_sort):
     """List todo items organized by date views."""
     from ..theme import organize_todos_by_date, get_view_header
-    
-    storage = get_storage()
-    config = get_config()
-    
-    # Get all todos from all projects or specific project
-    all_todos = []
-    
-    if project:
-        projects = [project]
-    else:
-        projects = storage.list_projects()
-        if not projects:
-            projects = [config.default_project]
-    
-    for proj_name in projects:
-        proj, todos = storage.load_project(proj_name)
-        if todos:
-            all_todos.extend(todos)
-    
-    if not all_todos:
-        get_console().print("[yellow]No todos found.[/yellow]")
-        return
-    
-    # Apply filters
-    filtered_todos = all_todos
-    
-    if status:
-        filtered_todos = [t for t in filtered_todos if t.status == TodoStatus(status)]
-    
-    if filter_priority:
-        filtered_todos = [t for t in filtered_todos if t.priority == Priority(filter_priority)]
-    
-    if overdue:
-        filtered_todos = [t for t in filtered_todos if t.is_overdue()]
-    
-    if pinned:
-        filtered_todos = [t for t in filtered_todos if t.pinned]
-    
-    # If any filters are applied, use the old display format
-    if status or filter_priority or overdue or pinned:
-        # Sort: pinned first, then by priority, then by due date
-        priority_order = {Priority.CRITICAL: 0, Priority.HIGH: 1, Priority.MEDIUM: 2, Priority.LOW: 3}
-        
-        def sort_key(todo):
-            return (
-                not todo.pinned,  # Pinned tasks first
-                priority_order.get(todo.priority, 2),
-                ensure_aware(todo.due_date) if todo.due_date else max_utc(),
-                todo.id
-            )
-        
-        filtered_todos.sort(key=sort_key)
-        
-        # Limit results
-        if limit:
-            filtered_todos = filtered_todos[:limit]
-        
-        # Display todos
-        if filtered_todos:
-            get_console().print(f"[bold]Found {len(filtered_todos)} todos:[/bold]")
-            for todo in filtered_todos:
-                get_console().print(format_todo_for_display(todo))
+
+    try:
+        storage = get_storage()
+        config = get_config()
+
+        all_todos = []
+
+        if project:
+            projects = [validate_project_name(project)]
         else:
-            get_console().print("[yellow]No todos match the specified filters.[/yellow]")
-    else:
-        # Use organized date view when no filters are applied
-        views = organize_todos_by_date(filtered_todos, sort_by_priority=priority_sort)
-        
-        # Display each view
-        for view_name in ['today', 'tomorrow', 'upcoming', 'backlog']:
-            view_todos = views[view_name]
-            
-            # Apply limit across all views if specified
-            if limit and view_todos:
-                view_todos = view_todos[:limit]
-            
-            if view_todos or view_name in ['today', 'tomorrow']:  # Always show today/tomorrow even if empty
-                get_console().print(f"\n{get_view_header(view_name, len(view_todos))}")
-                
-                if view_todos:
-                    for todo in view_todos:
-                        get_console().print(f"  {format_todo_for_display(todo)}")
-                else:
-                    get_console().print("  [muted]No tasks[/muted]")
+            projects = storage.list_projects()
+            if not projects:
+                projects = [config.default_project]
+
+        for proj_name in projects:
+            proj, todos = storage.load_project(proj_name)
+            if todos:
+                all_todos.extend(todos)
+
+        if not all_todos:
+            get_console().print("[yellow]No todos found.[/yellow]")
+            return
+
+        filtered_todos = all_todos
+
+        if status:
+            filtered_todos = [t for t in filtered_todos if t.status == TodoStatus(status)]
+
+        if filter_priority:
+            filtered_todos = [t for t in filtered_todos if t.priority == Priority(filter_priority)]
+
+        if overdue:
+            filtered_todos = [t for t in filtered_todos if t.is_overdue()]
+
+        if pinned:
+            filtered_todos = [t for t in filtered_todos if t.pinned]
+
+        if status or filter_priority or overdue or pinned:
+            priority_order = {Priority.CRITICAL: 0, Priority.HIGH: 1, Priority.MEDIUM: 2, Priority.LOW: 3}
+
+            def sort_key(todo):
+                return (
+                    not todo.pinned,
+                    priority_order.get(todo.priority, 2),
+                    ensure_aware(todo.due_date) if todo.due_date else max_utc(),
+                    todo.id,
+                )
+
+            filtered_todos.sort(key=sort_key)
+
+            if limit:
+                filtered_todos = filtered_todos[:limit]
+
+            if filtered_todos:
+                get_console().print(f"[bold]Found {len(filtered_todos)} todos:[/bold]")
+                for todo in filtered_todos:
+                    get_console().print(format_todo_for_display(todo))
+            else:
+                get_console().print("[yellow]No todos match the specified filters.[/yellow]")
+        else:
+            views = organize_todos_by_date(filtered_todos, sort_by_priority=priority_sort)
+
+            for view_name in ['today', 'tomorrow', 'upcoming', 'backlog']:
+                view_todos = views[view_name]
+
+                if limit and view_todos:
+                    view_todos = view_todos[:limit]
+
+                if view_todos or view_name in ['today', 'tomorrow']:
+                    get_console().print(f"\n{get_view_header(view_name, len(view_todos))}")
+
+                    if view_todos:
+                        for todo in view_todos:
+                            get_console().print(f"  {format_todo_for_display(todo)}")
+                    else:
+                        get_console().print("  [muted]No tasks[/muted]")
+    except TodoCliError as e:
+        exit_with_error(e, console=get_console(), prefix="could not list tasks")
 
 
 @cli.command()
@@ -710,45 +708,42 @@ def list_todos(project, status, filter_priority, overdue, pinned, limit, priorit
 @click.option("--project", "-p", help="Project name (if not specified, searches all projects)")
 def done(todo_id, project):
     """Mark a todo as completed."""
-    storage = get_storage()
-    
-    # Find the todo
-    found_todo = None
-    found_project = None
-    found_todos = None
-    
-    if project:
-        projects = [project]
-    else:
-        config = get_config()
-        projects = storage.list_projects()
-        if not projects:
-            projects = [config.default_project]
-    
-    for proj_name in projects:
-        proj, todos = storage.load_project(proj_name)
-        for todo in todos:
-            if todo.id == todo_id:
-                found_todo = todo
-                found_project = proj
-                found_todos = todos
+    try:
+        storage = get_storage()
+        todo_id = validate_todo_id(todo_id)
+        project = validate_project_name(project)
+
+        found_todo = None
+        found_project = None
+        found_todos = None
+
+        if project:
+            projects = [project]
+        else:
+            config = get_config()
+            projects = storage.list_projects()
+            if not projects:
+                projects = [config.default_project]
+
+        for proj_name in projects:
+            proj, todos = storage.load_project(proj_name)
+            for todo in todos:
+                if todo.id == todo_id:
+                    found_todo = todo
+                    found_project = proj
+                    found_todos = todos
+                    break
+            if found_todo:
                 break
-        if found_todo:
-            break
-    
-    if not found_todo:
-        get_console().print(f"[red]❌ Todo with ID {todo_id} not found[/red]")
-        sys.exit(1)
-    
-    # Mark as completed
-    found_todo.complete()
-    
-    # Save project
-    if storage.save_project(found_project, found_todos):
+
+        if not found_todo:
+            raise TaskNotFoundError(todo_id, project=project)
+
+        found_todo.complete()
+        storage.save_project(found_project, found_todos)
         get_console().print(f"[green]✅ Completed task {todo_id}: {found_todo.text}[/green]")
-    else:
-        get_console().print(f"[red]❌ Failed to update task[/red]")
-        sys.exit(1)
+    except TodoCliError as e:
+        exit_with_error(e, console=get_console(), prefix="could not complete task")
 
 
 @cli.command()
@@ -756,50 +751,48 @@ def done(todo_id, project):
 @click.option("--project", "-p", help="Project name")
 def pin(todo_id, project):
     """Pin/unpin a todo."""
-    storage = get_storage()
-    
-    # Find the todo (similar to done command)
-    found_todo = None
-    found_project = None
-    found_todos = None
-    
-    if project:
-        projects = [project]
-    else:
-        config = get_config()
-        projects = storage.list_projects()
-        if not projects:
-            projects = [config.default_project]
-    
-    for proj_name in projects:
-        proj, todos = storage.load_project(proj_name)
-        for todo in todos:
-            if todo.id == todo_id:
-                found_todo = todo
-                found_project = proj
-                found_todos = todos
+    try:
+        storage = get_storage()
+        todo_id = validate_todo_id(todo_id)
+        project = validate_project_name(project)
+
+        found_todo = None
+        found_project = None
+        found_todos = None
+
+        if project:
+            projects = [project]
+        else:
+            config = get_config()
+            projects = storage.list_projects()
+            if not projects:
+                projects = [config.default_project]
+
+        for proj_name in projects:
+            proj, todos = storage.load_project(proj_name)
+            for todo in todos:
+                if todo.id == todo_id:
+                    found_todo = todo
+                    found_project = proj
+                    found_todos = todos
+                    break
+            if found_todo:
                 break
-        if found_todo:
-            break
-    
-    if not found_todo:
-        get_console().print(f"[red]❌ Todo with ID {todo_id} not found[/red]")
-        sys.exit(1)
-    
-    # Toggle pin status
-    if found_todo.pinned:
-        found_todo.unpin()
-        action = "Unpinned"
-    else:
-        found_todo.pin()
-        action = "Pinned"
-    
-    # Save project
-    if storage.save_project(found_project, found_todos):
+
+        if not found_todo:
+            raise TaskNotFoundError(todo_id, project=project)
+
+        if found_todo.pinned:
+            found_todo.unpin()
+            action = "Unpinned"
+        else:
+            found_todo.pin()
+            action = "Pinned"
+
+        storage.save_project(found_project, found_todos)
         get_console().print(f"[green]✅ {action} task {todo_id}: {found_todo.text}[/green]")
-    else:
-        get_console().print(f"[red]❌ Failed to update task[/red]")
-        sys.exit(1)
+    except TodoCliError as e:
+        exit_with_error(e, console=get_console(), prefix="could not update task")
 
 
 @cli.command()
@@ -1024,136 +1017,119 @@ def bulk(action, ids, priority, target_project, confirm):
       todo bulk project 4 5 --project work    # Move to work project
       todo bulk delete 8 9 10 --confirm       # Delete without prompts
     """
-    storage = get_storage()
-    config = get_config()
-    
-    if not ids:
-        get_console().print("[error]❌ No todo IDs specified[/error]")
-        return
-    
-    # Validate required options for certain actions
-    if action == 'priority' and not priority:
-        get_console().print("[error]❌ --priority option required for priority action[/error]")
-        return
-    
-    if action == 'project' and not target_project:
-        get_console().print("[error]❌ --project option required for project action[/error]")
-        return
-    
-    # Find all todos across all projects
-    all_projects = storage.list_projects() or [config.default_project]
-    found_todos = []
-    project_map = {}  # todo_id -> (project, todos_list)
-    
-    for proj_name in all_projects:
-        proj, todos = storage.load_project(proj_name)
-        for todo in todos:
-            if todo.id in ids:
-                found_todos.append(todo)
-                project_map[todo.id] = (proj, todos)
-    
-    if not found_todos:
-        get_console().print(f"[error]❌ None of the specified todos found: {list(ids)}[/error]")
-        return
-    
-    # Show what will be affected
-    missing_ids = set(ids) - {t.id for t in found_todos}
-    if missing_ids:
-        get_console().print(f"[warning]⚠️  Todo IDs not found: {sorted(missing_ids)}[/warning]")
-    
-    get_console().print(f"\n[primary]Found {len(found_todos)} todos to {action}:[/primary]")
-    for todo in found_todos:
-        get_console().print(f"  {format_todo_for_display(todo)}")
-    
-    # Confirm action unless --confirm flag is set
-    if not confirm:
-        action_descriptions = {
-            'complete': 'mark as complete',
-            'pin': 'pin',
-            'unpin': 'unpin', 
-            'priority': f'set priority to {priority}',
-            'project': f'move to project {target_project}',
-            'delete': 'DELETE permanently'
-        }
-        description = action_descriptions.get(action, action)
-        
-        if not click.confirm(f"\nProceed to {description} {len(found_todos)} todos?"):
-            get_console().print("[muted]Operation cancelled.[/muted]")
-            return
-    
-    # Perform the bulk action
-    success_count = 0
-    projects_to_save = set()
-    
-    for todo in found_todos:
-        proj, todos_list = project_map[todo.id]
-        
-        try:
+    try:
+        storage = get_storage()
+        config = get_config()
+
+        ids = tuple(validate_todo_id(todo_id) for todo_id in ids)
+        target_project = validate_project_name(target_project)
+
+        if not ids:
+            raise ValidationError("No todo IDs specified.")
+
+        if action == 'priority' and not priority:
+            raise ValidationError("--priority option required for priority action.")
+
+        if action == 'project' and not target_project:
+            raise ValidationError("--project option required for project action.")
+
+        all_projects = storage.list_projects() or [config.default_project]
+        found_todos = []
+        project_map = {}  # todo_id -> (project, todos_list)
+        projects_to_save = {}  # project name -> (project, todos_list)
+
+        for proj_name in all_projects:
+            proj, todos = storage.load_project(proj_name)
+            for todo in todos:
+                if todo.id in ids:
+                    found_todos.append(todo)
+                    project_map[todo.id] = (proj, todos)
+
+        if not found_todos:
+            raise TaskNotFoundError(ids[0])
+
+        missing_ids = set(ids) - {t.id for t in found_todos}
+        if missing_ids:
+            get_console().print(f"[warning]⚠️  Todo IDs not found: {sorted(missing_ids)}[/warning]")
+
+        get_console().print(f"\n[primary]Found {len(found_todos)} todos to {action}:[/primary]")
+        for todo in found_todos:
+            get_console().print(f"  {format_todo_for_display(todo)}")
+
+        if not confirm:
+            action_descriptions = {
+                'complete': 'mark as complete',
+                'pin': 'pin',
+                'unpin': 'unpin',
+                'priority': f'set priority to {priority}',
+                'project': f'move to project {target_project}',
+                'delete': 'DELETE permanently',
+            }
+            description = action_descriptions.get(action, action)
+
+            if not click.confirm(f"\nProceed to {description} {len(found_todos)} todos?"):
+                get_console().print("[muted]Operation cancelled.[/muted]")
+                return
+
+        success_count = 0
+
+        for todo in found_todos:
+            proj, todos_list = project_map[todo.id]
+
             if action == 'complete':
                 if not todo.completed:
                     todo.complete()
                     success_count += 1
+                    projects_to_save[proj.name] = (proj, todos_list)
             elif action == 'pin':
                 if not todo.pinned:
                     todo.pin()
                     success_count += 1
+                    projects_to_save[proj.name] = (proj, todos_list)
             elif action == 'unpin':
                 if todo.pinned:
                     todo.unpin()
                     success_count += 1
+                    projects_to_save[proj.name] = (proj, todos_list)
             elif action == 'priority':
-                from ..domain import Priority
                 todo.priority = Priority(priority)
                 success_count += 1
+                projects_to_save[proj.name] = (proj, todos_list)
             elif action == 'project':
-                # Move to different project
                 if todo.project != target_project:
-                    # Remove from current project
                     todos_list.remove(todo)
-                    projects_to_save.add(proj.name)
-                    
-                    # Add to target project
+                    projects_to_save[proj.name] = (proj, todos_list)
+
                     target_proj, target_todos = storage.load_project(target_project)
-                    if not target_proj:
-                        from .project import Project
-                        target_proj = Project(target_project, target_project)
-                        target_todos = []
-                    
                     todo.project = target_project
                     target_todos.append(todo)
-                    projects_to_save.add(target_project)
-                    
+                    projects_to_save[target_proj.name] = (target_proj, target_todos)
+
                     success_count += 1
             elif action == 'delete':
+                storage.backup_project(proj.name)
                 todos_list.remove(todo)
+                projects_to_save[proj.name] = (proj, todos_list)
                 success_count += 1
-            
-            if action not in ['project', 'delete']:
-                projects_to_save.add(proj.name)
-                
-        except Exception as e:
-            get_console().print(f"[error]❌ Failed to {action} todo {todo.id}: {e}[/error]")
-    
-    # Save all affected projects
-    for proj_name in projects_to_save:
-        proj, todos = storage.load_project(proj_name)
-        if not storage.save_project(proj, todos):
-            get_console().print(f"[error]❌ Failed to save project {proj_name}[/error]")
-    
-    # Show results
-    if success_count > 0:
-        action_past_tense = {
-            'complete': 'completed',
-            'pin': 'pinned',
-            'unpin': 'unpinned',
-            'priority': f'set to {priority} priority',
-            'project': f'moved to {target_project}',
-            'delete': 'deleted'
-        }
-        past_tense = action_past_tense.get(action, f'{action}d')
-        get_console().print(f"\n[success]✅ Successfully {past_tense} {success_count} todos[/success]")
-    else:
-        get_console().print(f"\n[warning]⚠️  No todos were modified[/warning]")
+
+        for proj, todos in projects_to_save.values():
+            storage.save_project(proj, todos)
+
+        if success_count > 0:
+            action_past_tense = {
+                'complete': 'completed',
+                'pin': 'pinned',
+                'unpin': 'unpinned',
+                'priority': f'set to {priority} priority',
+                'project': f'moved to {target_project}',
+                'delete': 'deleted',
+            }
+            past_tense = action_past_tense.get(action, f'{action}d')
+            get_console().print(f"\n[success]✅ Successfully {past_tense} {success_count} todos[/success]")
+        else:
+            get_console().print(f"\n[warning]⚠️  No todos were modified[/warning]")
+    except TodoCliError as e:
+        exit_with_error(e, console=get_console(), prefix=f"could not {action} tasks")
 
 
 @cli.command()
@@ -1381,20 +1357,23 @@ def delete_recurring(task_id, confirm):
 @cli.command()
 def projects():
     """List all projects."""
-    storage = get_storage()
-    project_names = storage.list_projects()
-    
-    if not project_names:
-        get_console().print("[yellow]No projects found.[/yellow]")
-        return
-    
-    get_console().print("[bold]Projects:[/bold]")
-    for name in sorted(project_names):
-        proj, todos = storage.load_project(name)
-        if proj:
-            total = len(todos)
-            completed = sum(1 for t in todos if t.completed)
-            get_console().print(f"  {name} ({completed}/{total} completed)")
+    try:
+        storage = get_storage()
+        project_names = storage.list_projects()
+
+        if not project_names:
+            get_console().print("[yellow]No projects found.[/yellow]")
+            return
+
+        get_console().print("[bold]Projects:[/bold]")
+        for name in sorted(project_names):
+            proj, todos = storage.load_project(name)
+            if proj:
+                total = len(todos)
+                completed = sum(1 for t in todos if t.completed)
+                get_console().print(f"  {name} ({completed}/{total} completed)")
+    except TodoCliError as e:
+        exit_with_error(e, console=get_console(), prefix="could not list projects")
 
 
 @cli.command()
@@ -1425,76 +1404,69 @@ def export(format_type, output, project, include_completed, exclude_completed, i
       todo export html --open-after
       todo export pdf --project personal -o report.pdf
     """
-    from ..services import ExportManager, ExportFormat
-    storage = get_storage()
-    config = get_config()
-    export_manager = ExportManager()
-    
-    # Handle completed tasks flags
-    if exclude_completed:
-        include_completed = False
-    
-    # Convert format string to enum
-    format_map = {
-        'json': ExportFormat.JSON,
-        'csv': ExportFormat.CSV,
-        'tsv': ExportFormat.TSV,
-        'markdown': ExportFormat.MARKDOWN,
-        'md': ExportFormat.MARKDOWN,
-        'html': ExportFormat.HTML,
-        'pdf': ExportFormat.PDF,
-        'ical': ExportFormat.ICAL,
-        'yaml': ExportFormat.YAML,
-    }
-    
-    export_format = format_map[format_type]
-    
-    # Get all todos from specified project or all projects
-    all_todos = []
-    project_info = None
-    
-    if project:
-        projects = [project]
-        proj, todos = storage.load_project(project)
-        project_info = proj
-    else:
-        projects = storage.list_projects()
-        if not projects:
-            projects = [config.default_project]
-    
-    for proj_name in projects:
-        proj, todos = storage.load_project(proj_name)
-        if todos:
-            all_todos.extend(todos)
-    
-    if not all_todos:
-        get_console().print("[yellow]No tasks found to export.[/yellow]")
-        return
-    
-    # Generate output filename if not specified
-    if not output:
-        from pathlib import Path
-        project_name = project or "all_projects"
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        extension = export_manager.get_file_extension(export_format)
-        output = f"todo_export_{project_name}_{timestamp}.{extension}"
-    
-    # Prepare export options
-    export_kwargs = {
-        'include_completed': include_completed,
-        'include_metadata': include_metadata,
-        'project_name': project_info.display_name if project_info and hasattr(project_info, 'display_name') else (project or "Todo Export")
-    }
-    
-    # Markdown-specific options
-    if export_format == ExportFormat.MARKDOWN:
-        export_kwargs['group_by_project'] = group_by_project
-    
     try:
-        # Perform the export
+        from ..services import ExportManager, ExportFormat
+
+        storage = get_storage()
+        config = get_config()
+        export_manager = ExportManager()
+
+        if exclude_completed:
+            include_completed = False
+
+        format_map = {
+            'json': ExportFormat.JSON,
+            'csv': ExportFormat.CSV,
+            'tsv': ExportFormat.TSV,
+            'markdown': ExportFormat.MARKDOWN,
+            'md': ExportFormat.MARKDOWN,
+            'html': ExportFormat.HTML,
+            'pdf': ExportFormat.PDF,
+            'ical': ExportFormat.ICAL,
+            'yaml': ExportFormat.YAML,
+        }
+
+        export_format = format_map[format_type]
+
+        all_todos = []
+        project_info = None
+
+        if project:
+            project = validate_project_name(project)
+            projects = [project]
+            proj, _ = storage.load_project(project)
+            project_info = proj
+        else:
+            projects = storage.list_projects()
+            if not projects:
+                projects = [config.default_project]
+
+        for proj_name in projects:
+            proj, todos = storage.load_project(proj_name)
+            if todos:
+                all_todos.extend(todos)
+
+        if not all_todos:
+            get_console().print("[yellow]No tasks found to export.[/yellow]")
+            return
+
+        if not output:
+            project_name = project or "all_projects"
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            extension = export_manager.get_file_extension(export_format)
+            output = f"todo_export_{project_name}_{timestamp}.{extension}"
+
+        export_kwargs = {
+            'include_completed': include_completed,
+            'include_metadata': include_metadata,
+            'project_name': project_info.display_name if project_info and hasattr(project_info, 'display_name') else (project or "Todo Export"),
+        }
+
+        if export_format == ExportFormat.MARKDOWN:
+            export_kwargs['group_by_project'] = group_by_project
+
         get_console().print(f"[primary]🔄 Exporting {len(all_todos)} tasks to {format_type.upper()}...[/primary]")
-        
-        
+
         result = export_manager.export_todos(
             all_todos,
             export_format,
@@ -1541,13 +1513,14 @@ def export(format_type, output, project, include_completed, exclude_completed, i
                 get_console().print(f"[warning]⚠️  Could not open file: {e}[/warning]")
         
     except ImportError as e:
-        get_console().print(f"[error]❌ Export failed: {e}[/error]")
+        suggestion = None
         if "fpdf2" in str(e):
-            get_console().print("[muted]Install lightweight PDF support with: pip install fpdf2[/muted]")
-            get_console().print("[muted]Or use 'html' or 'markdown' formats for visual reports.[/muted]")
+            suggestion = "Install lightweight PDF support with `pip install fpdf2`, or use html/markdown."
+        exit_with_error(TodoCliError(str(e), suggestion=suggestion), console=get_console(), prefix="export failed")
+    except TodoCliError as e:
+        exit_with_error(e, console=get_console(), prefix="export failed")
     except Exception as e:
-        get_console().print(f"[error]❌ Export failed: {e}[/error]")
-        sys.exit(1)
+        exit_with_error(TodoCliError(str(e)), console=get_console(), prefix="export failed")
 
 
 @cli.group()
@@ -1848,12 +1821,14 @@ def check():
 @click.group(invoke_without_command=True)
 @click.option("--config", type=click.Path(), help="Path to config file")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@click.option("--debug", is_flag=True, help="Show stack traces for expected errors")
 @click.option("--no-banner", is_flag=True, help="Skip the startup banner")
 @click.pass_context
-def main(ctx, config, verbose, no_banner):
+def main(ctx, config, verbose, debug, no_banner):
     """Productivity Ninja CLI - Master Your Tasks. Unleash Your Potential."""
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = verbose
+    ctx.obj['debug'] = debug
     ctx.obj['no_banner'] = no_banner
     
     # Load configuration
@@ -1864,8 +1839,7 @@ def main(ctx, config, verbose, no_banner):
         else:
             get_config()
     except Exception as e:
-        get_console().print(f"[error]Configuration error: {e}[/error]")
-        sys.exit(1)
+        exit_with_error(ValidationError(f"Configuration error: {e}"), console=get_console())
     
     # If no command provided, show startup experience
     if ctx.invoked_subcommand is None:
