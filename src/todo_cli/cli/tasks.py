@@ -2,6 +2,7 @@
 
 import os
 import sys
+from difflib import get_close_matches
 from typing import Optional
 from datetime import datetime, timedelta
 import click
@@ -59,6 +60,90 @@ def _get_recommend_engine():
     return TaskRecommendationEngine()
 
 recurring_manager = RecurringTaskManager()
+
+
+COMMON_COMMANDS = [
+    ("todo", "Show the dashboard"),
+    ('todo add "Review PR @work due tomorrow"', "Add a task"),
+    ("todo list", "List active tasks"),
+    ("todo done <id>", "Complete a task"),
+    ("todo search <query>", "Search tasks"),
+    ("todo projects", "List projects"),
+]
+
+
+COMMAND_CATEGORIES = [
+    ("Core", ["add", "quick", "list", "done", "pin", "bulk", "projects", "search", "export"]),
+    ("Views and Planning", ["dashboard", "board", "recommend", "queries", "recurring"]),
+    ("Organization", ["tag", "ctx", "dep"]),
+    ("Focus and Notifications", ["focus", "notify"]),
+    ("Integrations", ["app-sync", "sync", "calendar", "ai", "voice", "web", "collab"]),
+    ("Maintenance", ["backup", "doctor", "theme", "completion"]),
+    ("Advanced", ["analytics", "dashboard-mgr", "demo"]),
+]
+
+
+class CategorizedGroup(click.Group):
+    """Root Click group that presents commands by workflow instead of alphabetically."""
+
+    def get_command(self, ctx, cmd_name):
+        command = super().get_command(ctx, cmd_name)
+        if command is not None or ctx.resilient_parsing:
+            return command
+
+        visible = [
+            name
+            for name, cmd in self.commands.items()
+            if not getattr(cmd, "hidden", False)
+        ]
+        matches = get_close_matches(cmd_name, visible, n=1, cutoff=0.72)
+        if matches:
+            ctx.fail(f"No such command '{cmd_name}'.\n\nDid you mean '{matches[0]}'?")
+
+        return None
+
+    def format_commands(self, ctx, formatter):
+        """Render common commands first, then categorized command groups."""
+        visible_commands = {
+            name: cmd
+            for name, cmd in self.commands.items()
+            if not getattr(cmd, "hidden", False)
+        }
+
+        with formatter.section("Common commands"):
+            formatter.write_dl(COMMON_COMMANDS)
+
+        rendered = set()
+        for category, names in COMMAND_CATEGORIES:
+            rows = []
+            for name in names:
+                command = visible_commands.get(name)
+                if command is None:
+                    continue
+                rendered.add(name)
+                rows.append((name, command.get_short_help_str()))
+            if rows:
+                with formatter.section(category):
+                    formatter.write_dl(rows)
+
+        leftovers = sorted(set(visible_commands) - rendered)
+        if leftovers:
+            with formatter.section("Other"):
+                formatter.write_dl(
+                    [
+                        (name, visible_commands[name].get_short_help_str())
+                        for name in leftovers
+                    ]
+                )
+
+
+class RecurringGroup(click.Group):
+    """Recurring command group that preserves the old create shorthand."""
+
+    def resolve_command(self, ctx, args):
+        if args and args[0] not in self.commands:
+            args.insert(0, "create")
+        return super().resolve_command(ctx, args)
 
 
 def get_storage() -> Storage:
@@ -1132,23 +1217,8 @@ def bulk(action, ids, priority, target_project, confirm):
         exit_with_error(e, console=get_console(), prefix=f"could not {action} tasks")
 
 
-@cli.command()
-@click.argument("task_text")
-@click.argument("pattern")
-@click.option("--project", "-p", help="Project for the recurring task")
-@click.option("--max-occurrences", type=int, help="Maximum number of occurrences")
-@click.option("--end-date", help="End date for recurrence (YYYY-MM-DD)")
-@click.option("--preview", is_flag=True, help="Preview next few occurrences without creating")
-def recurring(task_text, pattern, project, max_occurrences, end_date, preview):
-    """Create a recurring task with smart scheduling.
-    
-    Examples:
-      todo recurring "Team standup @meetings" "daily"
-      todo recurring "Review monthly reports ~high" "monthly"
-      todo recurring "Backup database @maintenance" "weekly"
-      todo recurring "Pay rent +landlord" "monthly" --max-occurrences 12
-      todo recurring "Doctor appointment @health" "every 6 months" --preview
-    """
+def _create_recurring_task(task_text, pattern, project, max_occurrences, end_date, preview):
+    """Create or preview a recurring task."""
     try:
         # Create template and pattern
         template, recurrence_pattern = create_recurring_task_from_text(task_text, pattern)
@@ -1208,14 +1278,41 @@ def recurring(task_text, pattern, project, max_occurrences, end_date, preview):
         sys.exit(1)
 
 
-@cli.command("recurring-list")
-def list_recurring():
+@click.group(cls=RecurringGroup, invoke_without_command=True)
+@click.pass_context
+def recurring(ctx):
+    """Create and manage recurring tasks."""
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+
+
+@recurring.command("create")
+@click.argument("task_text")
+@click.argument("pattern")
+@click.option("--project", "-p", help="Project for the recurring task")
+@click.option("--max-occurrences", type=int, help="Maximum number of occurrences")
+@click.option("--end-date", help="End date for recurrence (YYYY-MM-DD)")
+@click.option("--preview", is_flag=True, help="Preview next few occurrences without creating")
+def recurring_create(task_text, pattern, project, max_occurrences, end_date, preview):
+    """Create a recurring task with smart scheduling.
+    
+    Examples:
+      todo recurring create "Team standup @meetings" "daily"
+      todo recurring create "Review monthly reports ~high" "monthly"
+      todo recurring create "Backup database @maintenance" "weekly"
+      todo recurring create "Pay rent +landlord" "monthly" --max-occurrences 12
+      todo recurring create "Doctor appointment @health" "every 6 months" --preview
+    """
+    _create_recurring_task(task_text, pattern, project, max_occurrences, end_date, preview)
+
+
+def _list_recurring_tasks():
     """List all recurring tasks."""
     recurring_tasks = recurring_manager.list_recurring_tasks()
     
     if not recurring_tasks:
         get_console().print("[muted]No recurring tasks found.[/muted]")
-        get_console().print("[muted]Create one with: todo recurring 'task description' 'pattern'[/muted]")
+        get_console().print("[muted]Create one with: todo recurring create 'task description' 'pattern'[/muted]")
         return
     
     get_console().print(f"\n[primary]📋 Recurring Tasks ({len(recurring_tasks)}):[/primary]")
@@ -1235,16 +1332,25 @@ def list_recurring():
             get_console().print(f"   End date: {task.pattern.end_date.strftime('%Y-%m-%d')}")
 
 
-@cli.command("recurring-generate")
-@click.option("--days", "-d", type=int, default=30, help="Generate tasks for next N days")
-@click.option("--dry-run", is_flag=True, help="Show what would be generated without creating tasks")
-def generate_recurring(days, dry_run):
+@recurring.command("list")
+def recurring_list():
+    """List all recurring tasks."""
+    _list_recurring_tasks()
+
+
+@cli.command("recurring-list", hidden=True)
+def list_recurring():
+    """List all recurring tasks."""
+    _list_recurring_tasks()
+
+
+def _generate_recurring_tasks(days, dry_run):
     """Generate due recurring tasks.
     
     Examples:
-      todo recurring-generate              # Generate for next 30 days
-      todo recurring-generate --days 7    # Generate for next week
-      todo recurring-generate --dry-run   # Preview without creating
+      todo recurring generate              # Generate for next 30 days
+      todo recurring generate --days 7     # Generate for next week
+      todo recurring generate --dry-run    # Preview without creating
     """
     until_date = datetime.now() + timedelta(days=days)
     
@@ -1297,9 +1403,23 @@ def generate_recurring(days, dry_run):
                 pass
 
 
-@cli.command("recurring-pause")
-@click.argument("task_id")
-def pause_recurring(task_id):
+@recurring.command("generate")
+@click.option("--days", "-d", type=int, default=30, help="Generate tasks for next N days")
+@click.option("--dry-run", is_flag=True, help="Show what would be generated without creating tasks")
+def recurring_generate(days, dry_run):
+    """Generate due recurring tasks."""
+    _generate_recurring_tasks(days, dry_run)
+
+
+@cli.command("recurring-generate", hidden=True)
+@click.option("--days", "-d", type=int, default=30, help="Generate tasks for next N days")
+@click.option("--dry-run", is_flag=True, help="Show what would be generated without creating tasks")
+def generate_recurring(days, dry_run):
+    """Generate due recurring tasks."""
+    _generate_recurring_tasks(days, dry_run)
+
+
+def _pause_recurring_task(task_id):
     """Pause a recurring task."""
     task = recurring_manager.get_recurring_task(task_id)
     if not task:
@@ -1314,9 +1434,21 @@ def pause_recurring(task_id):
     get_console().print(f"[success]✅ Paused recurring task: {task.template.text}[/success]")
 
 
-@cli.command("recurring-resume")
+@recurring.command("pause")
 @click.argument("task_id")
-def resume_recurring(task_id):
+def recurring_pause(task_id):
+    """Pause a recurring task."""
+    _pause_recurring_task(task_id)
+
+
+@cli.command("recurring-pause", hidden=True)
+@click.argument("task_id")
+def pause_recurring(task_id):
+    """Pause a recurring task."""
+    _pause_recurring_task(task_id)
+
+
+def _resume_recurring_task(task_id):
     """Resume a paused recurring task."""
     task = recurring_manager.get_recurring_task(task_id)
     if not task:
@@ -1331,10 +1463,21 @@ def resume_recurring(task_id):
     get_console().print(f"[success]✅ Resumed recurring task: {task.template.text}[/success]")
 
 
-@cli.command("recurring-delete")
+@recurring.command("resume")
 @click.argument("task_id")
-@click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
-def delete_recurring(task_id, confirm):
+def recurring_resume(task_id):
+    """Resume a paused recurring task."""
+    _resume_recurring_task(task_id)
+
+
+@cli.command("recurring-resume", hidden=True)
+@click.argument("task_id")
+def resume_recurring(task_id):
+    """Resume a paused recurring task."""
+    _resume_recurring_task(task_id)
+
+
+def _delete_recurring_task(task_id, confirm):
     """Delete a recurring task."""
     task = recurring_manager.get_recurring_task(task_id)
     if not task:
@@ -1352,6 +1495,22 @@ def delete_recurring(task_id, confirm):
     
     recurring_manager.delete_recurring_task(task_id)
     get_console().print(f"[success]✅ Deleted recurring task[/success]")
+
+
+@recurring.command("delete")
+@click.argument("task_id")
+@click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
+def recurring_delete(task_id, confirm):
+    """Delete a recurring task."""
+    _delete_recurring_task(task_id, confirm)
+
+
+@cli.command("recurring-delete", hidden=True)
+@click.argument("task_id")
+@click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
+def delete_recurring(task_id, confirm):
+    """Delete a recurring task."""
+    _delete_recurring_task(task_id, confirm)
 
 
 @cli.command()
@@ -1818,7 +1977,7 @@ def check():
 
 
 # Create main function that invokes dashboard by default
-@click.group(invoke_without_command=True)
+@click.group(cls=CategorizedGroup, invoke_without_command=True)
 @click.option("--config", type=click.Path(), help="Path to config file")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.option("--debug", is_flag=True, help="Show stack traces for expected errors")
@@ -1830,6 +1989,9 @@ def main(ctx, config, verbose, debug, no_banner):
     ctx.obj['verbose'] = verbose
     ctx.obj['debug'] = debug
     ctx.obj['no_banner'] = no_banner
+
+    if ctx.invoked_subcommand == "completion":
+        return
     
     # Load configuration
     try:
@@ -1954,11 +2116,15 @@ main.add_command(recommend)
 main.add_command(queries)
 main.add_command(bulk)
 main.add_command(recurring)
-main.add_command(list_recurring)
-main.add_command(generate_recurring)
-main.add_command(pause_recurring)
-main.add_command(resume_recurring)
-main.add_command(delete_recurring)
+for _legacy_recurring_command in (
+    list_recurring,
+    generate_recurring,
+    pause_recurring,
+    resume_recurring,
+    delete_recurring,
+):
+    _legacy_recurring_command.hidden = True
+    main.add_command(_legacy_recurring_command)
 main.add_command(done)
 main.add_command(pin)
 main.add_command(projects)
@@ -1974,6 +2140,10 @@ main.add_command(app_sync_group)
 # Add doctor command group
 from .doctor import doctor
 main.add_command(doctor)
+
+# Add completion command group
+from .completion import create_completion_group
+main.add_command(create_completion_group(main))
 
 # Add theme command group
 from .theme_cmds import get_theme_commands

@@ -215,7 +215,7 @@ Goal: make the product feel smaller and easier to learn.
 
 #### 2.1 Help and Command Taxonomy
 
-- [ ] Replace alphabetical root help with categorized help:
+- [x] Replace alphabetical root help with categorized help:
   - Core
   - Views and Planning
   - Organization
@@ -223,15 +223,14 @@ Goal: make the product feel smaller and easier to learn.
   - Integrations
   - Maintenance
   - Advanced
-- [ ] Put a short "common commands" block at the top of root help.
-- [ ] Hide compatibility aliases and legacy direct commands from root help.
-- [ ] Add typo suggestions for unknown commands if it can be done without fighting Click.
-- [ ] Keep examples concrete and short.
+- [x] Put a short "common commands" block at the top of root help.
+- [x] Hide compatibility aliases and legacy direct commands from root help.
+- [x] Add typo suggestions for unknown commands if it can be done without fighting Click.
+- [x] Keep examples concrete and short.
 
 Files:
 
 - `src/todo_cli/cli/tasks.py`
-- optional `src/todo_cli/cli/help.py`
 - `tests/test_cli_help.py` new
 
 Exit criteria:
@@ -242,14 +241,15 @@ Exit criteria:
 
 #### 2.2 Command Consolidation
 
-- [ ] Convert flat recurring commands into grouped recurring commands:
+- [x] Convert flat recurring commands into grouped recurring commands:
   - `todo recurring create`
   - `todo recurring list`
   - `todo recurring generate`
   - `todo recurring pause`
   - `todo recurring resume`
   - `todo recurring delete`
-- [ ] Keep current names as hidden aliases:
+- [x] Preserve the old `todo recurring "task" "pattern"` create shorthand.
+- [x] Keep current names as hidden aliases:
   - `recurring-list`
   - `recurring-generate`
   - `recurring-pause`
@@ -266,27 +266,35 @@ Files:
 
 Exit criteria:
 
-- The common command list is shorter.
-- Legacy commands still pass compatibility tests.
+- `todo recurring --help` presents the grouped workflow.
+- Legacy recurring commands still pass compatibility tests.
+- Root help keeps legacy recurring aliases hidden.
 
 #### 2.3 Shell Completion
 
-- [ ] Add `todo completion show --shell <shell>` for bash, zsh, and fish.
-- [ ] Add `todo completion install` only after the generated scripts are tested.
-- [ ] Complete commands, options, projects, tags, contexts, and saved query names where practical.
-- [ ] Make install idempotent and reversible.
+- [x] Add `todo completion show --shell <shell>` for bash, zsh, and fish.
+- [x] Add `todo completion install` only after the generated scripts are tested.
+- [x] Use Click's native completion for commands and options.
+- [ ] Add data-backed completion for projects, tags, contexts, and saved query names where practical.
+- [x] Make install idempotent and reversible.
 - [ ] Avoid hand-maintaining separate completion scripts if Click's completion support is enough.
+- [x] Keep completion script output free of startup/config noise.
+- [x] Add `todo completion uninstall` for the generated script file.
 
 Files:
 
 - `src/todo_cli/cli/completion.py` new
 - `src/todo_cli/cli/tasks.py`
+- `src/todo_cli/config.py`
 - `completion_setup.sh`
 - `tests/test_cli_completion.py` new
 
 Exit criteria:
 
 - `todo completion show --shell zsh` works.
+- `todo completion show --shell fish` works.
+- `todo completion install --shell fish` writes an idempotent script.
+- `todo completion uninstall --shell <shell>` removes the installed script.
 - Completion generation does not load user data unless completing data-backed values.
 
 ### Phase 3: Right Features, Not More Features

@@ -4,6 +4,7 @@ import os
 import json
 import importlib
 import importlib.util
+import sys
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
@@ -248,14 +249,12 @@ class Config:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     yaml_content = f.read()
                 config = ConfigModel.from_yaml(yaml_content)
-                print(f"Loaded configuration from {config_path}")
             except Exception as e:
-                print(f"Warning: Failed to load config from {config_path}: {e}")
-                print("Using default configuration.")
+                print(f"Warning: Failed to load config from {config_path}: {e}", file=sys.stderr)
+                print("Using default configuration.", file=sys.stderr)
         else:
             # Create default config file
             cls.save(config, config_path)
-            print(f"Created default configuration at {config_path}")
         
         cls._instance = config
         return config
