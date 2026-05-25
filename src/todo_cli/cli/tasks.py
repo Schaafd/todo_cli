@@ -18,6 +18,7 @@ from ..core.errors import StorageError, TaskNotFoundError, TodoCliError, Validat
 from .error_handling import exit_with_error
 from ..storage import Storage
 from ..application.task_commands import add_task_from_input
+from ..services.operation_history import OperationHistory, OperationRecord
 from ..validation import (
     validate_name_tokens,
     validate_parsed_task,
@@ -71,13 +72,14 @@ COMMON_COMMANDS = [
     ("todo done <id>", "Complete a task"),
     ("todo edit <id> --text ...", "Edit a task"),
     ("todo delete <id>", "Delete a task"),
+    ("todo undo", "Undo last change"),
     ("todo search <query>", "Search tasks"),
     ("todo projects", "List projects"),
 ]
 
 
 COMMAND_CATEGORIES = [
-    ("Core", ["add", "quick", "list", "done", "edit", "delete", "pin", "bulk", "projects", "search", "export"]),
+    ("Core", ["add", "quick", "list", "done", "edit", "delete", "undo", "pin", "bulk", "projects", "search", "export"]),
     ("Views and Planning", ["dashboard", "board", "recommend", "queries", "recurring"]),
     ("Organization", ["tag", "ctx", "dep"]),
     ("Focus and Notifications", ["focus", "notify"]),
@@ -221,6 +223,20 @@ def get_storage() -> Storage:
     return Storage(config)
 
 
+def get_operation_history() -> OperationHistory:
+    """Get operation history for the current configuration."""
+    return OperationHistory(get_config())
+
+
+def _snapshot_todo(todo: Todo) -> Todo:
+    """Capture a detached todo snapshot for history records."""
+    return Todo.from_dict(todo.to_dict())
+
+
+def _record_operation(record: OperationRecord) -> None:
+    get_operation_history().append(record)
+
+
 def format_todo_for_display(todo: Todo, show_id: bool = True) -> str:
     """Format a todo for display with themed styling."""
     # Get themed status emoji
@@ -323,11 +339,12 @@ def cli(ctx, config, verbose, debug):
 
 
 @cli.command()
-@click.argument("input_text", required=True)
+@click.argument("input_text", required=False)
 @click.option("--project", "-p", shell_complete=_complete_projects, help="Default project if not specified in text")
 @click.option("--dry-run", is_flag=True, help="Parse without saving to see what would be created")
 @click.option("--suggest", is_flag=True, help="Show suggestions for improving the input")
-def add(input_text, project, dry_run, suggest):
+@click.option("--interactive", "interactive_mode", is_flag=True, help="Prompt for task fields")
+def add(input_text, project, dry_run, suggest, interactive_mode):
     """Add a new todo item with natural language parsing.
     
     Examples:
@@ -339,6 +356,16 @@ def add(input_text, project, dry_run, suggest):
     try:
         storage = get_storage()
         config = get_config()
+
+        if interactive_mode:
+            _guided_add(storage, config, project)
+            return
+
+        if input_text is None:
+            raise ValidationError(
+                "Task text is required.",
+                suggestion="Use `todo add \"task\"` or `todo add --interactive`.",
+            )
 
         if dry_run or suggest:
             project = validate_project_name(project)
@@ -370,11 +397,78 @@ def add(input_text, project, dry_run, suggest):
             input_text=input_text,
             project=project,
         )
+        _record_operation(
+            OperationRecord.create(
+                "add",
+                todo_id=result.todo.id,
+                after=result.todo,
+                after_project=result.todo.project,
+            )
+        )
 
         get_console().print(f"[green]✅ Added:[/green] {format_todo_for_display(result.todo)}")
 
     except TodoCliError as e:
         exit_with_error(e, console=get_console(), prefix="could not create todo")
+
+
+def _split_prompt_tokens(value: str) -> list[str]:
+    """Split comma or space separated prompt input into tokens."""
+    return [token for token in value.replace(",", " ").split() if token]
+
+
+def _guided_add(storage: Storage, config, project: Optional[str]) -> None:
+    """Prompt for task fields and save a todo."""
+    text = validate_task_text(click.prompt("Task"))
+    target_project = click.prompt(
+        "Project",
+        default=project or config.default_project,
+        show_default=True,
+    )
+    target_project = validate_project_name(target_project)
+    priority = click.prompt(
+        "Priority",
+        type=click.Choice(["critical", "high", "medium", "low"]),
+        default=config.default_priority.value,
+        show_default=True,
+    )
+    due_input = click.prompt("Due date", default="", show_default=False)
+    tags_input = click.prompt("Tags", default="", show_default=False)
+    context_input = click.prompt("Contexts", default="", show_default=False)
+
+    tags = validate_name_tokens(_split_prompt_tokens(tags_input), field_name="tag")
+    contexts = validate_name_tokens(_split_prompt_tokens(context_input), field_name="context")
+    due_date = _parse_due_date(due_input) if due_input.strip() else None
+
+    project_obj, existing_todos = storage.load_project(target_project)
+    next_id = (max(todo.id for todo in existing_todos) + 1) if existing_todos else 1
+    todo = Todo(
+        id=next_id,
+        text=text,
+        project=target_project,
+        priority=Priority(priority),
+        due_date=due_date,
+        tags=tags,
+        context=contexts,
+    )
+
+    get_console().print("[bold yellow]Preview:[/bold yellow]")
+    get_console().print(f"  {format_todo_for_display(todo)}")
+    if not click.confirm("Save this task?", default=True):
+        get_console().print("[muted]Task not saved.[/muted]")
+        return
+
+    existing_todos.append(todo)
+    storage.save_project(project_obj, existing_todos)
+    _record_operation(
+        OperationRecord.create(
+            "add",
+            todo_id=todo.id,
+            after=todo,
+            after_project=target_project,
+        )
+    )
+    get_console().print(f"[green]✅ Added:[/green] {format_todo_for_display(todo)}")
 
 
 @cli.command()
@@ -413,6 +507,14 @@ def quick(text, project, priority, tag, context):
 
         existing_todos.append(todo)
         storage.save_project(proj, existing_todos)
+        _record_operation(
+            OperationRecord.create(
+                "add",
+                todo_id=todo.id,
+                after=todo,
+                after_project=target_project,
+            )
+        )
 
         priority_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🔵"}
         emoji = priority_emoji.get(priority, "🟡")
@@ -933,8 +1035,19 @@ def _complete_todo(todo_id, project):
         if not found_todo:
             raise TaskNotFoundError(todo_id, project=project)
 
+        before = _snapshot_todo(found_todo)
         found_todo.complete()
         storage.save_project(found_project, found_todos)
+        _record_operation(
+            OperationRecord.create(
+                "done",
+                todo_id=found_todo.id,
+                before=before,
+                after=found_todo,
+                before_project=found_project.name,
+                after_project=found_project.name,
+            )
+        )
         get_console().print(f"[green]✅ Completed task {todo_id}: {found_todo.text}[/green]")
     except TodoCliError as e:
         exit_with_error(e, console=get_console(), prefix="could not complete task")
@@ -967,6 +1080,7 @@ def edit(todo_id, from_project, text, priority, due, target_project):
         storage = get_storage()
         project_obj, todos, todo = _find_todo(storage, todo_id, from_project)
         original_project = project_obj.name
+        before = _snapshot_todo(todo)
 
         if text is not None:
             todo.text = validate_task_text(text)
@@ -989,6 +1103,16 @@ def edit(todo_id, from_project, text, priority, due, target_project):
             todo.modified = now_utc()
             storage.save_project(project_obj, todos)
 
+        _record_operation(
+            OperationRecord.create(
+                "edit",
+                todo_id=todo.id,
+                before=before,
+                after=todo,
+                before_project=original_project,
+                after_project=todo.project,
+            )
+        )
         get_console().print(f"[green]✅ Updated task {todo_id}: {todo.text}[/green]")
     except TodoCliError as e:
         exit_with_error(e, console=get_console(), prefix="could not edit task")
@@ -1003,6 +1127,7 @@ def delete(todo_id, project, yes):
     try:
         storage = get_storage()
         project_obj, todos, todo = _find_todo(storage, todo_id, project)
+        before = _snapshot_todo(todo)
 
         if not yes:
             get_console().print(f"[warning]Will delete task {todo.id}: {todo.text}[/warning]")
@@ -1013,9 +1138,33 @@ def delete(todo_id, project, yes):
         storage.backup_project(project_obj.name)
         todos.remove(todo)
         storage.save_project(project_obj, todos)
+        _record_operation(
+            OperationRecord.create(
+                "delete",
+                todo_id=todo.id,
+                before=before,
+                before_project=project_obj.name,
+            )
+        )
         get_console().print(f"[green]✅ Deleted task {todo_id}: {todo.text}[/green]")
     except TodoCliError as e:
         exit_with_error(e, console=get_console(), prefix="could not delete task")
+
+
+@cli.command()
+def undo():
+    """Undo the last reversible task change."""
+    try:
+        record = get_operation_history().undo_last(get_storage())
+        action = {
+            "add": "Removed added task",
+            "done": "Reopened completed task",
+            "edit": "Restored edited task",
+            "delete": "Restored deleted task",
+        }.get(record.operation, f"Undid {record.operation}")
+        get_console().print(f"[green]✅ {action} {record.todo_id}[/green]")
+    except TodoCliError as e:
+        exit_with_error(e, console=get_console(), prefix="could not undo")
 
 
 @cli.command()
@@ -2316,6 +2465,7 @@ main.add_command(done)
 main.add_command(complete_alias)
 main.add_command(edit)
 main.add_command(delete)
+main.add_command(undo)
 main.add_command(pin)
 main.add_command(projects)
 main.add_command(export)

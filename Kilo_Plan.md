@@ -330,11 +330,12 @@ Exit criteria:
 
 #### 3.2 Undo
 
-- [ ] Design undo around operation records only after storage is atomic.
-- [ ] Start with one operation: undo last add.
-- [ ] Then add undo for done, edit, and delete.
-- [ ] Store enough before/after state to recover safely.
-- [ ] Add `todo history` only if operation records prove useful.
+- [x] Design undo around operation records only after storage is atomic.
+- [x] Start with one operation: undo last add.
+- [x] Then add undo for done, edit, and delete.
+- [x] Store enough before/after state to recover safely.
+- [x] Add `todo history` only if operation records prove useful.
+  - Decision: defer `history`. `todo undo` only needs the last reversible operation for now.
 
 Files:
 
@@ -348,10 +349,11 @@ Exit criteria:
 
 #### 3.3 Guided Add
 
-- [ ] Prefer `todo add --interactive` over a new top-level `todo interactive` command.
-- [ ] Add prompts for text, project, priority, due date, tags, and preview.
-- [ ] Avoid adding `questionary` until `click.prompt` or current dependencies prove insufficient.
-- [ ] Make guided mode optional and non-blocking in non-interactive shells.
+- [x] Prefer `todo add --interactive` over a new top-level `todo interactive` command.
+- [x] Add prompts for text, project, priority, due date, tags, and preview.
+- [x] Avoid adding `questionary` until `click.prompt` or current dependencies prove insufficient.
+- [x] Make guided mode optional and non-blocking in non-interactive shells.
+  - Decision: normal `todo add` fails fast without task text; prompts only run when `--interactive` is explicit.
 
 Files:
 
