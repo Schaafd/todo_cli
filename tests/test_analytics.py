@@ -831,7 +831,7 @@ class TestIntegrationScenarios:
             tracker = TimeTracker()
             
             # Mock some time entries
-            now = datetime.now()
+            now = datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
             tracker.entries = [
                 TimeEntry(
                     id="entry1",

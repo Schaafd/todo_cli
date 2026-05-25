@@ -5,7 +5,7 @@ Terminal-inspired task management web interface
 
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import FastAPI, Request, Depends, HTTPException, status, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -67,6 +67,24 @@ def url_for(name: str, **path_params):
 templates.env.globals['url_for'] = url_for
 templates.env.globals['get_flashed_messages'] = lambda **kwargs: []  # Flash messages not implemented yet
 
+
+def render_template(
+    request: Request,
+    name: str,
+    context: dict[str, Any] | None = None,
+    status_code: int = status.HTTP_200_OK,
+):
+    """Render a Jinja template with Starlette's current request-first signature."""
+    template_context = dict(context or {})
+    template_context.setdefault("request", request)
+    return templates.TemplateResponse(
+        request=request,
+        name=name,
+        context=template_context,
+        status_code=status_code,
+    )
+
+
 # ============================================================================
 # Template Context Processors
 # ============================================================================
@@ -109,7 +127,7 @@ async def index(request: Request):
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """Login page"""
-    return templates.TemplateResponse("login.html", {"request": request})
+    return render_template(request, "login.html")
 
 
 @app.post("/login")
@@ -123,10 +141,10 @@ async def login(
     user = authenticate_user(username, password)
     
     if not user:
-        return templates.TemplateResponse(
+        return render_template(
+            request,
             "login.html",
             {
-                "request": request,
                 "error": "Invalid username or password"
             },
             status_code=status.HTTP_401_UNAUTHORIZED
@@ -154,7 +172,7 @@ async def login(
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
     """Registration page"""
-    return templates.TemplateResponse("register.html", {"request": request})
+    return render_template(request, "register.html")
 
 
 @app.post("/register")
@@ -170,24 +188,27 @@ async def register(
     
     # Validation
     if password != password_confirm:
-        return templates.TemplateResponse(
+        return render_template(
+            request,
             "register.html",
-            {"request": request, "error": "Passwords do not match"},
+            {"error": "Passwords do not match"},
             status_code=status.HTTP_400_BAD_REQUEST
         )
     
     # Check if user exists
     if db.get_user_by_username(username):
-        return templates.TemplateResponse(
+        return render_template(
+            request,
             "register.html",
-            {"request": request, "error": "Username already taken"},
+            {"error": "Username already taken"},
             status_code=status.HTTP_400_BAD_REQUEST
         )
     
     if db.get_user_by_email(email):
-        return templates.TemplateResponse(
+        return render_template(
+            request,
             "register.html",
-            {"request": request, "error": "Email already registered"},
+            {"error": "Email already registered"},
             status_code=status.HTTP_400_BAD_REQUEST
         )
     
@@ -195,9 +216,10 @@ async def register(
     try:
         user = db.create_user(username, email, password)
     except ValueError as e:
-        return templates.TemplateResponse(
+        return render_template(
+            request,
             "register.html",
-            {"request": request, "error": str(e)},
+            {"error": str(e)},
             status_code=status.HTTP_400_BAD_REQUEST
         )
     
@@ -253,7 +275,7 @@ async def dashboard(request: Request, current_user=Depends(get_current_user)):
         "recent_projects": bridge.get_user_projects(current_user.id)[:5],
     })
     
-    return templates.TemplateResponse("dashboard.html", context)
+    return render_template(request, "dashboard.html", context)
 
 
 @app.get("/tasks", response_class=HTMLResponse, name="tasks")
@@ -267,7 +289,7 @@ async def tasks_page(request: Request, current_user=Depends(get_current_user)):
         "tasks": tasks,
     })
     
-    return templates.TemplateResponse("tasks.html", context)
+    return render_template(request, "tasks.html", context)
 
 
 @app.get("/tasks/today", response_class=HTMLResponse)
@@ -279,7 +301,7 @@ async def tasks_today(request: Request, current_user=Depends(get_current_user)):
         "page_title": "Today's Tasks",
     })
     
-    return templates.TemplateResponse("tasks.html", context)
+    return render_template(request, "tasks.html", context)
 
 
 @app.get("/tasks/upcoming", response_class=HTMLResponse)
@@ -291,7 +313,7 @@ async def tasks_upcoming(request: Request, current_user=Depends(get_current_user
         "page_title": "Upcoming Tasks",
     })
     
-    return templates.TemplateResponse("tasks.html", context)
+    return render_template(request, "tasks.html", context)
 
 
 @app.get("/projects", response_class=HTMLResponse, name="projects")
@@ -321,7 +343,7 @@ async def projects_page(request: Request, current_user=Depends(get_current_user)
         "projects": enriched_projects,
     })
     
-    return templates.TemplateResponse("projects.html", context)
+    return render_template(request, "projects.html", context)
 
 
 @app.get("/projects/{project_id}", response_class=HTMLResponse)
@@ -365,7 +387,7 @@ async def project_detail(
         }
     })
     
-    return templates.TemplateResponse("project_detail.html", context)
+    return render_template(request, "project_detail.html", context)
 
 
 @app.get("/analytics", response_class=HTMLResponse, name="analytics")
@@ -481,7 +503,7 @@ async def analytics_page(request: Request, current_user=Depends(get_current_user
         "insights": insights,
     })
     
-    return templates.TemplateResponse("analytics.html", context)
+    return render_template(request, "analytics.html", context)
 
 
 @app.post("/tasks/create", name="create_task")
@@ -860,10 +882,10 @@ async def api_delete_project(
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc: HTTPException):
     """404 error handler"""
-    return templates.TemplateResponse(
+    return render_template(
+        request,
         "error.html",
         {
-            "request": request,
             "error_code": 404,
             "error_message": "Page not found"
         },
@@ -874,10 +896,10 @@ async def not_found_handler(request: Request, exc: HTTPException):
 @app.exception_handler(500)
 async def server_error_handler(request: Request, exc: Exception):
     """500 error handler"""
-    return templates.TemplateResponse(
+    return render_template(
+        request,
         "error.html",
         {
-            "request": request,
             "error_code": 500,
             "error_message": "Internal server error"
         },

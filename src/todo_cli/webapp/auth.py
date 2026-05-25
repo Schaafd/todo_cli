@@ -15,7 +15,7 @@ from fastapi import HTTPException, Request, status
 # Settings
 # ============================================================================
 
-SECRET_KEY = os.getenv("TODO_WEB_SECRET_KEY", "dev-secret-change-me")
+SECRET_KEY = os.getenv("TODO_WEB_SECRET_KEY", "dev-secret-change-me-use-env-in-real-deployments")
 ALGORITHM = os.getenv("TODO_WEB_JWT_ALG", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("TODO_WEB_ACCESS_TOKEN_MINUTES", "60"))
 

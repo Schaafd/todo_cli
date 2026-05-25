@@ -376,9 +376,9 @@ Goal: reduce maintenance drag without freezing feature work.
 - [x] Add stricter mypy checks to touched core modules first.
 - [x] Keep `ignore_missing_imports` globally until third-party stub gaps are mapped.
 - [x] Replace Pydantic `.dict()` with `.model_dump()` in theme and sync code.
-- [ ] Fix Starlette `TemplateResponse` deprecation warnings.
-- [ ] Use longer JWT secrets in tests to remove weak-key warnings.
-- [ ] Add pre-commit checks only after local commands are stable and fast.
+- [x] Fix Starlette `TemplateResponse` deprecation warnings.
+- [x] Use longer JWT secrets in tests to remove weak-key warnings.
+- [x] Add pre-commit checks only after local commands are stable and fast.
 
 Files:
 
