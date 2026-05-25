@@ -265,7 +265,7 @@ class ThemeEngine:
             
         try:
             theme_def = self.registry.load_theme_definition(theme_name)
-            icons = theme_def.icons.dict()
+            icons = theme_def.icons.model_dump()
             
             # Apply icon pack preference
             if icon_pack == IconPack.ASCII_ONLY:
@@ -325,7 +325,7 @@ class ThemeEngine:
         
         if user_overrides:
             # Include hash of user overrides
-            overrides_hash = hash(str(sorted(user_overrides.dict().items())))
+            overrides_hash = hash(str(sorted(user_overrides.model_dump().items())))
             key_parts.append(str(overrides_hash))
         
         return '_'.join(key_parts)
@@ -340,7 +340,7 @@ class ThemeEngine:
     def _apply_variant(self, theme_def: ThemeDefinition, variant: ThemeVariant) -> ThemeDefinition:
         """Apply variant overrides to theme definition."""
         # Convert to dictionary for merging
-        theme_dict = theme_def.dict()
+        theme_dict = theme_def.model_dump()
         
         # Apply palette overrides
         if variant.palette_overrides:
@@ -377,7 +377,7 @@ class ThemeEngine:
     def _apply_user_overrides(self, theme_def: ThemeDefinition, 
                              overrides: UserThemeOverrides) -> ThemeDefinition:
         """Apply user customization overrides to theme definition."""
-        theme_dict = theme_def.dict()
+        theme_dict = theme_def.model_dump()
         
         # Apply each type of override
         override_mappings = [
@@ -409,7 +409,7 @@ class ThemeEngine:
     def _apply_runtime_flags(self, theme_def: ThemeDefinition, 
                            runtime_flags: Dict[str, Any]) -> ThemeDefinition:
         """Apply runtime flags to theme definition."""
-        theme_dict = theme_def.dict()
+        theme_dict = theme_def.model_dump()
         
         # Handle colorblind safe mode
         if runtime_flags.get('colorblind_safe'):
@@ -558,16 +558,16 @@ class ThemeEngine:
         """Compile theme definition into executable format."""
         
         # Get palette as dictionary
-        palette_dict = theme_def.palette.dict()
+        palette_dict = theme_def.palette.model_dump()
         
         # Resolve semantic tokens
         resolved_semantic = {}
-        for token_name, token_value in theme_def.semantic.dict().items():
+        for token_name, token_value in theme_def.semantic.model_dump().items():
             resolved_semantic[token_name] = self._resolve_token(token_value, palette_dict)
         
         # Resolve component tokens
         resolved_components = {}
-        for token_name, token_value in theme_def.components.dict().items():
+        for token_name, token_value in theme_def.components.model_dump().items():
             resolved_components[token_name] = self._resolve_token(token_value, palette_dict)
         
         # Build Rich theme dictionary

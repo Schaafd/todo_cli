@@ -228,7 +228,7 @@ class AppSyncConfigManager:
         """Save configuration to file."""
         try:
             # Convert global settings with enum serialization
-            global_data = self.global_settings.dict()
+            global_data = self.global_settings.model_dump()
             # Convert enum values to strings
             for key, value in global_data.items():
                 if hasattr(value, 'value'):
@@ -241,7 +241,7 @@ class AppSyncConfigManager:
             
             # Convert provider configurations
             for provider, settings in self.providers.items():
-                provider_data = settings.dict()
+                provider_data = settings.model_dump()
                 # Convert enum values to strings
                 for key, value in provider_data.items():
                     if hasattr(value, 'value'):
@@ -446,13 +446,13 @@ class AppSyncConfigManager:
             file_path: Path to export to
         """
         data = {
-            'global': self.global_settings.dict(),
+            'global': self.global_settings.model_dump(),
             'providers': {}
         }
         
         for provider, settings in self.providers.items():
             # Export settings without sensitive data
-            provider_data = settings.dict()
+            provider_data = settings.model_dump()
             provider_data.pop('credentials', None)  # Don't export credentials
             data['providers'][provider.value] = provider_data
         
@@ -493,7 +493,7 @@ class AppSyncConfigManager:
                     
                     if merge and provider in self.providers:
                         # Merge with existing settings
-                        existing = self.providers[provider].dict()
+                        existing = self.providers[provider].model_dump()
                         existing.update(provider_data)
                         self.providers[provider] = ProviderSettings(**existing)
                     else:

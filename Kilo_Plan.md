@@ -369,10 +369,13 @@ Exit criteria:
 
 Goal: reduce maintenance drag without freezing feature work.
 
-- [ ] Move command handlers out of the 2,000-line `tasks.py` file gradually, starting with recurring, export, and notification commands.
-- [ ] Add stricter mypy checks to touched core modules first.
-- [ ] Keep `ignore_missing_imports` globally until third-party stub gaps are mapped.
-- [ ] Replace Pydantic `.dict()` with `.model_dump()` in theme and sync code.
+- [x] Move command handlers out of the 2,000-line `tasks.py` file gradually, starting with recurring, export, and notification commands.
+  - [x] Extract recurring command group and hidden compatibility aliases into `src/todo_cli/cli/recurring.py`.
+  - [x] Extract export command.
+  - [x] Extract notification command group.
+- [x] Add stricter mypy checks to touched core modules first.
+- [x] Keep `ignore_missing_imports` globally until third-party stub gaps are mapped.
+- [x] Replace Pydantic `.dict()` with `.model_dump()` in theme and sync code.
 - [ ] Fix Starlette `TemplateResponse` deprecation warnings.
 - [ ] Use longer JWT secrets in tests to remove weak-key warnings.
 - [ ] Add pre-commit checks only after local commands are stable and fast.

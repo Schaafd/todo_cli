@@ -143,6 +143,7 @@ class OperationHistory:
             raise TodoCliError("Cannot undo add because the project is missing from history.")
 
         project, todos = storage.load_project(project_name)
+        assert project is not None
         remaining = [todo for todo in todos if todo.id != record.todo_id]
         if len(remaining) == len(todos):
             raise TaskNotFoundError(record.todo_id, project=project_name)
@@ -174,12 +175,14 @@ class OperationHistory:
 
     def _remove_task(self, todo_id: int, project_name: str, storage: Storage) -> None:
         project, todos = storage.load_project(project_name)
+        assert project is not None
         remaining = [todo for todo in todos if todo.id != todo_id]
         if len(remaining) != len(todos):
             storage.save_project(project, remaining)
 
     def _upsert_task(self, todo: Todo, project_name: str, storage: Storage) -> None:
         project, todos = storage.load_project(project_name)
+        assert project is not None
         for index, existing in enumerate(todos):
             if existing.id == todo.id:
                 todos[index] = todo

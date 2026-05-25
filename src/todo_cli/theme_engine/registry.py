@@ -273,7 +273,7 @@ class ThemeRegistry:
                 base_theme_name = theme_data['extends']
                 if base_theme_name != theme_name:  # Prevent circular references
                     base_theme = self.load_theme_definition(base_theme_name)
-                    base_data = base_theme.dict()
+                    base_data = base_theme.model_dump()
                     
                     # Remove metadata from base
                     for key in ['name', 'display_name', 'author', 'version']:
@@ -310,7 +310,7 @@ class ThemeRegistry:
             raise FileExistsError(f"Theme '{theme_def.name}' already exists")
         
         # Convert to dictionary for serialization
-        theme_dict = theme_def.dict(exclude_unset=True)
+        theme_dict = theme_def.model_dump(exclude_unset=True)
         
         # Write YAML file
         try:
@@ -399,7 +399,7 @@ class ThemeRegistry:
             theme_def = self.load_theme_definition(theme_name)
             
             # Validate palette colors
-            palette_dict = theme_def.palette.dict()
+            palette_dict = theme_def.palette.model_dump()
             from .utils import validate_color_accessibility
             accessibility_issues = validate_color_accessibility(palette_dict)
             issues.extend(accessibility_issues)
@@ -469,7 +469,7 @@ class ThemeRegistry:
                         'minimal': v.minimal
                     } for v in theme_def.variants
                 ],
-                'palette': theme_def.palette.dict(),
+                'palette': theme_def.palette.model_dump(),
                 'effects': {
                     'animations_enabled': theme_def.effects.animations_enabled,
                     'spinner_style': theme_def.effects.spinner_style
