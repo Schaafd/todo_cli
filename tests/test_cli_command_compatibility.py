@@ -110,3 +110,24 @@ def test_legacy_recurring_create_shorthand_supports_preview(isolated_cli_config,
     assert result.exit_code == 0
     assert "Preview of recurring task" in result.output
     assert "Team standup" in result.output
+
+
+def test_complete_alias_is_hidden_and_executes(isolated_cli_config):
+    config_path, _, _ = isolated_cli_config
+    runner = CliRunner()
+
+    add_result = runner.invoke(
+        main,
+        ["--config", str(config_path), "quick", "Close the loop", "--project", "work"],
+    )
+    help_result = runner.invoke(main, ["--config", str(config_path), "--help"])
+    complete_result = runner.invoke(
+        main,
+        ["--config", str(config_path), "complete", "1", "--project", "work"],
+    )
+
+    assert add_result.exit_code == 0
+    assert help_result.exit_code == 0
+    assert "complete  Alias for done." not in help_result.output
+    assert complete_result.exit_code == 0
+    assert "Completed task 1" in complete_result.output

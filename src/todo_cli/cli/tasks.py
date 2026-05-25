@@ -6,11 +6,12 @@ from difflib import get_close_matches
 from typing import Optional
 from datetime import datetime, timedelta
 import click
+from click.shell_completion import CompletionItem
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 from rich.panel import Panel
-from ..utils.datetime import ensure_aware, max_utc
+from ..utils.datetime import ensure_aware, max_utc, now_utc
 
 from ..config import get_config, load_config
 from ..core.errors import StorageError, TaskNotFoundError, TodoCliError, ValidationError
@@ -36,6 +37,7 @@ from ..domain import (
     RecurrenceParser,
     create_recurring_task_from_text,
 )
+from ..domain.parser import SmartDateParser
 from ..theme import (
     get_themed_console, 
     show_startup_banner, 
@@ -67,13 +69,15 @@ COMMON_COMMANDS = [
     ('todo add "Review PR @work due tomorrow"', "Add a task"),
     ("todo list", "List active tasks"),
     ("todo done <id>", "Complete a task"),
+    ("todo edit <id> --text ...", "Edit a task"),
+    ("todo delete <id>", "Delete a task"),
     ("todo search <query>", "Search tasks"),
     ("todo projects", "List projects"),
 ]
 
 
 COMMAND_CATEGORIES = [
-    ("Core", ["add", "quick", "list", "done", "pin", "bulk", "projects", "search", "export"]),
+    ("Core", ["add", "quick", "list", "done", "edit", "delete", "pin", "bulk", "projects", "search", "export"]),
     ("Views and Planning", ["dashboard", "board", "recommend", "queries", "recurring"]),
     ("Organization", ["tag", "ctx", "dep"]),
     ("Focus and Notifications", ["focus", "notify"]),
@@ -146,6 +150,71 @@ class RecurringGroup(click.Group):
         return super().resolve_command(ctx, args)
 
 
+def _completion_items(values, incomplete, prefix=""):
+    """Build Click completion items for values matching the incomplete token."""
+    matches = []
+    for value in sorted(set(values)):
+        completion = f"{prefix}{value}"
+        if completion.startswith(incomplete):
+            matches.append(CompletionItem(completion))
+    return matches
+
+
+def _load_completion_todos():
+    """Load todos for data-backed shell completion, returning an empty list on failure."""
+    try:
+        storage = get_storage()
+        config = get_config()
+        projects = storage.list_projects() or [config.default_project]
+        todos = []
+        for project_name in projects:
+            _, project_todos = storage.load_project(project_name)
+            todos.extend(project_todos)
+        return todos
+    except Exception:
+        return []
+
+
+def _complete_projects(ctx, param, incomplete):
+    try:
+        storage = get_storage()
+        config = get_config()
+        return _completion_items(storage.list_projects() or [config.default_project], incomplete)
+    except Exception:
+        return []
+
+
+def _complete_tags(ctx, param, incomplete):
+    tags = []
+    for todo in _load_completion_todos():
+        tags.extend(todo.tags or [])
+    return _completion_items(tags, incomplete)
+
+
+def _complete_contexts(ctx, param, incomplete):
+    contexts = []
+    for todo in _load_completion_todos():
+        contexts.extend(todo.context or [])
+    return _completion_items(contexts, incomplete)
+
+
+def _saved_query_names():
+    try:
+        return _get_query_engine().list_saved_queries().keys()
+    except Exception:
+        return []
+
+
+def _complete_saved_query_names(ctx, param, incomplete):
+    return _completion_items(_saved_query_names(), incomplete)
+
+
+def _complete_saved_query_refs(ctx, param, incomplete):
+    if not incomplete.startswith("@"):
+        return []
+    return _completion_items(_saved_query_names(), incomplete, prefix="@")
+
+
 def get_storage() -> Storage:
     """Get initialized storage instance."""
     config = get_config()
@@ -195,6 +264,41 @@ def format_todo_for_display(todo: Todo, show_id: bool = True) -> str:
     return " ".join(text_parts)
 
 
+def _find_todo(storage: Storage, todo_id: int, project: Optional[str] = None):
+    """Find a todo and return its project object and containing list."""
+    todo_id = validate_todo_id(todo_id)
+    project = validate_project_name(project)
+
+    projects = [project] if project else storage.list_projects()
+    if not projects:
+        projects = [get_config().default_project]
+
+    for project_name in projects:
+        project_obj, todos = storage.load_project(project_name)
+        for todo in todos:
+            if todo.id == todo_id:
+                return project_obj, todos, todo
+
+    raise TaskNotFoundError(todo_id, project=project)
+
+
+def _parse_due_date(value: str):
+    """Parse a due-date setter value."""
+    cleaned = (value or "").strip()
+    if not cleaned:
+        raise ValidationError("Due date cannot be empty.")
+    if cleaned.lower() in {"none", "clear", "remove"}:
+        return None
+
+    due_date = SmartDateParser().parse(cleaned)
+    if due_date is None:
+        raise ValidationError(
+            f"Could not parse due date '{value}'.",
+            suggestion="Use a date like tomorrow, Friday, or 2026-05-24.",
+        )
+    return due_date
+
+
 @click.group()
 @click.option("--config", type=click.Path(), help="Path to config file")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
@@ -220,7 +324,7 @@ def cli(ctx, config, verbose, debug):
 
 @cli.command()
 @click.argument("input_text", required=True)
-@click.option("--project", "-p", help="Default project if not specified in text")
+@click.option("--project", "-p", shell_complete=_complete_projects, help="Default project if not specified in text")
 @click.option("--dry-run", is_flag=True, help="Parse without saving to see what would be created")
 @click.option("--suggest", is_flag=True, help="Show suggestions for improving the input")
 def add(input_text, project, dry_run, suggest):
@@ -275,10 +379,10 @@ def add(input_text, project, dry_run, suggest):
 
 @cli.command()
 @click.argument("text", required=True)
-@click.option("--project", "-p", help="Project to add to (default: inbox)")
+@click.option("--project", "-p", shell_complete=_complete_projects, help="Project to add to (default: inbox)")
 @click.option("--priority", type=click.Choice(['critical', 'high', 'medium', 'low']), default='medium', help="Task priority")
-@click.option("--tag", "-t", multiple=True, help="Add tags (can be used multiple times)")
-@click.option("--context", "-c", multiple=True, help="Add contexts (can be used multiple times)")
+@click.option("--tag", "-t", multiple=True, shell_complete=_complete_tags, help="Add tags (can be used multiple times)")
+@click.option("--context", "-c", multiple=True, shell_complete=_complete_contexts, help="Add contexts (can be used multiple times)")
 def quick(text, project, priority, tag, context):
     """Quick capture - add a todo with minimal processing.
     
@@ -326,11 +430,11 @@ def quick(text, project, priority, tag, context):
 
 
 @cli.command()
-@click.option("--project", "-p", help="Filter by project")
+@click.option("--project", "-p", shell_complete=_complete_projects, help="Filter by project")
 @click.option("--group-by", type=click.Choice(['status', 'priority', 'tag', 'context']), default='status', 
               help="Group todos by field")
-@click.option("--tag", "-t", multiple=True, help="Filter by tags")
-@click.option("--context", "-c", multiple=True, help="Filter by contexts")
+@click.option("--tag", "-t", multiple=True, shell_complete=_complete_tags, help="Filter by tags")
+@click.option("--context", "-c", multiple=True, shell_complete=_complete_contexts, help="Filter by contexts")
 def board(project: str, group_by: str, tag: tuple, context: tuple):
     """Display todos in a kanban-style board view.
     
@@ -696,7 +800,7 @@ def dashboard():
 
 
 @cli.command()
-@click.option("--project", "-p", help="Filter by project")
+@click.option("--project", "-p", shell_complete=_complete_projects, help="Filter by project")
 @click.option("--status", type=click.Choice(['pending', 'in_progress', 'completed', 'cancelled', 'blocked']), 
               help="Filter by status")
 @click.option("--filter-priority", type=click.Choice(['critical', 'high', 'medium', 'low']), 
@@ -790,8 +894,13 @@ def list_todos(project, status, filter_priority, overdue, pinned, limit, priorit
 
 @cli.command()
 @click.argument("todo_id", type=int)
-@click.option("--project", "-p", help="Project name (if not specified, searches all projects)")
+@click.option("--project", "-p", shell_complete=_complete_projects, help="Project name (if not specified, searches all projects)")
 def done(todo_id, project):
+    """Mark a todo as completed."""
+    _complete_todo(todo_id, project)
+
+
+def _complete_todo(todo_id, project):
     """Mark a todo as completed."""
     try:
         storage = get_storage()
@@ -831,9 +940,87 @@ def done(todo_id, project):
         exit_with_error(e, console=get_console(), prefix="could not complete task")
 
 
+@cli.command("complete", hidden=True)
+@click.argument("todo_id", type=int)
+@click.option("--project", "-p", shell_complete=_complete_projects, help="Project name (if not specified, searches all projects)")
+def complete_alias(todo_id, project):
+    """Alias for done."""
+    _complete_todo(todo_id, project)
+
+
 @cli.command()
 @click.argument("todo_id", type=int)
-@click.option("--project", "-p", help="Project name")
+@click.option("--from-project", shell_complete=_complete_projects, help="Project to search (defaults to all projects)")
+@click.option("--text", help="Replace the task text")
+@click.option("--priority", type=click.Choice(['critical', 'high', 'medium', 'low']), help="Set task priority")
+@click.option("--due", help="Set due date, or use 'none' to clear it")
+@click.option("--project", "-p", "target_project", shell_complete=_complete_projects, help="Move task to another project")
+def edit(todo_id, from_project, text, priority, due, target_project):
+    """Edit a todo's common fields."""
+    try:
+        if not any(value is not None for value in (text, priority, due, target_project)):
+            raise ValidationError(
+                "No edits specified.",
+                suggestion="Use --text, --priority, --due, or --project.",
+            )
+
+        storage = get_storage()
+        project_obj, todos, todo = _find_todo(storage, todo_id, from_project)
+        original_project = project_obj.name
+
+        if text is not None:
+            todo.text = validate_task_text(text)
+        if priority is not None:
+            todo.priority = Priority(priority)
+        if due is not None:
+            todo.due_date = _parse_due_date(due)
+
+        target_project = validate_project_name(target_project)
+        if target_project and target_project != original_project:
+            todos.remove(todo)
+            storage.save_project(project_obj, todos)
+
+            target_project_obj, target_todos = storage.load_project(target_project)
+            todo.project = target_project
+            todo.modified = now_utc()
+            target_todos.append(todo)
+            storage.save_project(target_project_obj, target_todos)
+        else:
+            todo.modified = now_utc()
+            storage.save_project(project_obj, todos)
+
+        get_console().print(f"[green]✅ Updated task {todo_id}: {todo.text}[/green]")
+    except TodoCliError as e:
+        exit_with_error(e, console=get_console(), prefix="could not edit task")
+
+
+@cli.command()
+@click.argument("todo_id", type=int)
+@click.option("--project", "-p", shell_complete=_complete_projects, help="Project name (if not specified, searches all projects)")
+@click.option("--yes", "-y", is_flag=True, help="Delete without confirmation")
+def delete(todo_id, project, yes):
+    """Delete a todo after confirmation."""
+    try:
+        storage = get_storage()
+        project_obj, todos, todo = _find_todo(storage, todo_id, project)
+
+        if not yes:
+            get_console().print(f"[warning]Will delete task {todo.id}: {todo.text}[/warning]")
+            if not click.confirm("Delete this task?"):
+                get_console().print("[muted]Deletion cancelled.[/muted]")
+                return
+
+        storage.backup_project(project_obj.name)
+        todos.remove(todo)
+        storage.save_project(project_obj, todos)
+        get_console().print(f"[green]✅ Deleted task {todo_id}: {todo.text}[/green]")
+    except TodoCliError as e:
+        exit_with_error(e, console=get_console(), prefix="could not delete task")
+
+
+@cli.command()
+@click.argument("todo_id", type=int)
+@click.option("--project", "-p", shell_complete=_complete_projects, help="Project name")
 def pin(todo_id, project):
     """Pin/unpin a todo."""
     try:
@@ -881,8 +1068,8 @@ def pin(todo_id, project):
 
 
 @cli.command()
-@click.argument("query")
-@click.option("--project", "-p", help="Limit search to specific project")
+@click.argument("query", shell_complete=_complete_saved_query_refs)
+@click.option("--project", "-p", shell_complete=_complete_projects, help="Limit search to specific project")
 @click.option("--save", "save_name", help="Save this query with a name")
 @click.option("--sort", "sort_by", help="Sort results by field (priority, due, created, etc.)")
 @click.option("--limit", "-l", type=int, help="Limit number of results")
@@ -975,7 +1162,7 @@ def _sort_todos(todos, sort_field, reverse=False):
 
 
 @cli.command()
-@click.option("--context", "-c", help="Current context (e.g., work, home, focus)")
+@click.option("--context", "-c", shell_complete=_complete_contexts, help="Current context (e.g., work, home, focus)")
 @click.option("--energy", "-e", type=click.Choice(['high', 'medium', 'low']), default='medium', help="Current energy level")
 @click.option("--time", "-t", type=int, help="Available time in minutes")
 @click.option("--limit", "-l", type=int, default=5, help="Number of recommendations")
@@ -1064,7 +1251,7 @@ def recommend(context, energy, time, limit, explain):
 
 @cli.command()
 @click.option("--list", "list_queries", is_flag=True, help="List all saved queries")
-@click.option("--delete", "delete_name", help="Delete a saved query")
+@click.option("--delete", "delete_name", shell_complete=_complete_saved_query_names, help="Delete a saved query")
 def queries(list_queries, delete_name):
     """Manage saved search queries."""
     if list_queries:
@@ -1090,7 +1277,7 @@ def queries(list_queries, delete_name):
 @click.argument("action", type=click.Choice(['complete', 'pin', 'unpin', 'priority', 'project', 'delete']))
 @click.argument("ids", nargs=-1, type=int, required=True)
 @click.option("--priority", type=click.Choice(['critical', 'high', 'medium', 'low']), help="Priority for priority action")
-@click.option("--project", "target_project", help="Target project for project action")
+@click.option("--project", "target_project", shell_complete=_complete_projects, help="Target project for project action")
 @click.option("--confirm", is_flag=True, help="Skip confirmation prompts")
 def bulk(action, ids, priority, target_project, confirm):
     """Perform bulk operations on multiple todos.
@@ -1289,7 +1476,7 @@ def recurring(ctx):
 @recurring.command("create")
 @click.argument("task_text")
 @click.argument("pattern")
-@click.option("--project", "-p", help="Project for the recurring task")
+@click.option("--project", "-p", shell_complete=_complete_projects, help="Project for the recurring task")
 @click.option("--max-occurrences", type=int, help="Maximum number of occurrences")
 @click.option("--end-date", help="End date for recurrence (YYYY-MM-DD)")
 @click.option("--preview", is_flag=True, help="Preview next few occurrences without creating")
@@ -2126,6 +2313,9 @@ for _legacy_recurring_command in (
     _legacy_recurring_command.hidden = True
     main.add_command(_legacy_recurring_command)
 main.add_command(done)
+main.add_command(complete_alias)
+main.add_command(edit)
+main.add_command(delete)
 main.add_command(pin)
 main.add_command(projects)
 main.add_command(export)

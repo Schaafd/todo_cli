@@ -255,9 +255,12 @@ Exit criteria:
   - `recurring-pause`
   - `recurring-resume`
   - `recurring-delete`
-- [ ] Decide whether `quick` is a distinct workflow or should become `todo add --simple`.
-- [ ] Add `complete` only as an alias for `done` if useful. Do not deprecate `done` yet.
-- [ ] Audit short flags for conflicts. Standardize only the flags that appear in common commands.
+- [x] Decide whether `quick` is a distinct workflow or should become `todo add --simple`.
+  - Decision: keep `quick` as a distinct capture workflow for now. It is short, explicit, and already behaves differently from natural-language `add`.
+- [x] Add `complete` only as an alias for `done` if useful. Do not deprecate `done` yet.
+  - Implemented as a hidden compatibility alias so root help still teaches `done`.
+- [x] Audit short flags for conflicts. Standardize only the flags that appear in common commands.
+  - Decision: keep current common flags. `-p` means project where present; `-t` remains command-local for tag/time; `-l` remains limit.
 
 Files:
 
@@ -275,9 +278,9 @@ Exit criteria:
 - [x] Add `todo completion show --shell <shell>` for bash, zsh, and fish.
 - [x] Add `todo completion install` only after the generated scripts are tested.
 - [x] Use Click's native completion for commands and options.
-- [ ] Add data-backed completion for projects, tags, contexts, and saved query names where practical.
+- [x] Add data-backed completion for projects, tags, contexts, and saved query names where practical.
 - [x] Make install idempotent and reversible.
-- [ ] Avoid hand-maintaining separate completion scripts if Click's completion support is enough.
+- [x] Avoid hand-maintaining separate completion scripts if Click's completion support is enough.
 - [x] Keep completion script output free of startup/config noise.
 - [x] Add `todo completion uninstall` for the generated script file.
 
@@ -303,15 +306,16 @@ Goal: add only the features that reduce user friction.
 
 #### 3.1 Edit and Delete
 
-- [ ] Add `todo edit <id>` for common field updates.
-- [ ] Support simple setters:
+- [x] Add `todo edit <id>` for common field updates.
+- [x] Support simple setters:
   - `todo edit 5 --text "new text"`
   - `todo edit 5 --priority high`
   - `todo edit 5 --due tomorrow`
   - `todo edit 5 --project work`
-- [ ] Add `todo delete <id>` with confirmation unless `--yes` is supplied.
-- [ ] Backup before delete.
-- [ ] Consider interactive edit only after non-interactive edit is stable.
+- [x] Add `todo delete <id>` with confirmation unless `--yes` is supplied.
+- [x] Backup before delete.
+- [x] Consider interactive edit only after non-interactive edit is stable.
+  - Decision: defer interactive edit. Non-interactive edit covers the mistake-fix path and is testable in scripts.
 
 Files:
 

@@ -2,6 +2,7 @@
 
 from click.testing import CliRunner
 
+from todo_cli.cli import tasks as task_cli
 from todo_cli.cli.tasks import main
 
 
@@ -136,3 +137,61 @@ def test_completion_uninstall_removes_installed_file(isolated_cli_config):
     assert custom_path.exists() is False
     assert uninstall.exit_code == 0
     assert "Removed zsh completion" in uninstall.output
+
+
+def test_data_backed_completion_suggests_projects_tags_and_contexts(isolated_cli_config):
+    config_path, _, _ = isolated_cli_config
+    runner = CliRunner()
+
+    add_result = runner.invoke(
+        main,
+        [
+            "--config",
+            str(config_path),
+            "quick",
+            "Review the release",
+            "--project",
+            "work",
+            "--tag",
+            "release",
+            "--context",
+            "office",
+        ],
+    )
+
+    assert add_result.exit_code == 0
+    assert [item.value for item in task_cli._complete_projects(None, None, "wo")] == ["work"]
+    assert [item.value for item in task_cli._complete_tags(None, None, "rel")] == ["release"]
+    assert [item.value for item in task_cli._complete_contexts(None, None, "off")] == ["office"]
+
+
+def test_data_backed_completion_suggests_saved_queries(isolated_cli_config):
+    config_path, _, _ = isolated_cli_config
+    runner = CliRunner()
+
+    runner.invoke(
+        main,
+        [
+            "--config",
+            str(config_path),
+            "quick",
+            "Review the release",
+            "--tag",
+            "release",
+        ],
+    )
+    save_result = runner.invoke(
+        main,
+        [
+            "--config",
+            str(config_path),
+            "search",
+            "tag:release",
+            "--save",
+            "release-work",
+        ],
+    )
+
+    assert save_result.exit_code == 0
+    assert [item.value for item in task_cli._complete_saved_query_refs(None, None, "@rel")] == ["@release-work"]
+    assert [item.value for item in task_cli._complete_saved_query_names(None, None, "rel")] == ["release-work"]

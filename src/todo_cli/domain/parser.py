@@ -93,14 +93,18 @@ class SmartDateParser:
         self.cal = parsedatetime.Calendar()
         # Common relative date patterns (all timezone-aware)
         self.patterns = {
-            'today': lambda: ensure_aware(now_utc().replace(hour=23, minute=59, second=59)),
-            'tomorrow': lambda: ensure_aware((now_utc() + timedelta(days=1)).replace(hour=23, minute=59, second=59)),
-            'yesterday': lambda: ensure_aware((now_utc() - timedelta(days=1)).replace(hour=23, minute=59, second=59)),
-            'next week': lambda: ensure_aware(now_utc() + timedelta(weeks=1)),
-            'next month': lambda: ensure_aware(self._add_months(now_utc(), 1)),
+            'today': lambda: self._local_now().replace(hour=23, minute=59, second=59),
+            'tomorrow': lambda: (self._local_now() + timedelta(days=1)).replace(hour=23, minute=59, second=59),
+            'yesterday': lambda: (self._local_now() - timedelta(days=1)).replace(hour=23, minute=59, second=59),
+            'next week': lambda: self._local_now() + timedelta(weeks=1),
+            'next month': lambda: self._add_months(self._local_now(), 1),
             'end of week': lambda: ensure_aware(self._end_of_week()),
             'end of month': lambda: ensure_aware(self._end_of_month()),
         }
+
+    def _local_now(self) -> datetime:
+        """Return local current time for user-facing relative dates."""
+        return datetime.now().astimezone()
     
     def _add_months(self, date: datetime, months: int) -> datetime:
         """Add months to a date."""
@@ -111,19 +115,19 @@ class SmartDateParser:
     
     def _end_of_week(self) -> datetime:
         """Get end of current week (Sunday)."""
-        now = now_utc()
+        now = self._local_now()
         days_until_sunday = 6 - now.weekday()
         return now + timedelta(days=days_until_sunday)
     
     def _end_of_month(self) -> datetime:
         """Get end of current month."""
-        now = now_utc()
+        now = self._local_now()
         next_month = self._add_months(now, 1)
         return next_month.replace(day=1) - timedelta(days=1)
 
     def _next_weekday(self, target_day: int) -> datetime:
         """Get the next occurrence of the specified weekday."""
-        now = now_utc()
+        now = self._local_now()
         days_ahead = (target_day - now.weekday()) % 7
         if days_ahead == 0:
             days_ahead = 7
