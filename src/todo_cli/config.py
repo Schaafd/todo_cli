@@ -62,6 +62,11 @@ class ConfigModel:
     dashboard_default: str = "default"
     dashboard_auto_refresh: bool = False
     dashboard_refresh_interval: int = 300  # seconds
+    dashboard_grid_columns: int = 2
+    dashboard_grid_sections: List[str] = field(
+        default_factory=lambda: ["pinned", "overdue", "today", "upcoming"]
+    )
+    dashboard_grid_max_items: int = 5
 
     # Theme settings
     theme_name: str = "city_lights"
@@ -149,6 +154,9 @@ class ConfigModel:
             "dashboard_default": self.dashboard_default,
             "dashboard_auto_refresh": self.dashboard_auto_refresh,
             "dashboard_refresh_interval": self.dashboard_refresh_interval,
+            "dashboard_grid_columns": self.dashboard_grid_columns,
+            "dashboard_grid_sections": self.dashboard_grid_sections,
+            "dashboard_grid_max_items": self.dashboard_grid_max_items,
             "theme_name": self.theme_name,
             "theme_variant": self.theme_variant,
             "theme_compact": self.theme_compact,

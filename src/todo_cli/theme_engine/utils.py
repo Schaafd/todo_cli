@@ -247,7 +247,7 @@ def downgrade_color(color: str, capability: TerminalCapability) -> str:
         
         if capability == TerminalCapability.COLOR_256:
             color_index = find_nearest_color_256(r, g, b)
-            return str(color_index)
+            return f"color({color_index})"
         elif capability == TerminalCapability.COLOR_16:
             return find_nearest_color_16(r, g, b)
         else:  # MONOCHROME
@@ -261,7 +261,7 @@ def downgrade_color(color: str, capability: TerminalCapability) -> str:
         
         if capability == TerminalCapability.COLOR_256:
             color_index = find_nearest_color_256(r, g, b)
-            return str(color_index)
+            return f"color({color_index})"
         elif capability == TerminalCapability.COLOR_16:
             return find_nearest_color_16(r, g, b)
         else:  # MONOCHROME
@@ -348,7 +348,7 @@ def build_rich_style(components: Dict[str, Any], capability: TerminalCapability)
     # Add background color
     if components.get('bgcolor'):
         bgcolor = downgrade_color(components['bgcolor'], capability)
-        parts.append(f"on_{bgcolor}")
+        parts.append(f"on {bgcolor}")
     
     # Add formatting (supported in all terminals)
     if components.get('bold'):

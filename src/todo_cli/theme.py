@@ -138,6 +138,18 @@ def get_productivity_ninja_theme() -> Theme:
 PRODUCTIVITY_NINJA_THEME = get_productivity_ninja_theme()
 
 
+def get_compact_ascii_title() -> str:
+    """Get a compact ASCII art title for dashboard headers."""
+    return (
+        "╔═╗╦═╗╔═╗╔╦╗╦ ╦╔═╗╔╦╗╦╦  ╦╦╔╦╗╦ ╦\n"
+        "╠═╝╠╦╝║ ║ ║║║ ║║   ║ ║╚╗╔╝║ ║ ╚╦╝\n"
+        "╩  ╩╚═╚═╝═╩╝╚═╝╚═╝ ╩ ╩ ╚╝ ╩ ╩  ╩\n"
+        "╔╗╔╦╔╗╔ ╦╔═╗   ╔═╗╦  ╦\n"
+        "║║║║║║║ ║╠═╣   ║  ║  ║\n"
+        "╝╚╝╩╝╚╝╚╝╩ ╩   ╚═╝╩═╝╩"
+    )
+
+
 def get_ascii_title() -> str:
     """Get the ASCII art title for Productivity Ninja CLI."""
     engine = _get_theme_engine()
@@ -234,6 +246,46 @@ def show_startup_banner(console: Console) -> None:
     console.print()
     console.print(banner_panel)
     console.print()
+
+
+def show_dashboard_banner(console: Console) -> None:
+    """Display a compact Productivity Ninja dashboard banner."""
+    title_style = "primary"
+    subtitle_style = "accent"
+    version_style = "muted"
+    subtitle_text = "⚡ Master Your Tasks. Unleash Your Potential. ⚡"
+
+    engine = _get_theme_engine()
+    if not engine:
+        title_style = "cyan bold"
+        subtitle_style = "blue"
+        version_style = "dim"
+    else:
+        try:
+            theme_def = engine.registry.load_theme_definition(
+                engine.registry.get_default_theme_name()
+            )
+            if theme_def.ascii_art:
+                if theme_def.ascii_art.subtitle:
+                    subtitle_text = theme_def.ascii_art.subtitle
+                if theme_def.ascii_art.subtitle_style:
+                    subtitle_style = theme_def.ascii_art.subtitle_style
+        except Exception as e:
+            logger.debug(f"Could not load theme subtitle: {e}")
+
+    banner = Text(get_compact_ascii_title(), style=title_style)
+    subtitle = Text.assemble(
+        (subtitle_text, subtitle_style),
+        ("  v1.0.0", version_style),
+    )
+    console.print(
+        Panel(
+            Align.center(banner),
+            subtitle=subtitle,
+            border_style="border",
+            padding=(0, 2),
+        )
+    )
 
 
 def show_quick_help(console: Console) -> None:

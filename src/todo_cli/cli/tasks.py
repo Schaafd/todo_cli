@@ -36,6 +36,7 @@ from ..domain import (
 from ..domain.parser import SmartDateParser
 from ..theme import (
     get_themed_console, 
+    show_dashboard_banner,
     show_startup_banner, 
     show_quick_help,
     get_priority_style,
@@ -56,6 +57,28 @@ def _get_query_engine():
 def _get_recommend_engine():
     from ..services import TaskRecommendationEngine
     return TaskRecommendationEngine()
+
+
+DASHBOARD_SECTION_TITLES = {
+    "pinned": "[todo_pinned]⭐ Pinned Tasks[/todo_pinned]",
+    "overdue": "[critical]🔥 Overdue Tasks[/critical]",
+    "today": "[success]📅 Due Today[/success]",
+    "upcoming": "[primary]📆 Due This Week[/primary]",
+}
+
+DASHBOARD_SECTION_BORDER_STYLES = {
+    "pinned": "pinned_border",
+    "overdue": "overdue_border",
+    "today": "today_border",
+    "upcoming": "upcoming_border",
+}
+
+DASHBOARD_SECTION_STYLES = {
+    "pinned": "pinned_bg",
+    "overdue": "overdue_bg",
+    "today": "today_bg",
+    "upcoming": "upcoming_bg",
+}
 
 
 COMMON_COMMANDS = [
@@ -723,6 +746,75 @@ def board(project: str, group_by: str, tag: tuple, context: tuple):
         sys.exit(1)
 
 
+def _dashboard_panel(section_key: str, todos: list[Todo], max_items: int) -> Panel:
+    """Build one dashboard section panel."""
+    content_lines = [
+        format_todo_for_display(todo, show_id=True)
+        for todo in todos[:max_items]
+    ]
+    if len(todos) > max_items:
+        content_lines.append(f"[muted]... and {len(todos) - max_items} more[/muted]")
+
+    return Panel(
+        "\n".join(content_lines),
+        title=DASHBOARD_SECTION_TITLES[section_key],
+        border_style=DASHBOARD_SECTION_BORDER_STYLES[section_key],
+        style=DASHBOARD_SECTION_STYLES[section_key],
+        expand=True,
+    )
+
+
+def _dashboard_grid(sections: list[tuple[str, list[Todo]]], columns: int, max_items: int) -> Table:
+    """Render dashboard sections in a responsive grid."""
+    grid = Table.grid(expand=True, padding=(0, 1))
+    for _ in range(columns):
+        grid.add_column(ratio=1)
+
+    panels = [
+        _dashboard_panel(section_key, todos, max_items)
+        for section_key, todos in sections
+        if todos
+    ]
+
+    for index in range(0, len(panels), columns):
+        row = panels[index:index + columns]
+        if len(row) < columns:
+            row.extend([""] * (columns - len(row)))
+        grid.add_row(*row)
+        if index + columns < len(panels):
+            grid.add_row(*([""] * columns))
+
+    return grid
+
+
+def _dashboard_grid_settings(config) -> tuple[int, int, list[str]]:
+    """Read dashboard grid settings with safe fallbacks."""
+    try:
+        columns = int(config.dashboard_grid_columns)
+    except (TypeError, ValueError):
+        columns = 2
+
+    try:
+        max_items = int(config.dashboard_grid_max_items)
+    except (TypeError, ValueError):
+        max_items = 5
+
+    configured_sections = getattr(config, "dashboard_grid_sections", None)
+    if not isinstance(configured_sections, list):
+        configured_sections = []
+
+    section_order = [
+        section
+        for section in configured_sections
+        if section in DASHBOARD_SECTION_TITLES
+    ]
+    for section in DASHBOARD_SECTION_TITLES:
+        if section not in section_order:
+            section_order.append(section)
+
+    return max(1, min(columns, 3)), max(1, max_items), section_order
+
+
 @cli.command()
 def dashboard():
     """Show dashboard with overview of tasks."""
@@ -777,86 +869,24 @@ def dashboard():
             upcoming_todos.append(todo)
     
     # Create dashboard
-    get_console().print(Panel.fit("[header]📋 Todo Dashboard[/header]", border_style="border"))
-    
-    # Track if we've printed any sections for spacing
-    sections_printed = 0
-    
-    if pinned_todos:
-        if sections_printed > 0:
-            get_console().print()  # Extra space between sections
-        
-        # Create bordered panel for pinned tasks
-        content_lines = []
-        for todo in pinned_todos[:5]:
-            content_lines.append(format_todo_for_display(todo, show_id=True))
-        if len(pinned_todos) > 5:
-            content_lines.append(f"[muted]... and {len(pinned_todos) - 5} more[/muted]")
-        
-        panel = Panel(
-            "\n".join(content_lines),
-            title="[todo_pinned]⭐ Pinned Tasks[/todo_pinned]",
-            border_style="pinned_border",
-            style="pinned_bg"
-        )
-        get_console().print(panel)
-        sections_printed += 1
-    
-    if overdue_todos:
-        if sections_printed > 0:
-            get_console().print()  # Extra space between sections
-        
-        # Create bordered panel for overdue tasks
-        content_lines = []
-        for todo in overdue_todos[:5]:
-            content_lines.append(format_todo_for_display(todo, show_id=True))
-        if len(overdue_todos) > 5:
-            content_lines.append(f"[muted]... and {len(overdue_todos) - 5} more[/muted]")
-        
-        panel = Panel(
-            "\n".join(content_lines),
-            title="[critical]🔥 Overdue Tasks[/critical]",
-            border_style="overdue_border",
-            style="overdue_bg"
-        )
-        get_console().print(panel)
-        sections_printed += 1
-    
-    if today_todos:
-        if sections_printed > 0:
-            get_console().print()  # Extra space between sections
-        
-        # Create bordered panel for today's tasks
-        content_lines = []
-        for todo in today_todos[:5]:
-            content_lines.append(format_todo_for_display(todo, show_id=True))
-        
-        panel = Panel(
-            "\n".join(content_lines),
-            title="[success]📅 Due Today[/success]",
-            border_style="today_border",
-            style="today_bg"
-        )
-        get_console().print(panel)
-        sections_printed += 1
-    
-    if upcoming_todos:
-        if sections_printed > 0:
-            get_console().print()  # Extra space between sections
-        
-        # Create bordered panel for upcoming tasks
-        content_lines = []
-        for todo in upcoming_todos[:5]:
-            content_lines.append(format_todo_for_display(todo, show_id=True))
-        
-        panel = Panel(
-            "\n".join(content_lines),
-            title="[primary]📆 Due This Week[/primary]",
-            border_style="upcoming_border",
-            style="upcoming_bg"
-        )
-        get_console().print(panel)
-        sections_printed += 1
+    show_dashboard_banner(get_console())
+
+    dashboard_sections = {
+        "pinned": pinned_todos,
+        "overdue": overdue_todos,
+        "today": today_todos,
+        "upcoming": upcoming_todos,
+    }
+    grid_columns, grid_max_items, grid_section_order = _dashboard_grid_settings(config)
+    grid_sections = [
+        (section, dashboard_sections[section])
+        for section in grid_section_order
+        if dashboard_sections[section]
+    ]
+
+    if grid_sections:
+        get_console().print()
+        get_console().print(_dashboard_grid(grid_sections, grid_columns, grid_max_items))
     
     # Summary stats
     total_todos = len(all_todos)
@@ -872,7 +902,7 @@ def dashboard():
         # Silently ignore notification failures
         pass
     
-    if sections_printed > 0:
+    if grid_sections:
         get_console().print()  # Extra space before summary
     
     # Create bordered panel for summary stats
@@ -1592,6 +1622,14 @@ def main(ctx, config, verbose, debug, no_banner):
             show_startup_banner(get_console())
             show_quick_help(get_console())
         ctx.invoke(dashboard)
+
+
+@main.command("tui")
+def tui():
+    """Open the full-screen interactive dashboard."""
+    from ..tui import TodoDashboardApp
+
+    TodoDashboardApp().run()
 
 
 # Add calendar command group

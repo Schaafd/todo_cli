@@ -141,7 +141,7 @@ Goal: make failures predictable and protect data.
   - optional suggestion
   - stack trace only with `--debug`
 - [x] Convert core commands first: `add`, `quick`, `list`, `done`, `pin`, `bulk`, `projects`, `export`.
-- [ ] Leave advanced command groups for later migration unless they block core behavior.
+- [x] Leave advanced command groups for later migration unless they block core behavior.
 
 Files:
 
@@ -167,7 +167,7 @@ Exit criteria:
 - [x] Add tests for interrupted write behavior using temp directories.
 - [x] Add tests for duplicate ID rejection.
 - [x] Add tests for corrupted markdown and missing project behavior.
-- [ ] Defer file locking until atomic writes are in place unless concurrent corruption is reproducible.
+- [x] Defer file locking until atomic writes are in place unless concurrent corruption is reproducible.
 
 Files:
 
@@ -397,12 +397,12 @@ Exit criteria:
 
 Goal: optimize only measured problems.
 
-- [ ] Measure startup time for:
+- [x] Measure startup time for:
   - `todo --help`
   - `todo`
   - `todo list`
   - `todo add --dry-run`
-- [ ] Measure with empty data, 100 tasks, 1,000 tasks, and 10,000 tasks.
+- [x] Measure with empty data, 100 tasks, 1,000 tasks, and 10,000 tasks.
 - [ ] Keep lazy imports for heavy integration modules.
 - [ ] Add caches only where profiling shows repeat work.
 - [ ] Avoid `--fast` until a specific slow path needs a user-visible escape hatch.
@@ -418,6 +418,53 @@ Exit criteria:
 
 - Startup and common command latency are measured and tracked.
 - Any optimization has a benchmark or test proving the change.
+
+### Phase 6: Full-Screen Interactive TUI
+
+Goal: make the dashboard a fast, full-screen workspace while keeping every workflow available through normal CLI commands.
+
+- [x] Add a dedicated full-screen TUI entrypoint without slowing normal CLI startup.
+- [x] Build the first interactive dashboard surface with clickable task panels.
+- [x] Add an editable task overlay for common fields.
+- [x] Add first-pass task pinning in the TUI editor and via right-click.
+- [x] Add first-pass drag/drop between dashboard panels with deterministic panel-to-task mutations.
+- [x] Replace fragile row selection with mouse-captured task rows for more reliable drag/drop.
+- [x] Replace TUI date fields with a compact calendar overlay for due date and start date.
+- [x] Add optional assignee and subtask editing to the TUI task editor.
+- [ ] Promote the TUI to the default no-argument experience only after startup and terminal behavior are proven stable.
+- [ ] Make panels fully configurable:
+  - saved layouts
+  - section order
+  - column count
+  - filters such as today, overdue, backlog, pinned, in progress, blocked, project, tag, context, and saved query
+- [ ] Add dashboard layout commands so the same setup can be managed from the CLI.
+- [ ] Add kanban mode:
+  - columns map to statuses, projects, or saved queries
+  - keyboard moves are implemented first
+  - mouse drag/drop is added only after the state transitions are deterministic and tested
+- [ ] Keep task mutation logic shared with CLI commands so TUI behavior does not fork from CLI behavior.
+- [ ] Add TUI performance checks:
+  - cold launch
+  - reload time
+  - panel render time with 100, 1,000, and 10,000 tasks
+- [ ] Add headless interaction tests for selection, editing, reload, and panel layout.
+
+Files:
+
+- `src/todo_cli/tui/`
+- `src/todo_cli/cli/tasks.py`
+- `src/todo_cli/services/dashboard.py`
+- `src/todo_cli/storage.py`
+- `tests/test_tui_*.py`
+
+Exit criteria:
+
+- `todo tui` opens an alternate-screen dashboard.
+- Clicking or selecting a task opens an editable overlay.
+- Saving from the overlay persists through the same storage path as the CLI.
+- Users can configure panels without editing code.
+- Kanban state changes are available from both TUI interactions and CLI commands.
+- Normal `todo --help`, `todo list`, and `todo add --dry-run` startup times do not regress from the Phase 5 baseline.
 
 ## Proposed First Implementation Slice
 

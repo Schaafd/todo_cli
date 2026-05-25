@@ -186,6 +186,22 @@ name: test
         assert todos[1].text == "Task two"
         assert todos[2].text == "Task three"
 
+    def test_subtask_parent_links_round_trip(self):
+        """Subtasks should retain parent links and parents should infer children."""
+        project = Project(name="test")
+        todos = [
+            Todo(id=1, text="Parent task"),
+            Todo(id=2, text="Child task", parent_id=1),
+        ]
+
+        content = ProjectMarkdownFormat.to_markdown(project, todos)
+        _, restored = ProjectMarkdownFormat.from_markdown(content)
+
+        parent = next(todo for todo in restored if todo.id == 1)
+        child = next(todo for todo in restored if todo.id == 2)
+        assert child.parent_id == 1
+        assert parent.children == [2]
+
 
 class TestIDMigrationScenarios:
     """Tests for scenarios requiring ID migration."""

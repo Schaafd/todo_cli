@@ -12,6 +12,7 @@ import pytest
 from rich.console import Console
 from rich.panel import Panel
 
+from todo_cli.cli.tasks import _dashboard_grid_settings
 from todo_cli.config import ConfigModel, Config
 
 
@@ -238,6 +239,9 @@ class TestConfigDashboardFields:
         assert config.dashboard_default == "default"
         assert config.dashboard_auto_refresh is False
         assert config.dashboard_refresh_interval == 300
+        assert config.dashboard_grid_columns == 2
+        assert config.dashboard_grid_sections == ["pinned", "overdue", "today", "upcoming"]
+        assert config.dashboard_grid_max_items == 5
 
     def test_to_yaml_includes_dashboard_fields(self):
         config = ConfigModel()
@@ -245,18 +249,40 @@ class TestConfigDashboardFields:
         assert "dashboard_default" in yaml_str
         assert "dashboard_auto_refresh" in yaml_str
         assert "dashboard_refresh_interval" in yaml_str
+        assert "dashboard_grid_columns" in yaml_str
+        assert "dashboard_grid_sections" in yaml_str
+        assert "dashboard_grid_max_items" in yaml_str
 
     def test_roundtrip(self):
         config = ConfigModel(
             dashboard_default="my_dash",
             dashboard_auto_refresh=True,
             dashboard_refresh_interval=60,
+            dashboard_grid_columns=2,
+            dashboard_grid_sections=["overdue", "upcoming", "pinned", "today"],
+            dashboard_grid_max_items=4,
         )
         yaml_str = config.to_yaml()
         restored = ConfigModel.from_yaml(yaml_str)
         assert restored.dashboard_default == "my_dash"
         assert restored.dashboard_auto_refresh is True
         assert restored.dashboard_refresh_interval == 60
+        assert restored.dashboard_grid_columns == 2
+        assert restored.dashboard_grid_sections == ["overdue", "upcoming", "pinned", "today"]
+        assert restored.dashboard_grid_max_items == 4
+
+    def test_grid_settings_apply_safe_fallbacks(self):
+        config = ConfigModel(
+            dashboard_grid_columns=99,
+            dashboard_grid_sections=["overdue", "unknown", "upcoming"],
+            dashboard_grid_max_items=0,
+        )
+
+        columns, max_items, sections = _dashboard_grid_settings(config)
+
+        assert columns == 3
+        assert max_items == 1
+        assert sections == ["overdue", "upcoming", "pinned", "today"]
 
 
 # ---------------------------------------------------------------------------

@@ -162,6 +162,9 @@ class TodoMarkdownFormat:
         if todo.waiting_for:
             task_line += f" (waiting: {', '.join(todo.waiting_for)})"
 
+        if todo.parent_id is not None:
+            task_line += f" (parent: {todo.parent_id})"
+
         # Ensure no existing ID comments before adding the current one (defensive coding)
         _, task_line = extract_last_id_and_strip(task_line)
         task_line += f" <!-- id:{todo.id} -->"
@@ -238,6 +241,7 @@ class TodoMarkdownFormat:
         pinned = False
         location = None
         waiting_for = []
+        parent_id = None
         tags, context, assignees, stakeholders = [], [], [], []
 
         # Parse metadata with explicit assignments (no locals() usage)
@@ -301,6 +305,11 @@ class TodoMarkdownFormat:
         if m:
             waiting_for = [w.strip() for w in m.group(1).split(",")]
 
+        # Parse parent task link for subtasks
+        m = re.search(r"\(parent: (\d+)\)", line)
+        if m:
+            parent_id = int(m.group(1))
+
         # Strip all metadata tokens from the text to get clean task text
         text = line
         metadata_patterns = [
@@ -314,6 +323,7 @@ class TodoMarkdownFormat:
             r"%\w+:?\w*",  # %recurrence
             r"\[PINNED\]",  # [PINNED] flag
             r"\(waiting: [^)]+\)",  # (waiting: ...) clause
+            r"\(parent: \d+\)",  # subtask parent link
         ]
 
         for pattern in metadata_patterns:
@@ -341,6 +351,7 @@ class TodoMarkdownFormat:
             pinned=pinned,
             location=location,
             waiting_for=waiting_for,
+            parent_id=parent_id,
         )
 
         return todo
@@ -438,6 +449,13 @@ class ProjectMarkdownFormat:
             if todo:
                 todos.append(todo)
                 todo_id_counter = max(todo_id_counter, todo.id) + 1
+
+        todos_by_id = {todo.id: todo for todo in todos}
+        for todo in todos:
+            if todo.parent_id is not None and todo.parent_id in todos_by_id:
+                parent = todos_by_id[todo.parent_id]
+                if todo.id not in parent.children:
+                    parent.children.append(todo.id)
 
         return project, todos
 
