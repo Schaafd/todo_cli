@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import calendar
 import getpass
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
-from typing import Optional
+from typing import Callable, Optional
 
 from textual import events
 from textual.app import App, ComposeResult
@@ -549,6 +549,7 @@ class EditTodoScreen(ModalScreen[EditResult]):
         subtasks: Optional[list[SubtaskDraft]] = None,
         *,
         allow_subtasks: bool = True,
+        save_handler: Optional[Callable[[EditResult], Optional[EditResult]]] = None,
     ) -> None:
         super().__init__()
         self.entry = entry
@@ -557,6 +558,7 @@ class EditTodoScreen(ModalScreen[EditResult]):
         self.start_date = entry.todo.start_date
         self.subtasks = subtasks or []
         self.allow_subtasks = allow_subtasks
+        self.save_handler = save_handler
 
     def compose(self) -> ComposeResult:
         todo = self.entry.todo
@@ -565,49 +567,50 @@ class EditTodoScreen(ModalScreen[EditResult]):
         with Container(id="edit-dialog"):
             title = "New subtask" if todo.id <= 0 else f"Edit task {todo.id}"
             yield Label(title, id="edit-title")
-            yield Label("Task")
-            yield Input(todo.text, id="edit-text")
-            with Horizontal(classes="edit-row"):
-                with Vertical(classes="edit-field"):
-                    yield Label("Priority")
-                    yield Select(
-                        PRIORITY_OPTIONS,
-                        value=todo.priority.value,
-                        allow_blank=False,
-                        id="edit-priority",
-                    )
-                with Vertical(classes="edit-field"):
-                    yield Label("Status")
-                    yield Select(
-                        STATUS_OPTIONS,
-                        value=todo.status.value,
-                        allow_blank=False,
-                        id="edit-status",
-                    )
-                with Vertical(classes="edit-field"):
-                    yield Label("Due")
-                    yield Button(_date_label(self.due_date, "No due date"), id="edit-due")
-                with Vertical(classes="edit-field"):
-                    yield Label("Start")
-                    yield Button(_date_label(self.start_date, "No start date"), id="edit-start")
-                with Vertical(classes="edit-field"):
-                    yield Label("Pinned")
-                    yield Select(
-                        PINNED_OPTIONS,
-                        value="yes" if todo.pinned else "no",
-                        allow_blank=False,
-                        id="edit-pinned",
-                    )
-            with Horizontal(classes="edit-row"):
-                with Vertical(classes="edit-field wide-field"):
-                    yield Label("Assignees")
-                    yield Input(assignees, placeholder="Optional, space or comma separated", id="edit-assignees")
             yield Container(id="date-picker-slot")
-            if self.allow_subtasks:
-                yield Label("Subtasks")
-                yield Container(id="subtask-list")
-                with Horizontal(id="subtask-actions"):
-                    yield Button("Add Subtask", id="subtask-add")
+            with VerticalScroll(id="edit-body"):
+                yield Label("Task")
+                yield Input(todo.text, id="edit-text")
+                with Horizontal(classes="edit-row"):
+                    with Vertical(classes="edit-field"):
+                        yield Label("Priority")
+                        yield Select(
+                            PRIORITY_OPTIONS,
+                            value=todo.priority.value,
+                            allow_blank=False,
+                            id="edit-priority",
+                        )
+                    with Vertical(classes="edit-field"):
+                        yield Label("Status")
+                        yield Select(
+                            STATUS_OPTIONS,
+                            value=todo.status.value,
+                            allow_blank=False,
+                            id="edit-status",
+                        )
+                    with Vertical(classes="edit-field"):
+                        yield Label("Due")
+                        yield Button(_date_label(self.due_date, "No due date"), id="edit-due")
+                    with Vertical(classes="edit-field"):
+                        yield Label("Start")
+                        yield Button(_date_label(self.start_date, "No start date"), id="edit-start")
+                    with Vertical(classes="edit-field"):
+                        yield Label("Pinned")
+                        yield Select(
+                            PINNED_OPTIONS,
+                            value="yes" if todo.pinned else "no",
+                            allow_blank=False,
+                            id="edit-pinned",
+                        )
+                with Horizontal(classes="edit-row"):
+                    with Vertical(classes="edit-field wide-field"):
+                        yield Label("Assignees")
+                        yield Input(assignees, placeholder="Optional, space or comma separated", id="edit-assignees")
+                if self.allow_subtasks:
+                    yield Label("Subtasks")
+                    yield Container(id="subtask-list")
+                    with Horizontal(id="subtask-actions"):
+                        yield Button("Add Subtask", id="subtask-add")
             yield Static("", id="edit-error")
             with Horizontal(id="edit-actions"):
                 yield Button("Save", id="edit-save")
@@ -619,12 +622,35 @@ class EditTodoScreen(ModalScreen[EditResult]):
             await self._render_subtasks()
 
     async def action_cancel(self) -> None:
-        slot = self.query_one("#date-picker-slot", Container)
-        if slot.children:
-            await slot.remove_children()
-            slot.styles.height = 0
+        if await self._hide_date_picker():
             return
         self.dismiss(None)
+
+    async def on_mouse_down(self, event: events.MouseDown) -> None:
+        if event.button == 1 and await self._should_hide_date_picker(event):
+            await self._hide_date_picker()
+
+    async def _should_hide_date_picker(self, event: events.MouseDown) -> bool:
+        slot = self.query_one("#date-picker-slot", Container)
+        if not slot.children:
+            return False
+
+        x = int(event.screen_x if event.screen_x is not None else event.x)
+        y = int(event.screen_y if event.screen_y is not None else event.y)
+        ignored_regions = [
+            slot.region,
+            self.query_one("#edit-due", Button).region,
+            self.query_one("#edit-start", Button).region,
+        ]
+        return not any(region.x <= x < region.right and region.y <= y < region.bottom for region in ignored_regions)
+
+    async def _hide_date_picker(self) -> bool:
+        slot = self.query_one("#date-picker-slot", Container)
+        if not slot.children:
+            return False
+        await slot.remove_children()
+        slot.styles.height = 0
+        return True
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "edit-cancel":
@@ -643,21 +669,33 @@ class EditTodoScreen(ModalScreen[EditResult]):
             await self._add_subtask()
             return
 
-        result = self._result(force_complete=event.button.id == "edit-complete")
-        if result is not None:
-            self.dismiss(result)
+        await self._save(close_after_save=event.button.id == "edit-complete")
 
     async def on_date_picker_overlay_picked(self, message: DatePickerOverlay.Picked) -> None:
         message.stop()
         self._handle_date_pick(message.result)
-        slot = self.query_one("#date-picker-slot", Container)
-        await slot.remove_children()
-        slot.styles.height = 0
+        await self._hide_date_picker()
 
     async def _show_date_picker(self, target: str) -> None:
         slot = self.query_one("#date-picker-slot", Container)
+        button = self.query_one(f"#edit-{target}", Button)
+        dialog = self.query_one("#edit-dialog", Container)
         await slot.remove_children()
         slot.styles.height = 12
+
+        current_offset = slot.styles.offset
+        origin_x = slot.region.x - int(current_offset.x.value)
+        origin_y = slot.region.y - int(current_offset.y.value)
+        picker_width = 30
+        picker_height = 12
+        left = button.region.x - origin_x
+        top = button.region.y + button.region.height - origin_y
+        max_left = max(0, dialog.region.right - origin_x - picker_width - 1)
+        max_top = max(0, dialog.region.bottom - origin_y - picker_height - 1)
+        if top > max_top:
+            top = button.region.y - origin_y - picker_height
+        slot.styles.offset = (max(0, min(left, max_left)), max(0, min(top, max_top)))
+
         current_value = self.due_date if target == "due" else self.start_date
         await slot.mount(DatePickerOverlay(target, current_value))
         slot.scroll_visible()
@@ -693,9 +731,7 @@ class EditTodoScreen(ModalScreen[EditResult]):
             assignees=[_default_assignee(self.config)],
             pinned=False,
         )
-        self.subtasks.append(draft)
-        await self._render_subtasks()
-        self._open_subtask_editor(len(self.subtasks) - 1)
+        self._open_subtask_editor_for_draft(draft, None)
 
     async def _render_subtasks(self) -> None:
         if not self.allow_subtasks:
@@ -711,7 +747,21 @@ class EditTodoScreen(ModalScreen[EditResult]):
     def _open_subtask_editor(self, index: int) -> None:
         if not 0 <= index < len(self.subtasks):
             return
-        draft = self.subtasks[index]
+        self._open_subtask_editor_for_draft(self.subtasks[index], index)
+
+    def _open_subtask_editor_for_draft(self, draft: SubtaskDraft, index: Optional[int]) -> None:
+        state = {"index": index}
+
+        def save_subtask(result: EditResult) -> EditResult:
+            current_index = state["index"]
+            if current_index is None:
+                self.subtasks.append(_subtask_from_result(result))
+                state["index"] = len(self.subtasks) - 1
+            elif 0 <= current_index < len(self.subtasks):
+                self.subtasks[current_index] = _subtask_from_result(result)
+            self.run_worker(self._render_subtasks(), exclusive=True)
+            return result
+
         child = _todo_from_subtask_draft(self.entry.project, self.entry.todo.id, draft)
         self.app.push_screen(
             EditTodoScreen(
@@ -719,15 +769,41 @@ class EditTodoScreen(ModalScreen[EditResult]):
                 self.config,
                 [],
                 allow_subtasks=False,
+                save_handler=save_subtask,
             ),
-            lambda result: self._handle_subtask_edit(index, result),
         )
 
-    def _handle_subtask_edit(self, index: int, result: Optional[EditResult]) -> None:
-        if result is None or not 0 <= index < len(self.subtasks):
+    async def _save(self, *, close_after_save: bool) -> None:
+        result = self._result(force_complete=close_after_save)
+        if result is None:
             return
-        self.subtasks[index] = _subtask_from_result(result)
-        self.run_worker(self._render_subtasks(), exclusive=True)
+
+        error = self.query_one("#edit-error", Static)
+        try:
+            saved = self.save_handler(result) if self.save_handler is not None else result
+        except Exception as exc:
+            error.update(f"[red]Could not save task: {exc}[/red]")
+            return
+
+        saved = saved or result
+        self._apply_saved_result(saved)
+        error.update("[green]Saved.[/green]")
+        if close_after_save:
+            self.dismiss(saved)
+
+    def _apply_saved_result(self, result: EditResult) -> None:
+        self.entry.todo.id = result.todo_id
+        self.entry.todo.text = result.text
+        self.entry.todo.priority = result.priority
+        self.entry.todo.due_date = result.due_date
+        self.entry.todo.start_date = result.start_date
+        self.entry.todo.assignees = list(result.assignees)
+        self.entry.todo.pinned = result.pinned
+        self.entry.todo.status = result.status
+        self.entry.todo.completed = result.status == TodoStatus.COMPLETED
+        self.query_one("#edit-title", Label).update(
+            "New subtask" if result.todo_id <= 0 else f"Edit task {result.todo_id}"
+        )
 
     def _result(self, force_complete: bool = False) -> Optional[EditResult]:
         error = self.query_one("#edit-error", Static)
@@ -868,9 +944,10 @@ class TodoDashboardApp(App[None]):
     }
 
     #edit-dialog {
-        width: 80%;
-        height: 80%;
-        max-width: 110;
+        width: 92%;
+        height: 92%;
+        max-width: 132;
+        max-height: 44;
         border: thick #7aa2f7;
         background: #242936;
         padding: 1 2;
@@ -882,17 +959,49 @@ class TodoDashboardApp(App[None]):
         height: 1;
     }
 
+    #edit-body {
+        height: 1fr;
+        padding: 0 0 1 0;
+    }
+
     #edit-dialog Input,
-    #edit-dialog Select {
+    #edit-dialog Button {
         background: #1f232c;
         color: #f0f0f0;
         border: round #52616b;
+        height: 3;
     }
 
     #edit-dialog Input:focus,
-    #edit-dialog Select:focus {
+    #edit-dialog Button:focus {
         border: round #7aa2f7;
         background: #2f3546;
+    }
+
+    #edit-dialog Select {
+        width: 100%;
+        height: auto;
+        background: transparent;
+        color: #f0f0f0;
+    }
+
+    #edit-dialog Select > SelectCurrent {
+        height: 3;
+        background: #1f232c;
+        color: #f0f0f0;
+        border: round #52616b;
+        padding: 0 2;
+    }
+
+    #edit-dialog Select:focus > SelectCurrent {
+        border: round #7aa2f7;
+        background: #2f3546;
+    }
+
+    #edit-dialog Select > SelectOverlay {
+        background: #242936;
+        color: #f0f0f0;
+        border: round #7aa2f7;
     }
 
     .edit-row {
@@ -904,8 +1013,13 @@ class TodoDashboardApp(App[None]):
         margin-right: 1;
     }
 
-    .edit-field Select {
+    .edit-field Label {
+        height: 1;
+    }
+
+    .edit-field Button {
         width: 100%;
+        height: 3;
     }
 
     .wide-field {
@@ -914,7 +1028,7 @@ class TodoDashboardApp(App[None]):
 
     #subtask-list {
         height: 1fr;
-        min-height: 6;
+        min-height: 4;
         border: round #52616b;
         background: #1f232c;
         padding: 0 1;
@@ -922,15 +1036,17 @@ class TodoDashboardApp(App[None]):
 
     #subtask-actions {
         height: 3;
+        margin-top: 1;
     }
 
     #subtask-actions Button {
         width: 24;
-        margin-top: 1;
         color: #f0f0f0;
         text-style: bold;
         border: round #52616b;
         background: #2f3546;
+        height: 3;
+        content-align: center middle;
     }
 
     .subtask-row {
@@ -958,11 +1074,13 @@ class TodoDashboardApp(App[None]):
 
     #edit-actions Button {
         width: 1fr;
+        height: 3;
         margin-right: 1;
         color: #f0f0f0;
         text-style: bold;
         border: round #52616b;
         background: #2f3546;
+        content-align: center middle;
     }
 
     #edit-save {
@@ -991,14 +1109,14 @@ class TodoDashboardApp(App[None]):
 
     #date-picker-slot {
         position: absolute;
-        offset: 42 6;
-        width: 38;
+        offset: 0 0;
+        width: 30;
         height: 0;
         layer: overlay;
     }
 
     .date-picker-overlay {
-        width: 38;
+        width: 30;
         height: 12;
         border: round #7aa2f7;
         background: #242936;
@@ -1020,7 +1138,7 @@ class TodoDashboardApp(App[None]):
     }
 
     .date-action {
-        width: 8;
+        width: 7;
         margin-right: 0;
     }
 
@@ -1032,12 +1150,12 @@ class TodoDashboardApp(App[None]):
     .date-day,
     .date-empty,
     .date-weekday {
-        width: 5;
+        width: 4;
         margin-right: 0;
     }
 
     .date-choice {
-        width: 9;
+        width: 7;
         margin-right: 0;
     }
 
@@ -1137,8 +1255,12 @@ class TodoDashboardApp(App[None]):
             return
         entry = self.task_index[option_id]
         self.push_screen(
-            EditTodoScreen(entry, self.config, self._subtask_drafts(entry)),
-            self._handle_edit_result,
+            EditTodoScreen(
+                entry,
+                self.config,
+                self._subtask_drafts(entry),
+                save_handler=self._save_editor_result,
+            ),
         )
 
     def _start_drag(self, option_id: str, screen_x: int, screen_y: int) -> None:
@@ -1169,10 +1291,26 @@ class TodoDashboardApp(App[None]):
             return
         self.run_worker(self.refresh_dashboard(), exclusive=True)
 
-    def _save_edit_result(self, result: EditResult) -> None:
+    def _save_editor_result(self, result: EditResult) -> EditResult:
+        saved = self._save_edit_result(result)
+        self.run_worker(self.refresh_dashboard(), exclusive=True)
+        return saved
+
+    def _save_edit_result(self, result: EditResult) -> EditResult:
         project, todos = self.storage.load_project(result.project)
         if project is None:
             project = Project(name=result.project)
+
+        if result.todo_id <= 0:
+            todo = Todo(id=self.storage.get_next_todo_id(), text=result.text, project=result.project)
+            self._apply_edit_result(todo, result)
+            todo.created = now_utc()
+            todo.modified = now_utc()
+            todo._normalize_state()
+            todos.append(todo)
+            self._sync_subtasks(todos, result.project, todo.id, result.subtasks)
+            self.storage.save_project(project, todos)
+            return replace(result, todo_id=todo.id)
 
         for todo in todos:
             if todo.id != result.todo_id:
@@ -1182,7 +1320,7 @@ class TodoDashboardApp(App[None]):
             todo._normalize_state()
             self._sync_subtasks(todos, result.project, result.todo_id, result.subtasks)
             self.storage.save_project(project, todos)
-            return
+            return result
 
         raise ValueError(f"Task {result.todo_id} not found in project '{result.project}'.")
 
