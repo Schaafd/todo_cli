@@ -87,6 +87,26 @@ class ProductivityScore:
             'consistency_trend': self.consistency_trend
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ProductivityScore":
+        """Reconstruct a productivity score from cached data."""
+        return cls(
+            overall_score=data.get('overall_score', 0.0),
+            completion_rate=data.get('completion_rate', 0.0),
+            velocity_score=data.get('velocity_score', 0.0),
+            focus_score=data.get('focus_score', 0.0),
+            consistency_score=data.get('consistency_score', 0.0),
+            time_management_score=data.get('time_management_score', 0.0),
+            priority_adherence_score=data.get('priority_adherence_score', 0.0),
+            tasks_completed=data.get('tasks_completed', 0),
+            tasks_created=data.get('tasks_created', 0),
+            average_completion_time=data.get('average_completion_time'),
+            estimation_accuracy=data.get('estimation_accuracy'),
+            completion_rate_trend=data.get('completion_rate_trend'),
+            velocity_trend=data.get('velocity_trend'),
+            consistency_trend=data.get('consistency_trend'),
+        )
+
 
 @dataclass
 class TaskPattern:
@@ -121,6 +141,19 @@ class ProductivityInsight:
             'actionable_recommendation': self.actionable_recommendation,
             'supporting_data': self.supporting_data
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ProductivityInsight":
+        """Reconstruct a productivity insight from cached data."""
+        return cls(
+            insight_type=data.get('insight_type', ''),
+            title=data.get('title', ''),
+            description=data.get('description', ''),
+            impact_level=data.get('impact_level', 'low'),
+            confidence=data.get('confidence', 0.0),
+            actionable_recommendation=data.get('actionable_recommendation'),
+            supporting_data=data.get('supporting_data', {}),
+        )
 
 
 @dataclass
@@ -184,6 +217,43 @@ class AnalyticsReport:
             'most_active_projects': self.most_active_projects,
             'stalled_projects': self.stalled_projects
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AnalyticsReport":
+        """Reconstruct an analytics report from cached data."""
+        return cls(
+            timeframe=AnalyticsTimeframe(data['timeframe']),
+            start_date=datetime.fromisoformat(data['start_date']),
+            end_date=datetime.fromisoformat(data['end_date']),
+            productivity_score=ProductivityScore.from_dict(data.get('productivity_score', {})),
+            insights=[
+                ProductivityInsight.from_dict(insight)
+                for insight in data.get('insights', [])
+            ],
+            patterns=[
+                TaskPattern(
+                    pattern_type=pattern.get('pattern_type', ''),
+                    description=pattern.get('description', ''),
+                    confidence=pattern.get('confidence', 0.0),
+                    frequency=pattern.get('frequency', 0),
+                    recommendation=pattern.get('recommendation'),
+                    data_points=pattern.get('data_points', []),
+                )
+                for pattern in data.get('patterns', [])
+            ],
+            completion_by_day=data.get('completion_by_day', {}),
+            completion_by_priority=data.get('completion_by_priority', {}),
+            completion_by_project=data.get('completion_by_project', {}),
+            completion_by_hour={
+                int(hour): count
+                for hour, count in data.get('completion_by_hour', {}).items()
+            },
+            average_task_duration=data.get('average_task_duration'),
+            peak_productivity_hours=data.get('peak_productivity_hours', []),
+            least_productive_hours=data.get('least_productive_hours', []),
+            most_active_projects=data.get('most_active_projects', []),
+            stalled_projects=data.get('stalled_projects', []),
+        )
 
 
 class ProductivityAnalyzer:
@@ -869,13 +939,18 @@ class ProductivityAnalyzer:
         """Get cached analytics report if available"""
         if end_date is None:
             end_date = now_utc()
+        else:
+            end_date = ensure_aware(end_date)
         
         start_date = self._calculate_start_date(timeframe, end_date)
         cache_key = f"{timeframe.value}_{start_date.date()}_{end_date.date()}"
         
-        if cache_key in self.cache["reports"]:
-            # TODO: Reconstruct AnalyticsReport from cached data
-            return None  # For now, always generate fresh reports
+        cached_report = self.cache["reports"].get(cache_key)
+        if cached_report:
+            try:
+                return AnalyticsReport.from_dict(cached_report)
+            except (KeyError, TypeError, ValueError):
+                return None
         
         return None
     

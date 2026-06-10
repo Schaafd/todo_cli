@@ -172,6 +172,49 @@ class TestProductivityAnalyzer:
         json_str = json.dumps(report_dict, default=str)
         assert isinstance(json_str, str)
 
+    def test_get_cached_report_reconstructs_report(self):
+        """Test cached analytics reports are restored as report objects."""
+        temp_dir = tempfile.mkdtemp()
+        try:
+            with patch('todo_cli.services.analytics.get_config') as mock_config:
+                mock_config.return_value.data_dir = temp_dir
+                end_date = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+                completed_at = datetime(2026, 6, 9, 9, 30, tzinfo=timezone.utc)
+                todo = Todo(
+                    id=1,
+                    text="Cached analytics task",
+                    priority=Priority.HIGH,
+                    project="Work",
+                    tags=["cache"],
+                    completed=True,
+                    completed_date=completed_at,
+                    created=datetime(2026, 6, 8, 8, 0, tzinfo=timezone.utc),
+                )
+
+                analyzer = ProductivityAnalyzer()
+                generated = analyzer.analyze_productivity(
+                    [todo],
+                    AnalyticsTimeframe.WEEKLY,
+                    end_date=end_date,
+                )
+
+                reloaded_analyzer = ProductivityAnalyzer()
+                cached = reloaded_analyzer.get_cached_report(
+                    AnalyticsTimeframe.WEEKLY,
+                    end_date=end_date,
+                )
+
+                assert isinstance(cached, AnalyticsReport)
+                assert cached.timeframe == AnalyticsTimeframe.WEEKLY
+                assert cached.start_date == generated.start_date
+                assert cached.end_date == generated.end_date
+                assert cached.productivity_score.tasks_completed == 1
+                assert cached.insights
+                assert isinstance(cached.patterns, list)
+                assert cached.completion_by_hour == {9: 1}
+        finally:
+            shutil.rmtree(temp_dir)
+
 
 class TestTimeTracker:
     """Test suite for TimeTracker class"""
